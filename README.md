@@ -1,7 +1,7 @@
 
-# ts-flat
+# type-flat
 
-[![npm version](https://img.shields.io/npm/v/ts-flat?color=brightgreen)](https://www.npmjs.com/package/ts-flat)
+[![npm version](https://img.shields.io/npm/v/type-flat?color=brightgreen)](https://www.npmjs.com/package/type-flat)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **TypeScript Type Flattening Tool | Recursively parses complex types and generates nested JSON or type declarations.**
@@ -14,7 +14,7 @@ Lightweight, fast, and supports generic substitution, inheritance merging, and c
 ---
 
 ## 🧩 Introduction
-`ts-flat` is a TypeScript type flattening tool that recursively parses complex types, including generics, nested objects, and intersection types, and generates structured nested type definitions. It is suitable for:
+`type-flat` is a TypeScript type flattening tool that recursively parses complex types, including generics, nested objects, and intersection types, and generates structured nested type definitions. It is suitable for:
 
 - Generating type declaration files
 - SDK type interfaces
@@ -35,9 +35,9 @@ Lightweight, fast, and supports generic substitution, inheritance merging, and c
 
 ## 🛠️ Installation
 ```bash
-npm install ts-flat
+npm install type-flat
 # or
-pnpm add ts-flat
+pnpm add type-flat
 ````
 
 ---
@@ -45,7 +45,7 @@ pnpm add ts-flat
 ## 🧑‍💻 CLI Usage
 
 ```bash
-npx ts-flat <file> <typeName>
+npx type-flat <file> <typeName>
 ```
 
 * `<file>`: Path to the TypeScript file (`.ts` or `.d.ts`)
@@ -54,7 +54,7 @@ npx ts-flat <file> <typeName>
 **Example**
 
 ```bash
-npx ts-flat example/types.ts ResponseOfUser
+npx type-flat example/types.ts ResponseOfUser
 ```
 
 Output:
@@ -82,7 +82,7 @@ Output:
 ## 🧑‍💻 Programming Interface
 
 ```ts
-import { flattenTypeFromFile } from 'ts-flat';
+import { flattenTypeFromFile } from 'type-flat';
 
 const result = await flattenTypeFromFile('./src/types.ts', 'ResponseOfUser');
 console.log(JSON.stringify(result, null, 2));
@@ -103,7 +103,7 @@ export type ResponseOfUser = Response<User>;
 Usage:
 
 ```ts
-import { flattenTypeFromFile } from 'ts-flat';
+import { flattenTypeFromFile } from 'type-flat';
 
 const res = await flattenTypeFromFile('types.ts', 'ResponseOfUser');
 console.log(res);
