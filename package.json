@@ -1,0 +1,22 @@
+{
+  "name": "type-flat",
+  "version": "0.0.1",
+  "description": "TypeScript Type Flattening Tool ",
+  "main": "index.js",
+  "scripts": {
+    "release": "npx bumpp --no-push",
+    "commitlint": "commitlint --edit",
+    "prepare": "husky"
+  },
+  "author": "hboot<bobolity@163.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ngd-b/type-flat.git"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "husky": "^9.1.7"
+  }
+}

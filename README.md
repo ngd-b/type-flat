@@ -9,11 +9,13 @@
 ---
 
 ## ⚡ One-line Highlight
+
 Lightweight, fast, and supports generic substitution, inheritance merging, and cross-file type resolution. Make your TypeScript types readable, exportable, and reusable.
 
 ---
 
 ## 🧩 Introduction
+
 `type-flat` is a TypeScript type flattening tool that recursively parses complex types, including generics, nested objects, and intersection types, and generates structured nested type definitions. It is suitable for:
 
 - Generating type declaration files
@@ -24,6 +26,7 @@ Lightweight, fast, and supports generic substitution, inheritance merging, and c
 ---
 
 ## 🚀 Features
+
 - ✅ Recursively parse types and preserve nested structure  
 - 🧠 Automatically substitute generic parameters, supporting instances like `Response<User>`  
 - ⚙️ Merge properties from extended types (extends)  
@@ -34,6 +37,7 @@ Lightweight, fast, and supports generic substitution, inheritance merging, and c
 ---
 
 ## 🛠️ Installation
+
 ```bash
 npm install type-flat
 # or
@@ -48,8 +52,8 @@ pnpm add type-flat
 npx type-flat <file> <typeName>
 ```
 
-* `<file>`: Path to the TypeScript file (`.ts` or `.d.ts`)
-* `<typeName>`: Type or interface name to flatten
+- `<file>`: Path to the TypeScript file (`.ts` or `.d.ts`)
+- `<typeName>`: Type or interface name to flatten
 
 **Example**
 
@@ -133,21 +137,19 @@ Output:
 
 ## 🧱 Use Cases
 
-* Automatically generate type declarations before publishing npm packages
-* Generate common type interfaces for SDKs or frontend projects
-* Extract nested complex types for documentation or tooling pipelines
+- Automatically generate type declarations before publishing npm packages
+- Generate common type interfaces for SDKs or frontend projects
+- Extract nested complex types for documentation or tooling pipelines
 
 ---
 
 ## 📦 Output Format
 
-* Default JSON (nested objects represent type structure)
-* Future support for generating `.d.ts` files
+- Default JSON (nested objects represent type structure)
+- Future support for generating `.d.ts` files
 
 ---
 
 ## 🪴 License
 
-MIT © 2025
-
-```
+Apache-2.0 © 2025 [hboot](https://github.com/ngd-b)
