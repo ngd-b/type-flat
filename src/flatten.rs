@@ -1,15 +1,34 @@
 use anyhow::{Ok, Result};
 use oxc_ast::ast::*;
 use serde_json::{Map, Value, json};
-use std::{collections::HashMap, rc::Rc, vec};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    rc::Rc,
+    vec,
+};
 
 #[derive(Debug)]
 pub enum DeclRef<'a> {
     Interface(&'a TSInterfaceDeclaration<'a>),
     TypeAlias(&'a TSTypeAliasDeclaration<'a>),
 }
+#[derive(Debug)]
+pub enum DeclKind {
+    Interface,
+    Type,
+}
 
-#[derive(Default)]
+impl Display for DeclKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeclKind::Interface => write!(f, "interface"),
+            DeclKind::Type => write!(f, "type"),
+        }
+    }
+}
+
+#[derive(Default, Clone)]
 pub struct GenericEnv<'a> {
     map: HashMap<String, Rc<&'a TSType<'a>>>,
 }
@@ -78,12 +97,16 @@ fn flatten_interface<'a>(
     for ext in &decl.extends {
         if let Expression::Identifier(indent) = &ext.expression {
             let name = indent.name.to_string();
+
             if let Some(parent) = decl_index.get(&name) {
-                let parent_decl = flatten_type(parent, decl_index, env)?;
+                // 处理泛型
+                let new_env =
+                    flatten_generic_env(ext.type_arguments.as_ref().map(|ta| &**ta), parent, env);
+                let parent_decl = flatten_type(parent, decl_index, &new_env)?;
 
                 if let Value::Object(pd) = parent_decl {
                     for (key, value) in pd {
-                        map.insert(key.clone(), value.clone());
+                        map.insert(key, value);
                     }
                 }
             }
@@ -94,8 +117,11 @@ fn flatten_interface<'a>(
     for prop in &decl.body.body {
         if let TSSignature::TSPropertySignature(member) = prop {
             let key = match &member.key {
+                PropertyKey::StaticIdentifier(si) => si.name.to_string(),
                 PropertyKey::Identifier(ident) => ident.name.to_string(),
                 PropertyKey::StringLiteral(lit) => lit.value.to_string(),
+                PropertyKey::NumericLiteral(lit) => lit.value.to_string(),
+                PropertyKey::PrivateIdentifier(pi) => pi.name.to_string(),
                 _ => "_unknow".to_string(),
             };
 
@@ -128,53 +154,16 @@ fn flatten_type_alias<'a>(
             if let TSTypeName::IdentifierReference(indent) = &tr.type_name {
                 let name = indent.name.to_string();
 
-                // 泛性参数
-                let type_args: Vec<&TSType> = tr
-                    .type_arguments
-                    .as_ref()
-                    .map(|ta| ta.params.iter().map(|pf| pf).collect::<Vec<&TSType>>())
-                    .unwrap_or_default();
-
+                if name == "Pick" || name == "Omit" {
+                    return flatten_pick_omit(&name, tr, decl_index, env);
+                }
                 if let Some(repl) = env.get(&name) {
                     return flatten_type_alias(&repl, decl_index, env);
                 }
                 if let Some(decl) = decl_index.get(&name) {
-                    let tp_names: Vec<String> = match decl {
-                        DeclRef::Interface(di) => di
-                            .type_parameters
-                            .as_ref()
-                            .map(|tp| {
-                                tp.params
-                                    .iter()
-                                    .map(|tpi| tpi.name.to_string())
-                                    .collect::<Vec<String>>()
-                            })
-                            .unwrap_or_default(),
-
-                        DeclRef::TypeAlias(ta) => ta
-                            .type_parameters
-                            .as_ref()
-                            .map(|tp| {
-                                tp.params
-                                    .iter()
-                                    .map(|tpi| tpi.name.to_string())
-                                    .collect::<Vec<String>>()
-                            })
-                            .unwrap_or_default(),
-                    };
-
-                    if !tp_names.is_empty()
-                        && !type_args.is_empty()
-                        && type_args.len() == tp_names.len()
-                    {
-                        let args: Vec<Rc<&'_ TSType<'_>>> =
-                            type_args.into_iter().map(Rc::new).collect();
-                        let new_env = env.update(&tp_names, &args);
-
-                        return Ok(flatten_type(decl, decl_index, &new_env)?);
-                    } else {
-                        return flatten_type(decl, decl_index, env);
-                    }
+                    let new_env =
+                        flatten_generic_env(tr.type_arguments.as_ref().map(|ta| &**ta), decl, env);
+                    return flatten_type(decl, decl_index, &new_env);
                 } else {
                     return Ok(json!(name));
                 }
@@ -269,4 +258,111 @@ fn flatten_type_alias<'a>(
     };
 
     Ok(json!(name))
+}
+
+/// 通用处理泛性参数
+///
+///
+fn flatten_generic_env<'a>(
+    args: Option<&'a TSTypeParameterInstantiation<'a>>,
+    decl: &DeclRef<'a>,
+    env: &GenericEnv<'a>,
+) -> GenericEnv<'a> {
+    // 泛性参数
+    let type_args: Vec<&TSType<'a>> = args
+        .map(|ta| ta.params.iter().map(|pf| pf).collect::<Vec<&TSType<'a>>>())
+        .unwrap_or_default();
+
+    let tp_names: Vec<String> = match decl {
+        DeclRef::Interface(di) => di
+            .type_parameters
+            .as_ref()
+            .map(|tp| {
+                tp.params
+                    .iter()
+                    .map(|tpi| tpi.name.to_string())
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default(),
+
+        DeclRef::TypeAlias(ta) => ta
+            .type_parameters
+            .as_ref()
+            .map(|tp| {
+                tp.params
+                    .iter()
+                    .map(|tpi| tpi.name.to_string())
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default(),
+    };
+
+    if !tp_names.is_empty() && !type_args.is_empty() && type_args.len() == tp_names.len() {
+        let args: Vec<Rc<&'_ TSType<'_>>> = type_args.into_iter().map(Rc::new).collect();
+        let new_env: GenericEnv<'a> = env.update(&tp_names, &args);
+
+        new_env
+    } else {
+        env.clone()
+    }
+}
+
+/// 处理 pick omit
+fn flatten_pick_omit<'a>(
+    kind: &str,
+    refer: &TSTypeReference<'a>,
+    decl_index: &HashMap<String, DeclRef<'a>>,
+    env: &GenericEnv<'a>,
+) -> Result<Value> {
+    let args = match &refer.type_arguments {
+        Some(a) => a,
+        _ => return Ok(json!("any")),
+    };
+
+    let original_type = match args.params.get(0) {
+        Some(t) => flatten_type_alias(t, decl_index, env)?,
+        _ => return Ok(json!("any")),
+    };
+
+    let keys: Vec<String> = match args.params.get(1) {
+        Some(TSType::TSUnionType(ut)) => ut
+            .types
+            .iter()
+            .filter_map(|t| {
+                if let TSType::TSLiteralType(lit) = t {
+                    if let TSLiteral::StringLiteral(s) = &lit.literal {
+                        Some(s.to_string())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect(),
+        Some(TSType::TSLiteralType(tl)) => {
+            if let TSLiteral::StringLiteral(s) = &tl.literal {
+                vec![s.to_string()]
+            } else {
+                vec![]
+            }
+        }
+        _ => vec![],
+    };
+
+    if let Value::Object(obj) = original_type {
+        let mut map = Map::new();
+
+        for (k, v) in obj {
+            if kind == "Pick" && keys.contains(&k) {
+                map.insert(k, v);
+            } else if kind == "Omit" && !keys.contains(&k) {
+                map.insert(k, v);
+            }
+        }
+
+        Ok(Value::Object(map))
+    } else {
+        Ok(original_type)
+    }
 }

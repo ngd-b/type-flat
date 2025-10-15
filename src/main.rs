@@ -1,21 +1,27 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
-use flatten::{GenericEnv, build_decl_index, flatten_type};
+use flatten::{DeclKind, GenericEnv, build_decl_index, flatten_type};
 use oxc_allocator::Allocator;
+
 use oxc_parser::Parser as OxcParser;
 use oxc_span::SourceType;
 use std::fs;
+
+use crate::flatten::DeclRef;
 
 mod flatten;
 
 #[derive(Parser)]
 struct Cli {
-    /// A path to a file or directory
+    // A path to a file or directory
     #[arg(short, long)]
     file_or_dir_path: String,
-    /// A type name
+    // A type name
     #[arg(short, long)]
     type_name: String,
+    // json output
+    #[arg(long, default_value_t = false)]
+    json: bool,
 }
 
 fn main() -> Result<()> {
@@ -43,9 +49,20 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let flat_result = flatten_type(target.unwrap(), &decl_index, &GenericEnv::new());
+    let flat_result = flatten_type(target.unwrap(), &decl_index, &GenericEnv::new())?;
 
-    println!("resut:{}", serde_json::to_string_pretty(&flat_result.ok())?);
+    // 定义leixing
+    let kind = match target.unwrap() {
+        DeclRef::Interface(_) => DeclKind::Interface,
+        DeclRef::TypeAlias(_) => DeclKind::Type,
+    };
+    let json = serde_json::to_string_pretty(&flat_result)?;
+
+    if cli.json {
+        println!("{}", json);
+    } else {
+        print!("{} {} {}", kind, &cli.type_name, json)
+    }
 
     Ok(())
 }
