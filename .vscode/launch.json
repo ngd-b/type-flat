@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug type-flat",
+      "cargo": {
+        "args": ["run", "--"],
+        "filter": {
+          "kind": "bin",
+          "name": "type-flat"
+        }
+      },
+      "args": ["--file-or-dir-path", "tests/tmp_basic.ts", "--type-name", "User"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "RUST_BACKTRACE": "1"
+      },
+      "console": "integratedTerminal",
+      "sourceLanguages": ["rust"]
+    }
+  ]
+}
