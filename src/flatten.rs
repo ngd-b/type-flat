@@ -57,8 +57,8 @@ pub fn flatten_type(
     env: &GenericEnv,
 ) -> Result<Value> {
     match decl {
-        DeclRef::Interface(decl) => flatten_interface(decl, decl_index, env),
-        DeclRef::TypeAlias(decl) => flatten_type_alias(&decl.type_annotation, decl_index, env),
+        DeclRef::Interface(di) => flatten_interface(di, decl_index, env),
+        DeclRef::TypeAlias(dt) => flatten_type_alias(&dt.type_annotation, decl_index, env),
     }
 }
 
@@ -320,7 +320,11 @@ fn flatten_pick_omit<'a>(
     };
 
     let original_type = match args.params.get(0) {
-        Some(t) => flatten_type_alias(t, decl_index, env)?,
+        Some(t) => match t {
+            TSType::TSTypeReference(_tr) => flatten_type_alias(t, decl_index, env)?,
+            TSType::TSTypeLiteral(_tl) => flatten_type_alias(t, decl_index, env)?,
+            other => flatten_type_alias(other, decl_index, env)?,
+        },
         _ => return Ok(json!("any")),
     };
 
