@@ -1,13 +1,10 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
-use flatten::{DeclKind, GenericEnv, build_decl_index, flatten_type};
-use oxc_allocator::Allocator;
+use flatten::{DeclKind, DeclRef};
 
-use oxc_parser::Parser as OxcParser;
-use oxc_span::SourceType;
 use std::fs;
 
-use crate::flatten::DeclRef;
+use type_flat::flatten_ts_type;
 
 mod flatten;
 
@@ -28,41 +25,17 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let content = fs::read_to_string(&cli.file_or_dir_path)?;
-    let allocator = Allocator::new();
-    let source_type = SourceType::ts();
 
-    let parser = OxcParser::new(&allocator, &content, source_type);
-    let result = parser.parse();
+    let flat_result = flatten_ts_type(&content, &cli.type_name)?;
 
-    if !result.errors.is_empty() {
-        eprintln!("parser errors: {:?}", result.errors);
-        return Ok(());
-    }
-
-    let ast = result.program;
-    let decl_index = build_decl_index(&ast);
-
-    let target = decl_index.get(&cli.type_name);
-
-    if target.is_none() {
-        eprintln!("type not found: {}", &cli.type_name);
-        return Ok(());
-    }
-
-    let flat_result = flatten_type(target.unwrap(), &decl_index, &GenericEnv::new())?;
-
-    // 定义leixing
-    let kind = match target.unwrap() {
-        DeclRef::Interface(_) => DeclKind::Interface,
-        DeclRef::TypeAlias(_) => DeclKind::Type,
-    };
     let json = serde_json::to_string_pretty(&flat_result)?;
 
-    if cli.json {
-        println!("{}", json);
-    } else {
-        print!("{} {} {}", kind, &cli.type_name, json)
-    }
+    // if cli.json {
+    //     println!("{}", json);
+    // } else {
+    //     print!("{} {} {}", kind, &cli.type_name, json)
+    // }
+    println!("{}", json);
 
     Ok(())
 }

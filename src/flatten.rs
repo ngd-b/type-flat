@@ -1,5 +1,6 @@
 use anyhow::{Ok, Result};
 use oxc_ast::ast::*;
+use serde::Serialize;
 use serde_json::{Map, Value, json};
 use std::{
     collections::HashMap,
@@ -13,7 +14,7 @@ pub enum DeclRef<'a> {
     Interface(&'a TSInterfaceDeclaration<'a>),
     TypeAlias(&'a TSTypeAliasDeclaration<'a>),
 }
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum DeclKind {
     Interface,
     Type,
@@ -244,8 +245,8 @@ fn flatten_type_alias<'a>(
             let mut vec = vec![];
 
             for et in &tt.element_types {
-                if let TSTupleElement::TSTupleType(_tet) = et {
-                    let t = flatten_type_alias(&et.as_ts_type().unwrap(), decl_index, env)?;
+                if let Some(tt) = et.as_ts_type() {
+                    let t = flatten_type_alias(tt, decl_index, env)?;
                     vec.push(t);
                 } else {
                     vec.push(json!("unknown"))
