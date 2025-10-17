@@ -2,10 +2,18 @@
   "name": "type-flat",
   "version": "0.0.1",
   "description": "TypeScript Type Flattening Tool ",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/type_flat.js",
+  "types": "dist/type_flat.d.ts",
+  "type": "module",
   "bin": {
     "type-flat": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/type_flat.js",
+      "types": "./dist/type_flat.d.ts"
+    },
+    "./cli": "./dist/cli.js"
   },
   "fils": [
     "dist",
@@ -13,10 +21,18 @@
     "package.json",
     "LICENSE"
   ],
+  "keywords": [
+    "type",
+    "flatten",
+    "cli",
+    "ts"
+  ],
   "scripts": {
+    "build": "node scripts/build.js",
     "release": "npx bumpp --no-push",
     "commitlint": "commitlint --edit",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prepublishOnly": "pnpm run build"
   },
   "author": "hboot<bobolity@163.com>",
   "repository": {

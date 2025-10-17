@@ -2,15 +2,9 @@
 # type-flat
 
 [![npm version](https://img.shields.io/npm/v/type-flat?color=brightgreen)](https://www.npmjs.com/package/type-flat)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Apache](https://img.shields.io/badge/License-Apache-blue.svg)](LICENSE)
 
 **TypeScript Type Flattening Tool | Recursively parses complex types and generates nested JSON or type declarations.**
-
----
-
-## ⚡ One-line Highlight
-
-Lightweight, fast, and supports generic substitution, inheritance merging, and cross-file type resolution. Make your TypeScript types readable, exportable, and reusable.
 
 ---
 
@@ -58,7 +52,7 @@ npx type-flat <file> <typeName>
 **Example**
 
 ```bash
-npx type-flat example/types.ts ResponseOfUser
+npx type-flat -f example/types.ts -t ResponseOfUser
 ```
 
 Output:
@@ -86,9 +80,10 @@ Output:
 ## 🧑‍💻 Programming Interface
 
 ```ts
-import { flattenTypeFromFile } from 'type-flat';
+import { flatten } from 'type-flat';
+import Content from './types.d.ts'
 
-const result = await flattenTypeFromFile('./src/types.ts', 'ResponseOfUser');
+const result = await flatten(Content, 'ResponseOfUser');
 console.log(JSON.stringify(result, null, 2));
 ```
 
@@ -107,9 +102,9 @@ export type ResponseOfUser = Response<User>;
 Usage:
 
 ```ts
-import { flattenTypeFromFile } from 'type-flat';
+import { flatten } from 'type-flat';
 
-const res = await flattenTypeFromFile('types.ts', 'ResponseOfUser');
+const res = await flatten(Content, 'ResponseOfUser');
 console.log(res);
 ```
 

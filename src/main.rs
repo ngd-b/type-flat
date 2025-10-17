@@ -1,7 +1,5 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
-use flatten::{DeclKind, DeclRef};
-
 use std::fs;
 
 use type_flat::flatten_ts_type;

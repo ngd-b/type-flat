@@ -1,17 +1,21 @@
 [package]
-name = "type-flat"
+name = "type_flat"
 version = "0.1.0"
 edition = "2024"
 authors = ["hboot <bobolity@163.com>"]
 description = "Typesript type flatten tool"
 license = " Apache-2.0"
+repository = "https://github.com/ngd-b/type-flat"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
 
 [lib]
 name = "type_flat"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib", 'rlib']
 
 [[bin]]
-name = "type-flat"
+name = "type_flat"
 path = "src/main.rs"
 
 [dependencies]
