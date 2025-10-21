@@ -4,31 +4,39 @@ import PluginCommonjs from "@rollup/plugin-commonjs";
 import PluginWasm from "@rollup/plugin-wasm";
 import PluginCopy from "rollup-plugin-copy";
 import PluginReplace from "@rollup/plugin-replace";
+import PluginDTS from "rollup-plugin-dts";
 
-import path from "node:path";
-
-export default defineConfig({
-  input: "pkg/index.js",
-  output: {
-    dir: "dist",
-    format: "es",
+export default defineConfig([
+  {
+    input: ["pkg/index.js", "scripts/cli.ts"],
+    output: {
+      dir: "dist",
+      format: "es",
+    },
+    plugins: [
+      PluginNodeResolve(),
+      PluginCommonjs(),
+      PluginWasm({ inline: true }),
+      PluginCopy({
+        targets: [{ src: "pkg/index_bg.wasm", dest: "dist" }],
+      }),
+      PluginReplace({
+        preventAssignment: true,
+        values: {
+          // 在 ESM 中模拟 __dirname
+          __dirname: 'new URL(".", import.meta.url).pathname',
+        },
+      }),
+    ],
   },
-  plugins: [
-    PluginNodeResolve(),
-    PluginCommonjs(),
-    PluginWasm({ inline: true }),
-    PluginCopy({
-      targets: [
-        { src: "pkg/index_bg.wasm", dest: "dist" },
-        { src: "scripts/cli.js", dest: "dist" },
-      ],
-    }),
-    PluginReplace({
-      preventAssignment: true,
-      values: {
-        // 在 ESM 中模拟 __dirname
-        __dirname: JSON.stringify(path.resolve("./dist")),
+  {
+    input: "pkg/index.d.ts",
+    output: [
+      {
+        file: "dist/index.d.ts",
+        format: "es",
       },
-    }),
-  ],
-});
+    ],
+    plugins: [PluginDTS()],
+  },
+]);

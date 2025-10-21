@@ -28,12 +28,12 @@
     "ts"
   ],
   "scripts": {
-    "build": "node scripts/build.js",
+    "build": "tsx scripts/build.ts",
     "build:es": "rollup -c ",
     "release": "npx bumpp",
     "commitlint": "commitlint --edit",
     "prepare": "husky",
-    "publish": "node scripts/publish.js",
+    "publish": "tsx scripts/publish.ts",
     "prepublishOnly": "pnpm run build"
   },
   "author": "hboot<bobolity@163.com>",
@@ -42,7 +42,7 @@
     "url": "https://github.com/ngd-b/type-flat.git"
   },
   "license": "Apache-2.0",
-  "packageManager": "pnpm@10.17.1",
+  "packageManager": "pnpm@10.18.3",
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
@@ -50,8 +50,12 @@
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-replace": "^6.0.2",
     "@rollup/plugin-wasm": "^6.2.2",
+    "@types/node": "^24.9.1",
     "husky": "^9.1.7",
     "rollup": "^4.52.5",
-    "rollup-plugin-copy": "^3.5.0"
+    "rollup-plugin-copy": "^3.5.0",
+    "rollup-plugin-dts": "^6.2.3",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
   }
 }
