@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { version } from "../package.json";
+import { version } from "../package.json" with { type: "json" };
 
 let command = "pnpm publish -r --access public --no-git-checks";
 

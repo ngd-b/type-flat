@@ -30,7 +30,7 @@
   "scripts": {
     "build": "node scripts/build.js",
     "build:es": "rollup -c ",
-    "release": "npx bumpp --no-push",
+    "release": "npx bumpp",
     "commitlint": "commitlint --edit",
     "prepare": "husky",
     "publish": "node scripts/publish.js",
