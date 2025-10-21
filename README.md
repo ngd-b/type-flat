@@ -2,7 +2,7 @@
 # type-flat
 
 [![npm version](https://img.shields.io/npm/v/type-flat?color=brightgreen)](https://www.npmjs.com/package/type-flat)
-[![License: Apache](https://img.shields.io/badge/License-Apache-blue.svg)](LICENSE)
+[![License: Apache](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 **TypeScript Type Flattening Tool | Recursively parses complex types and generates nested JSON or type declarations.**
 

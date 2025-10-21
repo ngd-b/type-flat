@@ -2,16 +2,16 @@
   "name": "type-flat",
   "version": "0.0.1",
   "description": "TypeScript Type Flattening Tool ",
-  "main": "dist/type_flat.js",
-  "types": "dist/type_flat.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "type": "module",
   "bin": {
     "type-flat": "dist/cli.js"
   },
   "exports": {
     ".": {
-      "import": "./dist/type_flat.js",
-      "types": "./dist/type_flat.d.ts"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     },
     "./cli": "./dist/cli.js"
   },
@@ -29,6 +29,7 @@
   ],
   "scripts": {
     "build": "node scripts/build.js",
+    "build:es": "rollup -c ",
     "release": "npx bumpp --no-push",
     "commitlint": "commitlint --edit",
     "prepare": "husky",
@@ -43,6 +44,12 @@
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
-    "husky": "^9.1.7"
+    "@rollup/plugin-commonjs": "^28.0.8",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-replace": "^6.0.2",
+    "@rollup/plugin-wasm": "^6.2.2",
+    "husky": "^9.1.7",
+    "rollup": "^4.52.5",
+    "rollup-plugin-copy": "^3.5.0"
   }
 }

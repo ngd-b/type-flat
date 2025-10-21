@@ -1,5 +1,4 @@
 use serde_json::json;
-use serde_wasm_bindgen::from_value;
 use type_flat::flatten_ts_type;
 
 #[test]

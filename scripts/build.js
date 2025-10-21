@@ -6,23 +6,24 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, "../");
+const PKG = path.join(ROOT, "pkg");
 const DIST = path.join(ROOT, "dist");
 
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
+fs.rmSync(PKG, { recursive: true, force: true });
+fs.mkdirSync(PKG, { recursive: true });
 
 console.log("🚀 Build wasm module...");
-execSync("wasm-pack build --release --target nodejs --out-dir dist --no-opt", {
-  cwd: ROOT,
-  stdio: "inherit",
-});
+execSync(
+  "wasm-pack build --release --target nodejs --out-dir pkg --out-name index --no-opt",
+  {
+    cwd: ROOT,
+    stdio: "inherit",
+  }
+);
 
-// 删除 wasm-pack 默认生成的 package.json, README, LICENSE
-["package.json", "README.md", "LICENSE", ".gitignore"].forEach((f) => {
-  const file = path.join(DIST, f);
-
-  if (fs.existsSync(file)) fs.rmSync(file);
-});
+// 再使用rollup进行二次编译
 
 console.log("⚙️ Build Node CLI...");
 const CLI_PATH = path.join(DIST, "cli.js");
