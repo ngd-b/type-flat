@@ -33,6 +33,7 @@
     "release": "npx bumpp --no-push",
     "commitlint": "commitlint --edit",
     "prepare": "husky",
+    "publish": "node scripts/publish.js",
     "prepublishOnly": "pnpm run build"
   },
   "author": "hboot<bobolity@163.com>",
