@@ -18,7 +18,10 @@ export default defineConfig({
     PluginCommonjs(),
     PluginWasm({ inline: true }),
     PluginCopy({
-      targets: [{ src: "pkg/index_bg.wasm", dest: "dist" }],
+      targets: [
+        { src: "pkg/index_bg.wasm", dest: "dist" },
+        { src: "scripts/cli.js", dest: "dist" },
+      ],
     }),
     PluginReplace({
       preventAssignment: true,

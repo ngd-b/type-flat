@@ -24,22 +24,10 @@ execSync(
 );
 
 // 再使用rollup进行二次编译
+console.log("📦 Run Rollup build...");
+execSync("npm run build:es", {
+  cwd: ROOT,
+  stdio: "inherit",
+});
 
-console.log("⚙️ Build Node CLI...");
-const CLI_PATH = path.join(DIST, "cli.js");
-const RUST_BIN = path.join(ROOT, "target", "release", "type-flat");
-
-fs.writeFileSync(
-  CLI_PATH,
-  `#!/usr/bin/env node
-import { execSync } from "child_process";
-import path from "path";
-
-const args = process.argv.slice(2);
-const rustBin = path.join("${RUST_BIN.replace(/\\/g, "\\\\")}");
-execSync(\`\${rustBin} \${args.join(" ")}\`, { stdio: "inherit" });
-`
-);
-fs.chmodSync(CLI_PATH, 0o755);
-
-console.log("✅ Build complete!");
+console.log("✅ Build finished.");
