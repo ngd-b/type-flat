@@ -34,9 +34,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
-      - run: pnpm run update:full
-
-      - name: Build all packages
+      - name: Build
         run: pnpm run build
 
       - run: pnpm run publish
