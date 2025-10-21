@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn run_flat(file: &str, type_name: &str) -> String {
-    let exe = assert_cmd::cargo::cargo_bin("type-flat");
+    let exe = assert_cmd::cargo::cargo_bin("type_flat");
 
     let output = Command::new(exe)
         .args([
@@ -14,7 +14,7 @@ fn run_flat(file: &str, type_name: &str) -> String {
             "--json",
         ])
         .output()
-        .expect("failed to run ts-flat");
+        .expect("failed to run type_flat");
 
     assert!(
         output.status.success(),
