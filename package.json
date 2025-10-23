@@ -33,8 +33,7 @@
     "release": "npx bumpp",
     "commitlint": "commitlint --edit",
     "prepare": "husky",
-    "publish": "tsx scripts/publish.ts",
-    "prepublishOnly": "pnpm run build"
+    "publish": "tsx scripts/publish.ts"
   },
   "author": "hboot<bobolity@163.com>",
   "repository": {

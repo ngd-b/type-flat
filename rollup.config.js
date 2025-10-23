@@ -30,7 +30,7 @@ export default defineConfig([
     ],
   },
   {
-    input: "pkg/index.d.ts",
+    input: "types/index.d.ts",
     output: [
       {
         file: "dist/index.d.ts",
