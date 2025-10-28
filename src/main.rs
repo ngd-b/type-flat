@@ -1,9 +1,6 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
 use std::fs;
-
-use type_flat::flatten_ts_type;
-
 mod flatten;
 
 #[derive(Parser)]
@@ -24,15 +21,10 @@ fn main() -> Result<()> {
 
     let content = fs::read_to_string(&cli.file_or_dir_path)?;
 
-    let flat_result = flatten_ts_type(&content, &cli.type_name)?;
+    let flat_result = flatten::flatten_ts(&content, &cli.type_name)?;
 
     let json = serde_json::to_string_pretty(&flat_result)?;
 
-    // if cli.json {
-    //     println!("{}", json);
-    // } else {
-    //     print!("{} {} {}", kind, &cli.type_name, json)
-    // }
     println!("{}", json);
 
     Ok(())
