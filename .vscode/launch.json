@@ -4,15 +4,15 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug type-flat",
+      "name": "Debug type_flat",
       "cargo": {
         "args": ["run", "--"],
         "filter": {
           "kind": "bin",
-          "name": "type-flat"
+          "name": "type_flat"
         }
       },
-      "args": ["--file-or-dir-path", "tests/tmp_basic.ts", "--type-name", "User"],
+      "args": ["--file-or-dir-path", "tests/tmp_union_pick_omit.ts", "--type-name", "PartialUser"],
       "cwd": "${workspaceFolder}",
       "env": {
         "RUST_BACKTRACE": "1"

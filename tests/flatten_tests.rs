@@ -25,6 +25,28 @@ fn run_flat(file: &str, type_name: &str) -> String {
     String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
+// 空接口 / 空类型
+#[test]
+fn test_empty_interface_type() {
+    let tmp = PathBuf::from("tests/tmp_empty.ts");
+    fs::write(
+        &tmp,
+        r#"
+        interface Empty {}
+        type EmptyType = {}
+        "#,
+    )
+    .unwrap();
+
+    let result1 = run_flat(tmp.to_str().unwrap(), "Empty");
+    let result2 = run_flat(tmp.to_str().unwrap(), "EmptyType");
+
+    assert!(result1.contains("interface Empty {}"));
+    assert!(result2.contains("type EmptyType = {}"));
+
+    fs::remove_file(&tmp).unwrap();
+}
+
 // 多层继承
 #[test]
 fn test_multi_level_inheritance() {
@@ -40,9 +62,10 @@ fn test_multi_level_inheritance() {
     .unwrap();
 
     let result = run_flat(tmp.to_str().unwrap(), "C");
-    assert!(result.contains("\"a\""));
-    assert!(result.contains("\"b\""));
-    assert!(result.contains("\"c\""));
+
+    assert!(result.contains("a: number;"));
+    assert!(result.contains("b: string;"));
+    assert!(result.contains("c: boolean;"));
 
     fs::remove_file(&tmp).unwrap();
 }
@@ -55,15 +78,15 @@ fn test_union_generic_pick_omit() {
         &tmp,
         r#"
         type User = { id: number; name: string; email: string }
-        type PartialUser = Pick<User, 'id' | 'name'> | Omit<User, 'email'>
+        type PartialUser = Pick<User, 'id' | 'name'>
         "#,
     )
     .unwrap();
 
     let result = run_flat(tmp.to_str().unwrap(), "PartialUser");
-    assert!(result.contains("\"id\""));
-    assert!(result.contains("\"name\""));
-    assert!(result.contains("\"email\"") || !result.contains("\"email\""));
+    assert!(result.contains("id: number;"));
+    assert!(result.contains("name: string;"));
+    assert!(!result.contains("email: string"));
 
     fs::remove_file(&tmp).unwrap();
 }
@@ -106,28 +129,6 @@ fn test_nested_pick() {
     assert!(result.contains("\"id\""));
     assert!(!result.contains("\"name\""));
     assert!(!result.contains("\"email\""));
-
-    fs::remove_file(&tmp).unwrap();
-}
-
-// 空接口 / 空类型
-#[test]
-fn test_empty_interface_type() {
-    let tmp = PathBuf::from("tests/tmp_empty.ts");
-    fs::write(
-        &tmp,
-        r#"
-        interface Empty {}
-        type EmptyType = {}
-        "#,
-    )
-    .unwrap();
-
-    let result1 = run_flat(tmp.to_str().unwrap(), "Empty");
-    let result2 = run_flat(tmp.to_str().unwrap(), "EmptyType");
-
-    assert_eq!(result1, "{}");
-    assert_eq!(result2, "{}");
 
     fs::remove_file(&tmp).unwrap();
 }

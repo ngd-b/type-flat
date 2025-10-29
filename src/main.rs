@@ -4,6 +4,7 @@ use std::fs;
 mod flatten;
 
 #[derive(Parser)]
+#[command(author,version,about,long_about = None)]
 struct Cli {
     // A path to a file or directory
     #[arg(short, long)]
@@ -23,9 +24,7 @@ fn main() -> Result<()> {
 
     let flat_result = flatten::flatten_ts(&content, &cli.type_name)?;
 
-    let json = serde_json::to_string_pretty(&flat_result)?;
-
-    println!("{}", json);
+    serde_json::to_string_pretty(&flat_result)?;
 
     Ok(())
 }

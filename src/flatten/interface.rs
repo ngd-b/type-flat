@@ -1,24 +1,22 @@
 use oxc_allocator::{Allocator, Box, CloneIn, Vec};
 use oxc_ast::{
     AstKind,
-    ast::{
-        Expression, TSInterfaceBody, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAnnotation,
-    },
+    ast::{Expression, TSInterfaceBody, TSInterfaceDeclaration, TSSignature, TSType},
 };
 use oxc_semantic::Semantic;
 
 use crate::flatten::{generic::GenericEnv, type_alias};
 
-/**
- * Flatten Interface
- *
- *
- * @param {TSInterfaceDeclaration} ts_type
- * @param {Semantic} semantic
- * @param {GenericEnv} env
- *
- * @return {TSType}
- */
+///
+/// Flattens a type declaration into a single type
+///
+/// Parameters:
+/// - ts_type - The type declaration to flatten
+/// - semantic - The semantic information of the program
+/// - env - The generic environment
+/// - allocator - The allocator
+///
+///
 pub fn flatten_type<'a>(
     ts_type: &'a TSInterfaceDeclaration<'a>,
     semantic: &Semantic<'a>,
@@ -90,14 +88,9 @@ pub fn flatten_type<'a>(
         if let TSSignature::TSPropertySignature(tps) = member {
             prop = tps.clone_in(allocator).unbox();
 
-            prop.computed = tps.computed;
-            prop.optional = tps.optional;
-            prop.readonly = tps.readonly;
-
             let key = match tps.key {
                 _ => tps.key.clone_in(&allocator),
             };
-            prop.key = key;
 
             // if let Some(ta) = &tps.type_annotation {
             //     let decl = type_alias::flatten_type(ta, semantic, env, allocator);
