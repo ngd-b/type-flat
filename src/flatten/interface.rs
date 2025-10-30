@@ -1,9 +1,14 @@
+use std::cell::Cell;
+
 use oxc_allocator::{Allocator, Box, CloneIn, Vec};
-use oxc_ast::ast::{Expression, TSInterfaceBody, TSInterfaceDeclaration, TSSignature, TSType};
+use oxc_ast::ast::{
+    Expression, IdentifierReference, TSInterfaceBody, TSInterfaceDeclaration, TSSignature, TSType,
+    TSTypeAnnotation, TSTypeName, TSTypeReference,
+};
 use oxc_semantic::Semantic;
 
 use crate::flatten::{
-    generic::GenericEnv,
+    generic::{self, GenericEnv},
     type_alias,
     utils::{self, DeclRef, ResultProgram},
 };
@@ -25,7 +30,7 @@ pub fn flatten_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSInterfaceDeclaration<'a> {
-    // 创建一个新类型，返回新类型
+    // create new type. return new type
     let mut new_type = TSInterfaceDeclaration {
         id: ts_type.id.clone_in(allocator),
         body: Box::new_in(
@@ -41,16 +46,14 @@ pub fn flatten_type<'a>(
         scope_id: ts_type.scope_id.clone_in(allocator),
         declare: ts_type.declare,
     };
-    // 所有继承属性、base属性、方法属性、属性属性
+    // all extend type. include self
     let mut new_body = TSInterfaceBody {
         span: Default::default(),
         body: Vec::new_in(allocator),
     };
 
-    // 处理 继承关系
+    // the extends type
     for extend in ts_type.extends.iter() {
-        // 判断是不是关键字继承关系
-        // Omit Pick
         if let Expression::Identifier(ei) = &extend.expression {
             let reference_name = ei.name.to_string();
 
@@ -62,10 +65,26 @@ pub fn flatten_type<'a>(
                 result_program,
             );
 
+            //
             if let Ok(decl) = result {
                 match decl {
                     DeclRef::Interface(tid) => {
-                        let decl = flatten_type(tid, semantic, env, allocator, result_program);
+                        let new_env = if let (Some(tp), Some(ta)) =
+                            (&tid.type_parameters, &extend.type_arguments)
+                        {
+                            generic::flatten_generic(
+                                tp,
+                                ta,
+                                semantic,
+                                env,
+                                allocator,
+                                result_program,
+                            )
+                        } else {
+                            env.clone()
+                        };
+
+                        let decl = flatten_type(tid, semantic, &new_env, allocator, result_program);
 
                         new_body.body.extend(decl.body.body.clone_in(allocator));
                     }
@@ -73,7 +92,7 @@ pub fn flatten_type<'a>(
                         let decl =
                             type_alias::flatten_type(tad, semantic, env, allocator, result_program);
 
-                        // 取出它的参数并直接追加到当前类型中
+                        // get literal type
                         match &decl.type_annotation {
                             TSType::TSTypeLiteral(tl) => {
                                 new_body.body.extend(tl.members.clone_in(allocator));
@@ -86,28 +105,66 @@ pub fn flatten_type<'a>(
         }
     }
 
-    // 处理自己的属性
+    // self members
     for member in ts_type.body.body.iter() {
         let mut prop;
-        // 键为普通键 值为普通值
+        // the key is normal property
         if let TSSignature::TSPropertySignature(tps) = member {
             prop = tps.clone_in(allocator).unbox();
 
-            let key = match tps.key {
-                _ => tps.key.clone_in(&allocator),
-            };
-
-            // if let Some(ta) = &tps.type_annotation {
-            //     let decl = type_alias::flatten_type(ta, semantic, env, allocator);
-
-            //     prop.type_annotation = Some(Box::new_in(
-            //         TSTypeAnnotation {
-            //             span: Default::default(),
-            //             type_annotation: decl,
-            //         },
-            //         &allocator,
-            //     ));
+            // let key = match tps.key {
+            //     _ => tps.key.clone_in(&allocator),
             // };
+
+            if let Some(ta) = &tps.type_annotation {
+                match ta.type_annotation {
+                    TSType::TSTypeReference(_)
+                    | TSType::TSUnionType(_)
+                    | TSType::TSIntersectionType(_)
+                    | TSType::TSArrayType(_)
+                    | TSType::TSTupleType(_) => {
+                        let result = type_alias::flatten_ts_type(
+                            &ta.type_annotation,
+                            semantic,
+                            env,
+                            allocator,
+                            result_program,
+                        );
+                        if let Some(decl) = result {
+                            result_program.push(decl);
+                            let type_name = match decl {
+                                DeclRef::Interface(tid) => tid.id.name,
+                                DeclRef::TypeAlias(tad) => tad.id.name,
+                            };
+
+                            prop.type_annotation = Some(Box::new_in(
+                                TSTypeAnnotation {
+                                    span: Default::default(),
+                                    type_annotation: TSType::TSTypeReference(Box::new_in(
+                                        TSTypeReference {
+                                            span: Default::default(),
+                                            type_name: TSTypeName::IdentifierReference(
+                                                Box::new_in(
+                                                    IdentifierReference {
+                                                        span: Default::default(),
+                                                        name: type_name,
+                                                        reference_id: Cell::new(None),
+                                                    },
+                                                    allocator,
+                                                ),
+                                            ),
+                                            type_arguments: None,
+                                        },
+                                        allocator,
+                                    )),
+                                },
+                                allocator,
+                            ));
+                        };
+                    }
+                    _ => {}
+                };
+            };
 
             new_body
                 .body

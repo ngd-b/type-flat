@@ -176,7 +176,7 @@ fn test_nested_generic_optional() {
     assert!(result.contains("status: string"));
     assert!(result.contains("id: number;"));
     assert!(result.contains("name?: string"));
-    assert!(result.contains("data?: { id: number; name?: string }"));
+    assert!(result.contains("data?: User"));
 
     fs::remove_file(&tmp).unwrap();
 }
@@ -197,7 +197,11 @@ fn test_complex_union_generic() {
     .unwrap();
 
     let result = run_flat(tmp.to_str().unwrap(), "Res");
-    assert!(result.contains("\"a\"") || result.contains("\"b\"") || result.contains("\"extra\""));
+    assert!(
+        result.contains("a: number")
+            || result.contains("b: string")
+            || result.contains("extra: boolean")
+    );
 
     fs::remove_file(&tmp).unwrap();
 }

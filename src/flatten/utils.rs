@@ -6,9 +6,9 @@ use oxc_ast::{
 };
 use oxc_semantic::Semantic;
 
-use crate::flatten::{generic::GenericEnv, interface, type_alias};
+use crate::flatten::generic::GenericEnv;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum DeclRef<'a> {
     Interface(&'a TSInterfaceDeclaration<'a>),
     TypeAlias(&'a TSTypeAliasDeclaration<'a>),
@@ -84,9 +84,9 @@ impl<'a> ResultProgram<'a> {
 pub fn get_reference_type<'a>(
     reference_name: &str,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+    _env: &GenericEnv<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    _result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
     let scope = semantic.scoping();
 
@@ -98,15 +98,15 @@ pub fn get_reference_type<'a>(
 
             match ast_node.kind() {
                 AstKind::TSTypeAliasDeclaration(tad) => {
-                    let refer =
-                        type_alias::flatten_type(tad, semantic, env, allocator, result_program);
-                    return Ok(DeclRef::TypeAlias(allocator.alloc(refer)));
+                    // let refer =
+                    //     type_alias::flatten_type(tad, semantic, env, allocator, result_program);
+                    return Ok(DeclRef::TypeAlias(allocator.alloc(tad)));
                 }
                 AstKind::TSInterfaceDeclaration(tid) => {
-                    let refer =
-                        interface::flatten_type(tid, semantic, env, allocator, result_program);
+                    // let refer =
+                    //     interface::flatten_type(tid, semantic, env, allocator, result_program);
 
-                    return Ok(DeclRef::Interface(allocator.alloc(refer)));
+                    return Ok(DeclRef::Interface(allocator.alloc(tid)));
                 }
                 _ => bail!("Unsupported Referenc Type"),
             }

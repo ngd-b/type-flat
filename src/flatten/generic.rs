@@ -3,7 +3,8 @@ use std::{collections::HashMap, rc::Rc};
 use oxc_allocator::{Allocator, Box, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
     PropertyKey, TSInterfaceBody, TSInterfaceDeclaration, TSLiteral, TSSignature, TSType,
-    TSTypeAliasDeclaration, TSTypeLiteral, TSTypeName, TSTypeReference,
+    TSTypeAliasDeclaration, TSTypeLiteral, TSTypeName, TSTypeParameterDeclaration,
+    TSTypeParameterInstantiation, TSTypeReference,
 };
 use oxc_semantic::Semantic;
 
@@ -12,16 +13,16 @@ use crate::flatten::{
     utils::{DeclRef, ResultProgram},
 };
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct GenericEnv<'a> {
-    map: HashMap<String, Rc<&'a DeclRef<'a>>>,
+    map: HashMap<String, Rc<DeclRef<'a>>>,
 }
 
 impl<'a> GenericEnv<'a> {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn update(&self, names: &[String], args: &[Rc<&'a DeclRef<'a>>]) -> Self {
+    pub fn update(&self, names: &[String], args: &[Rc<DeclRef<'a>>]) -> Self {
         let mut map = self.map.clone();
 
         for (name, arg) in names.iter().zip(args.iter()) {
@@ -29,11 +30,44 @@ impl<'a> GenericEnv<'a> {
         }
         GenericEnv { map }
     }
-    pub fn get(&self, name: &str) -> Option<Rc<&'a DeclRef<'a>>> {
+    pub fn get(&self, name: &str) -> Option<Rc<DeclRef<'a>>> {
         return self.map.get(name).cloned();
     }
 }
 
+pub fn flatten_generic<'a>(
+    args: &'a TSTypeParameterDeclaration<'a>,
+    type_args: &'a TSTypeParameterInstantiation<'a>,
+    semantic: &Semantic<'a>,
+    env: &GenericEnv<'a>,
+    allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
+) -> GenericEnv<'a> {
+    let arg_params = &args.params;
+
+    let type_params = &type_args.params;
+
+    let mut new_env = env.clone();
+
+    if !arg_params.is_empty() && !type_params.is_empty() && arg_params.len() == type_params.len() {
+        let mut decl_vec = Vec::new();
+        let mut decl_names = Vec::new();
+
+        for (formal, actual) in arg_params.iter().zip(type_params) {
+            let result =
+                type_alias::flatten_ts_type(actual, semantic, &new_env, allocator, result_program);
+
+            if let Some(decl) = result {
+                decl_vec.push(Rc::new(decl));
+                decl_names.push(formal.name.to_string());
+            }
+        }
+
+        new_env = new_env.update(&decl_names, &decl_vec);
+    };
+
+    new_env
+}
 ///
 ///
 /// Pick / Omit

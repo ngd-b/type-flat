@@ -12,7 +12,7 @@
           "name": "type_flat"
         }
       },
-      "args": ["--file-or-dir-path", "tests/tmp_union_pick_omit.ts", "--type-name", "PartialUser"],
+      "args": ["--file-or-dir-path", "tests/tmp_complex_union_generic.ts", "--type-name", "Res"],
       "cwd": "${workspaceFolder}",
       "env": {
         "RUST_BACKTRACE": "1"
