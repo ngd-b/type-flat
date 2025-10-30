@@ -13,7 +13,7 @@ pub mod interface;
 pub mod type_alias;
 pub mod utils;
 
-pub fn flatten_ts(content: &str, type_name: &str) -> Result<()> {
+pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
     let allocator = Allocator::new();
     // ast parser
     let parser = OxcParser::new(&allocator, content, SourceType::ts());
@@ -92,8 +92,6 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<()> {
         // })
         .build(&result_program.program);
 
-    println!("{}", code_gen.code);
-
     // let ast_result = TSTypeAliasDeclaration {
     //     id:BindingIdentifier {
     //         name: type_name.to_string(),
@@ -107,5 +105,5 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<()> {
     //     scope_id: todo!(),
     // };
 
-    Ok(())
+    Ok(code_gen.code)
 }

@@ -1,3 +1,4 @@
+#![cfg(not(target_arch = "wasm32"))]
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -222,9 +223,9 @@ fn test_complex_intersection_interface_generic() {
     .unwrap();
 
     let result = run_flat(tmp.to_str().unwrap(), "Complex");
-    assert!(result.contains("\"data\""));
-    assert!(result.contains("\"id\""));
-    assert!(result.contains("\"extra\""));
+    assert!(result.contains("data: User"));
+    assert!(result.contains("id: number"));
+    assert!(result.contains("extra: string"));
 
     fs::remove_file(&tmp).unwrap();
 }

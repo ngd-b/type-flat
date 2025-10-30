@@ -24,7 +24,8 @@ fn main() -> Result<()> {
 
     let flat_result = flatten::flatten_ts(&content, &cli.type_name)?;
 
-    serde_json::to_string_pretty(&flat_result)?;
+    let code = serde_json::to_string_pretty(&flat_result)?;
 
+    println!("{:#?}", code);
     Ok(())
 }
