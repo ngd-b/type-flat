@@ -1,7 +1,7 @@
 use crate::flatten::{generic::GenericEnv, utils::DeclRef};
 use anyhow::{Result, bail};
-use oxc_allocator::{Allocator, Box, CloneIn, Vec};
-use oxc_ast::ast::{Program, Statement};
+use oxc_allocator::Allocator;
+use oxc_ast::ast::Statement;
 
 use oxc_codegen::Codegen;
 use oxc_parser::Parser as OxcParser;
@@ -59,38 +59,29 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<()> {
 
     let env = GenericEnv::new();
 
-    let mut result_program = Program {
-        span: Default::default(),
-        source_text: Default::default(),
-        comments: Vec::new_in(&allocator),
-        hashbang: ast.hashbang.clone_in(&allocator),
-        directives: ast.directives.clone_in(&allocator),
-        body: Vec::new_in(&allocator),
-        scope_id: ast.scope_id.clone_in(&allocator),
-        source_type: ast.source_type.clone_in(&allocator),
-    };
+    let mut result_program = utils::ResultProgram::new(&ast, &allocator);
 
     match target_type {
         DeclRef::Interface(decl) => {
-            let result_interface =
-                interface::flatten_type(&decl, &semantic.semantic, &env, &allocator);
-
-            result_program
-                .body
-                .push(Statement::TSInterfaceDeclaration(Box::new_in(
-                    result_interface,
-                    &allocator,
-                )));
+            let target_result = interface::flatten_type(
+                &decl,
+                &semantic.semantic,
+                &env,
+                &allocator,
+                &mut result_program,
+            );
+            result_program.add_interface(target_result);
         }
         DeclRef::TypeAlias(decl) => {
-            let result_type = type_alias::flatten_type(&decl, &semantic.semantic, &env, &allocator);
+            let target_result = type_alias::flatten_type(
+                &decl,
+                &semantic.semantic,
+                &env,
+                &allocator,
+                &mut result_program,
+            );
 
-            result_program
-                .body
-                .push(Statement::TSTypeAliasDeclaration(Box::new_in(
-                    result_type,
-                    &allocator,
-                )));
+            result_program.add_type_alias(target_result);
         }
     };
 
@@ -99,7 +90,7 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<()> {
         //     minify: true,
         //     ..Default::default()
         // })
-        .build(&result_program);
+        .build(&result_program.program);
 
     println!("{}", code_gen.code);
 

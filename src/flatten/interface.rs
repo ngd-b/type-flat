@@ -1,11 +1,12 @@
 use oxc_allocator::{Allocator, Box, CloneIn, Vec};
-use oxc_ast::{
-    AstKind,
-    ast::{Expression, TSInterfaceBody, TSInterfaceDeclaration, TSSignature, TSType},
-};
+use oxc_ast::ast::{Expression, TSInterfaceBody, TSInterfaceDeclaration, TSSignature, TSType};
 use oxc_semantic::Semantic;
 
-use crate::flatten::{generic::GenericEnv, type_alias};
+use crate::flatten::{
+    generic::GenericEnv,
+    type_alias,
+    utils::{self, DeclRef, ResultProgram},
+};
 
 ///
 /// Flattens a type declaration into a single type
@@ -22,6 +23,7 @@ pub fn flatten_type<'a>(
     semantic: &Semantic<'a>,
     env: &GenericEnv<'a>,
     allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
 ) -> TSInterfaceDeclaration<'a> {
     // 创建一个新类型，返回新类型
     let mut new_type = TSInterfaceDeclaration {
@@ -45,22 +47,31 @@ pub fn flatten_type<'a>(
         body: Vec::new_in(allocator),
     };
 
-    let scope = semantic.scoping();
-
     // 处理 继承关系
     for extend in ts_type.extends.iter() {
         // 判断是不是关键字继承关系
         // Omit Pick
         if let Expression::Identifier(ei) = &extend.expression {
-            let reference_id = ei.reference_id();
+            let reference_name = ei.name.to_string();
 
-            // 获取到引用的类型声明
-            if let Some(symbol_id) = scope.get_reference(reference_id).symbol_id() {
-                let ast_node = semantic.symbol_declaration(symbol_id);
+            let result = utils::get_reference_type(
+                &reference_name,
+                semantic,
+                env,
+                allocator,
+                result_program,
+            );
 
-                match ast_node.kind() {
-                    AstKind::TSTypeAliasDeclaration(tad) => {
-                        let decl = type_alias::flatten_type(tad, semantic, env, allocator);
+            if let Ok(decl) = result {
+                match decl {
+                    DeclRef::Interface(tid) => {
+                        let decl = flatten_type(tid, semantic, env, allocator, result_program);
+
+                        new_body.body.extend(decl.body.body.clone_in(allocator));
+                    }
+                    DeclRef::TypeAlias(tad) => {
+                        let decl =
+                            type_alias::flatten_type(tad, semantic, env, allocator, result_program);
 
                         // 取出它的参数并直接追加到当前类型中
                         match &decl.type_annotation {
@@ -70,12 +81,6 @@ pub fn flatten_type<'a>(
                             _ => {}
                         }
                     }
-                    AstKind::TSInterfaceDeclaration(tid) => {
-                        let decl = flatten_type(tid, semantic, env, allocator);
-
-                        new_body.body.extend(decl.body.body.clone_in(allocator));
-                    }
-                    _ => {}
                 }
             }
         }

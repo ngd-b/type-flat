@@ -7,18 +7,21 @@ use oxc_ast::ast::{
 };
 use oxc_semantic::Semantic;
 
-use crate::flatten::{type_alias, utils::DeclRef};
+use crate::flatten::{
+    type_alias,
+    utils::{DeclRef, ResultProgram},
+};
 
 #[derive(Default, Clone)]
 pub struct GenericEnv<'a> {
-    map: HashMap<String, Rc<&'a TSType<'a>>>,
+    map: HashMap<String, Rc<&'a DeclRef<'a>>>,
 }
 
 impl<'a> GenericEnv<'a> {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn update(&self, names: &[String], args: &[Rc<&'a TSType<'a>>]) -> Self {
+    pub fn update(&self, names: &[String], args: &[Rc<&'a DeclRef<'a>>]) -> Self {
         let mut map = self.map.clone();
 
         for (name, arg) in names.iter().zip(args.iter()) {
@@ -26,7 +29,7 @@ impl<'a> GenericEnv<'a> {
         }
         GenericEnv { map }
     }
-    pub fn get(&self, name: &str) -> Option<Rc<&'a TSType<'a>>> {
+    pub fn get(&self, name: &str) -> Option<Rc<&'a DeclRef<'a>>> {
         return self.map.get(name).cloned();
     }
 }
@@ -41,17 +44,21 @@ pub fn flatten_pick_omit<'a>(
     semantic: &Semantic<'a>,
     env: &GenericEnv<'a>,
     allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
 ) -> DeclRef<'a> {
     let kind = match &refer.type_name {
         TSTypeName::IdentifierReference(ir) => ir.name.to_string(),
         _ => panic!("not support"),
     };
 
-    let args = &refer.type_arguments.clone_in(allocator).unwrap();
+    let args = match &refer.type_arguments {
+        Some(p) => p,
+        _ => panic!("not support"),
+    };
 
     // reference type name
     let refer_type = match args.params.get(0) {
-        Some(t) => type_alias::flatten_ts_type(t, semantic, env, allocator),
+        Some(t) => type_alias::flatten_ts_type(t, semantic, env, allocator, result_program),
         _ => panic!("pick/omit type arguments error"),
     };
 

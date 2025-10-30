@@ -106,8 +106,8 @@ fn test_intersection_generic() {
     .unwrap();
 
     let result = run_flat(tmp.to_str().unwrap(), "UserExtra");
-    assert!(result.contains("\"id\""));
-    assert!(result.contains("\"extra\""));
+    assert!(result.contains("id: number"));
+    assert!(result.contains("extra: string"));
 
     fs::remove_file(&tmp).unwrap();
 }
@@ -126,9 +126,9 @@ fn test_nested_pick() {
     .unwrap();
 
     let result = run_flat(tmp.to_str().unwrap(), "NestedPick");
-    assert!(result.contains("\"id\""));
-    assert!(!result.contains("\"name\""));
-    assert!(!result.contains("\"email\""));
+    assert!(result.contains("id: number"));
+    assert!(!result.contains("name: string;"));
+    assert!(!result.contains("email: string"));
 
     fs::remove_file(&tmp).unwrap();
 }
@@ -150,10 +150,10 @@ fn test_array_tuple() {
     let result_users = run_flat(tmp.to_str().unwrap(), "Users");
     let result_tuple = run_flat(tmp.to_str().unwrap(), "UserTuple");
 
-    assert!(result_users.contains("\"id\""));
-    assert!(result_users.contains("\"name\""));
-    assert!(result_tuple.contains("\"id\""));
-    assert!(result_tuple.contains("\"name\""));
+    assert!(result_users.contains("id: number"));
+    assert!(result_users.contains("name: string"));
+    assert!(result_tuple.contains("id: number"));
+    assert!(result_tuple.contains("name: string"));
 
     fs::remove_file(&tmp).unwrap();
 }
@@ -173,10 +173,10 @@ fn test_nested_generic_optional() {
     .unwrap();
 
     let result = run_flat(tmp.to_str().unwrap(), "UserResponse");
-    assert!(result.contains("\"data\""));
-    assert!(result.contains("\"id\""));
-    assert!(result.contains("\"name\""));
-    assert!(result.contains("\"status\""));
+    assert!(result.contains("status: string"));
+    assert!(result.contains("id: number;"));
+    assert!(result.contains("name?: string"));
+    assert!(result.contains("data?: { id: number; name?: string }"));
 
     fs::remove_file(&tmp).unwrap();
 }
