@@ -1,9 +1,9 @@
-use std::cell::Cell;
+use std::rc::Rc;
 
 use oxc_allocator::{Allocator, Box, CloneIn, Vec};
 use oxc_ast::ast::{
-    Expression, IdentifierReference, TSInterfaceBody, TSInterfaceDeclaration, TSSignature, TSType,
-    TSTypeAnnotation, TSTypeName, TSTypeReference,
+    Expression, TSInterfaceBody, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAnnotation,
+    TSTypeLiteral,
 };
 use oxc_semantic::Semantic;
 
@@ -50,6 +50,34 @@ pub fn flatten_type<'a>(
     let mut new_body = TSInterfaceBody {
         span: Default::default(),
         body: Vec::new_in(allocator),
+    };
+
+    let mut new_env = env.clone();
+    // generic params
+    if let Some(args) = &ts_type.type_parameters {
+        let mut arg_names = vec![];
+        let mut arg_types = vec![];
+
+        for arg in args.params.iter() {
+            let arg_name = arg.name.to_string();
+
+            // already exist generic type
+            if env.get(&arg_name).is_some() {
+                continue;
+            }
+            arg_names.push(arg_name);
+            // exist default value
+            if let Some(dt) = &arg.default {
+                let result =
+                    type_alias::flatten_ts_type(dt, semantic, env, allocator, result_program);
+
+                if let Some(decl) = result {
+                    arg_types.push(Rc::new(decl));
+                }
+            }
+        }
+
+        new_env = new_env.update(&arg_names, &arg_types);
     };
 
     // the extends type
@@ -126,37 +154,32 @@ pub fn flatten_type<'a>(
                         let result = type_alias::flatten_ts_type(
                             &ta.type_annotation,
                             semantic,
-                            env,
+                            &new_env,
                             allocator,
                             result_program,
                         );
                         if let Some(decl) = result {
-                            result_program.push(decl);
-                            let type_name = match decl {
-                                DeclRef::Interface(tid) => tid.id.name,
-                                DeclRef::TypeAlias(tad) => tad.id.name,
+                            // result_program.push(decl);
+
+                            let decl_type = match decl {
+                                DeclRef::Interface(tid) => {
+                                    let new_type = TSType::TSTypeLiteral(Box::new_in(
+                                        TSTypeLiteral {
+                                            span: Default::default(),
+                                            members: tid.body.body.clone_in(allocator),
+                                        },
+                                        allocator,
+                                    ));
+
+                                    new_type
+                                }
+                                DeclRef::TypeAlias(tad) => tad.type_annotation.clone_in(allocator),
                             };
 
                             prop.type_annotation = Some(Box::new_in(
                                 TSTypeAnnotation {
                                     span: Default::default(),
-                                    type_annotation: TSType::TSTypeReference(Box::new_in(
-                                        TSTypeReference {
-                                            span: Default::default(),
-                                            type_name: TSTypeName::IdentifierReference(
-                                                Box::new_in(
-                                                    IdentifierReference {
-                                                        span: Default::default(),
-                                                        name: type_name,
-                                                        reference_id: Cell::new(None),
-                                                    },
-                                                    allocator,
-                                                ),
-                                            ),
-                                            type_arguments: None,
-                                        },
-                                        allocator,
-                                    )),
+                                    type_annotation: decl_type,
                                 },
                                 allocator,
                             ));

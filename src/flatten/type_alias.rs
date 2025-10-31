@@ -157,7 +157,7 @@ pub fn flatten_ts_type<'a>(
                         } else {
                             env.clone()
                         };
-                        println!("{:?}", new_env);
+
                         let result = type_alias::flatten_type(
                             tad,
                             semantic,

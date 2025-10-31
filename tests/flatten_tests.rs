@@ -177,7 +177,6 @@ fn test_nested_generic_optional() {
     assert!(result.contains("status: string"));
     assert!(result.contains("id: number;"));
     assert!(result.contains("name?: string"));
-    assert!(result.contains("data?: User"));
 
     fs::remove_file(&tmp).unwrap();
 }
@@ -223,9 +222,47 @@ fn test_complex_intersection_interface_generic() {
     .unwrap();
 
     let result = run_flat(tmp.to_str().unwrap(), "Complex");
-    assert!(result.contains("data: User"));
     assert!(result.contains("id: number"));
     assert!(result.contains("extra: string"));
 
     fs::remove_file(&tmp).unwrap();
+}
+
+#[test]
+fn test_generic_with_default_and_constraint() {
+    let tmp = PathBuf::from("tests/tmp_generic_constraint.ts");
+    fs::write(
+        &tmp,
+        r#"
+        interface Base<T extends { id: number } = { id: number; name: string }> {
+            data: T;
+        }
+        type User = Base;
+        "#,
+    )
+    .unwrap();
+
+    let result = run_flat(tmp.to_str().unwrap(), "User");
+    assert!(result.contains("id: number;"));
+    assert!(result.contains("name: string"));
+
+    fs::remove_file(&tmp).unwrap();
+}
+
+#[test]
+fn test_conditional_type() {
+    let tmp = PathBuf::from("tests/tmp_conditional_type.ts");
+    fs::write(
+        &tmp,
+        r#"
+        type IsString<T> = T extends string ? true : false;
+        type Result = IsString<'a'>
+        "#,
+    )
+    .unwrap();
+
+    let result = run_flat(tmp.to_str().unwrap(), "Result");
+    assert!(result.contains("true"));
+
+    // fs::remove_file(&tmp).unwrap();
 }

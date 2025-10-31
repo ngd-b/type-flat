@@ -26,6 +26,6 @@ fn main() -> Result<()> {
 
     let code = serde_json::to_string_pretty(&flat_result)?;
 
-    println!("{:#?}", code);
+    println!("{}", code);
     Ok(())
 }

@@ -1,6 +1,6 @@
 use crate::flatten::{generic::GenericEnv, utils::DeclRef};
 use anyhow::{Result, bail};
-use oxc_allocator::Allocator;
+use oxc_allocator::{Allocator, CloneIn};
 use oxc_ast::ast::Statement;
 
 use oxc_codegen::Codegen;
@@ -63,23 +63,28 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
 
     match target_type {
         DeclRef::Interface(decl) => {
-            let target_result = interface::flatten_type(
+            let mut target_result = interface::flatten_type(
                 &decl,
                 &semantic.semantic,
                 &env,
                 &allocator,
                 &mut result_program,
             );
+            // self generic params saved
+            target_result.type_parameters = decl.type_parameters.clone_in(&allocator);
+
             result_program.add_interface(target_result);
         }
         DeclRef::TypeAlias(decl) => {
-            let target_result = type_alias::flatten_type(
+            let mut target_result = type_alias::flatten_type(
                 &decl,
                 &semantic.semantic,
                 &env,
                 &allocator,
                 &mut result_program,
             );
+            // self generic params saved
+            target_result.type_parameters = decl.type_parameters.clone_in(&allocator);
 
             result_program.add_type_alias(target_result);
         }
