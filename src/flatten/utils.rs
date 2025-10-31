@@ -1,12 +1,17 @@
+use std::cell::Cell;
+
 use anyhow::{Result, bail};
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
     ast::{
-        Program, Statement, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
+        BindingIdentifier, Program, PropertyKey, Statement, StringLiteral, TSInterfaceDeclaration,
+        TSLiteral, TSLiteralType, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeAnnotation,
+        TSTypeLiteral, TSUnionType,
     },
 };
 use oxc_semantic::Semantic;
+use oxc_span::Atom;
 
 use crate::flatten::generic::GenericEnv;
 
@@ -27,6 +32,25 @@ impl<'a> DeclRef<'a> {
         }
     }
 
+    ///
+    /// Get type alias declaration
+    ///
+    pub fn type_decl(&self, allocator: &'a Allocator) -> TSType<'a> {
+        match self {
+            DeclRef::TypeAlias(decl) => decl.type_annotation.clone_in(allocator),
+            DeclRef::Interface(decl) => {
+                let new_literal_type = TSType::TSTypeLiteral(AstBox::new_in(
+                    TSTypeLiteral {
+                        span: Default::default(),
+                        members: decl.body.body.clone_in(allocator),
+                    },
+                    allocator,
+                ));
+
+                new_literal_type
+            }
+        }
+    }
     ///
     /// return type alias declaration
     ///
@@ -159,4 +183,107 @@ pub fn get_reference_type<'a>(
     }
 
     bail!("Unsupported Declaration Type")
+}
+
+///
+/// Get keyof union type from DeclRef
+///
+pub fn get_keyof_union_type<'a>(
+    decl: DeclRef<'a>,
+    _semantic: &Semantic<'a>,
+    _env: &GenericEnv<'a>,
+    allocator: &'a Allocator,
+    _result_program: &mut ResultProgram<'a>,
+) -> Option<TSTypeAliasDeclaration<'a>> {
+    if let Some(tad) = decl.type_alias(allocator) {
+        match &tad.type_annotation {
+            TSType::TSTypeLiteral(tl) => {
+                let mut keys = AstVec::new_in(allocator);
+
+                for member in tl.members.iter() {
+                    match member {
+                        TSSignature::TSPropertySignature(ps) => {
+                            let key = match &ps.key {
+                                PropertyKey::StaticIdentifier(si) => si.name.as_str(),
+                                _ => "",
+                            };
+
+                            keys.push(TSType::TSLiteralType(AstBox::new_in(
+                                TSLiteralType {
+                                    span: Default::default(),
+                                    literal: TSLiteral::StringLiteral(AstBox::new_in(
+                                        StringLiteral {
+                                            span: Default::default(),
+                                            value: key.into_in(allocator),
+                                            raw: None,
+                                            lone_surrogates: false,
+                                        },
+                                        allocator,
+                                    )),
+                                },
+                                allocator,
+                            )))
+                        }
+                        _ => {}
+                    }
+                }
+
+                let new_type = TSTypeAliasDeclaration {
+                    span: Default::default(),
+                    id: BindingIdentifier {
+                        span: Default::default(),
+                        name: Atom::new_const("NormalTmp"),
+                        symbol_id: Cell::new(None),
+                    },
+                    type_parameters: None,
+                    type_annotation: TSType::TSUnionType(AstBox::new_in(
+                        TSUnionType {
+                            span: Default::default(),
+                            types: keys,
+                        },
+                        allocator,
+                    )),
+                    scope_id: Cell::new(None),
+                    declare: false,
+                };
+
+                return Some(new_type);
+            }
+            _ => {}
+        }
+    }
+
+    None
+}
+
+///
+/// Get field tyep from type
+///
+pub fn get_field_type<'a>(
+    field_name: &str,
+    ts_type: &'a TSType<'a>,
+    _semantic: &Semantic<'a>,
+    _env: &GenericEnv<'a>,
+    allocator: &'a Allocator,
+    _result_program: &mut ResultProgram<'a>,
+) -> Option<AstBox<'a, TSTypeAnnotation<'a>>> {
+    match ts_type {
+        TSType::TSTypeLiteral(tl) => {
+            for member in tl.members.iter() {
+                match member {
+                    TSSignature::TSPropertySignature(ps) => {
+                        if let PropertyKey::StaticIdentifier(si) = &ps.key {
+                            if si.name.as_str() == field_name {
+                                return ps.type_annotation.clone_in(allocator);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            None
+        }
+        _ => None,
+    }
 }
