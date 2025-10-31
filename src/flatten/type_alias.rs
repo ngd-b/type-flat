@@ -2,8 +2,8 @@ use std::cell::Cell;
 
 use oxc_allocator::{Allocator, Box, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    BindingIdentifier, TSTupleElement, TSType, TSTypeAliasDeclaration, TSTypeLiteral, TSTypeName,
-    TSUnionType,
+    BindingIdentifier, TSConditionalType, TSTupleElement, TSType, TSTypeAliasDeclaration,
+    TSTypeLiteral, TSTypeName, TSUnionType,
 };
 use oxc_semantic::Semantic;
 use oxc_span::Atom;
@@ -41,7 +41,8 @@ pub fn flatten_type<'a>(
         | TSType::TSUnionType(_)
         | TSType::TSIntersectionType(_)
         | TSType::TSArrayType(_)
-        | TSType::TSTupleType(_) => {
+        | TSType::TSTupleType(_)
+        | TSType::TSConditionalType(_) => {
             result = flatten_ts_type(
                 &ts_type.type_annotation,
                 semantic,
@@ -240,6 +241,61 @@ pub fn flatten_ts_type<'a>(
             }
 
             None
+        }
+        TSType::TSConditionalType(ct) => {
+            let check_type =
+                flatten_ts_type(&ct.check_type, semantic, env, allocator, result_program);
+            let extends_type =
+                flatten_ts_type(&ct.extends_type, semantic, env, allocator, result_program);
+
+            if let (Some(check), Some(extends)) = (check_type, extends_type) {
+                let true_type =
+                    flatten_ts_type(&ct.true_type, semantic, env, allocator, result_program);
+                let false_type =
+                    flatten_ts_type(&ct.false_type, semantic, env, allocator, result_program);
+
+                if let (Some(true_decl), Some(false_decl)) = (true_type, false_type) {
+                    if let (Some(check), Some(extends), Some(true_type), Some(false_type)) = (
+                        check.type_alias(allocator),
+                        extends.type_alias(allocator),
+                        true_decl.type_alias(allocator),
+                        false_decl.type_alias(allocator),
+                    ) {
+                        let new_conditional_type = TSType::TSConditionalType(Box::new_in(
+                            TSConditionalType {
+                                span: Default::default(),
+                                check_type: check.type_annotation.clone_in(allocator),
+                                extends_type: extends.type_annotation.clone_in(allocator),
+                                true_type: true_type.type_annotation.clone_in(allocator),
+                                false_type: false_type.type_annotation.clone_in(allocator),
+                                scope_id: ct.scope_id.clone_in(allocator),
+                            },
+                            allocator,
+                        ));
+
+                        let new_type = TSTypeAliasDeclaration {
+                            span: Default::default(),
+                            id: BindingIdentifier {
+                                span: Default::default(),
+                                name: Atom::new_const("ConditionalTmp"),
+                                symbol_id: Cell::new(None),
+                            },
+                            type_parameters: None,
+                            type_annotation: new_conditional_type,
+                            scope_id: Cell::new(None),
+                            declare: false,
+                        };
+
+                        Some(DeclRef::TypeAlias(allocator.alloc(new_type)))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         }
         _ => {
             let new_type = TSTypeAliasDeclaration {

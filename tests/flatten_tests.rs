@@ -262,7 +262,156 @@ fn test_conditional_type() {
     .unwrap();
 
     let result = run_flat(tmp.to_str().unwrap(), "Result");
-    assert!(result.contains("true"));
+    assert!(result.contains("\"a\" extends string ? true : false"));
 
-    // fs::remove_file(&tmp).unwrap();
+    fs::remove_file(&tmp).unwrap();
+}
+
+#[test]
+fn test_mapped_and_keyof_type() {
+    let tmp = PathBuf::from("tests/tmp_mapped_keyof.ts");
+    fs::write(
+        &tmp,
+        r#"
+        interface User { id: number; name: string }
+        type Keys = keyof User
+        type ReadonlyUser = { readonly [K in keyof User]: User[K] }
+        "#,
+    )
+    .unwrap();
+
+    let result = run_flat(tmp.to_str().unwrap(), "ReadonlyUser");
+    assert!(result.contains("readonly id: number"));
+    assert!(result.contains("readonly name: string"));
+
+    fs::remove_file(&tmp).unwrap();
+}
+
+#[test]
+fn test_index_signature_and_literal_index() {
+    let tmp = PathBuf::from("tests/tmp_index_signature.ts");
+    fs::write(
+        &tmp,
+        r#"
+        interface Dictionary {
+            [key: string]: number;
+        }
+        type ValueOf<T> = T[keyof T]
+        "#,
+    )
+    .unwrap();
+
+    let result = run_flat(tmp.to_str().unwrap(), "Dictionary");
+    assert!(result.contains("[key: string]: number"));
+
+    let result_value = run_flat(tmp.to_str().unwrap(), "ValueOf<Dictionary>");
+    assert!(result_value.contains("number"));
+
+    fs::remove_file(&tmp).unwrap();
+}
+#[test]
+fn test_builtin_utility_types() {
+    let tmp = PathBuf::from("tests/tmp_builtin_utility.ts");
+    fs::write(
+        &tmp,
+        r#"
+        interface User { id: number; name?: string }
+        type AllRequired = Required<User>
+        type AllPartial = Partial<User>
+        type ReadonlyUser = Readonly<User>
+        type UserRecord = Record<'a' | 'b', User>
+        "#,
+    )
+    .unwrap();
+
+    let result_required = run_flat(tmp.to_str().unwrap(), "AllRequired");
+    assert!(result_required.contains("name: string"));
+
+    let result_partial = run_flat(tmp.to_str().unwrap(), "AllPartial");
+    assert!(result_partial.contains("id?: number"));
+
+    let result_readonly = run_flat(tmp.to_str().unwrap(), "ReadonlyUser");
+    assert!(result_readonly.contains("readonly id: number"));
+
+    let result_record = run_flat(tmp.to_str().unwrap(), "UserRecord");
+    assert!(result_record.contains("'a'"));
+    assert!(result_record.contains("'b'"));
+
+    fs::remove_file(&tmp).unwrap();
+}
+
+#[test]
+fn test_recursive_generic_type() {
+    let tmp = PathBuf::from("tests/tmp_recursive_generic.ts");
+    fs::write(
+        &tmp,
+        r#"
+        interface TreeNode<T> {
+            value: T;
+            children?: TreeNode<T>[];
+        }
+        "#,
+    )
+    .unwrap();
+
+    let result = run_flat(tmp.to_str().unwrap(), "TreeNode");
+    assert!(result.contains("children?: TreeNode<T>[]"));
+
+    fs::remove_file(&tmp).unwrap();
+}
+#[test]
+fn test_template_literal_type() {
+    let tmp = PathBuf::from("tests/tmp_template_literal.ts");
+    fs::write(
+        &tmp,
+        r#"
+        type Lang = "en" | "zh"
+        type LocaleKey = `message_${Lang}`
+        "#,
+    )
+    .unwrap();
+
+    let result = run_flat(tmp.to_str().unwrap(), "LocaleKey");
+    assert!(result.contains("message_en"));
+    assert!(result.contains("message_zh"));
+
+    fs::remove_file(&tmp).unwrap();
+}
+#[test]
+fn test_infer_type() {
+    let tmp = PathBuf::from("tests/tmp_infer.ts");
+    fs::write(
+        &tmp,
+        r#"
+        type ReturnType<T> = T extends (...args: any[]) => infer R ? R : any;
+        type Fn = () => number;
+        type Result = ReturnType<Fn>
+        "#,
+    )
+    .unwrap();
+
+    let result = run_flat(tmp.to_str().unwrap(), "Result");
+    assert!(result.contains("number"));
+
+    fs::remove_file(&tmp).unwrap();
+}
+
+#[test]
+fn test_namespace_type() {
+    let tmp = PathBuf::from("tests/tmp_namespace_type.ts");
+    fs::write(
+        &tmp,
+        r#"
+        namespace API {
+            export interface Response { code: number; msg: string }
+        }
+        "#,
+    )
+    .unwrap();
+
+    let result = run_flat(tmp.to_str().unwrap(), "API.Response");
+    assert!(result.contains("code: number"));
+    assert!(result.contains("msg: string"));
+
+    fs::remove_file(&tmp).unwrap();
 }
