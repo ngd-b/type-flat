@@ -71,9 +71,7 @@ pub fn flatten_type<'a>(
                 let result =
                     type_alias::flatten_ts_type(dt, semantic, env, allocator, result_program);
 
-                if let Some(decl) = result {
-                    arg_types.push(Rc::new(decl));
-                }
+                arg_types.push(Rc::new(result));
             }
         }
 
@@ -135,65 +133,84 @@ pub fn flatten_type<'a>(
 
     // self members
     for member in ts_type.body.body.iter() {
-        let mut prop;
         // the key is normal property
-        if let TSSignature::TSPropertySignature(tps) = member {
-            prop = tps.clone_in(allocator).unbox();
+        match member {
+            TSSignature::TSIndexSignature(tis) => {
+                let mut prop = tis.clone_in(allocator).unbox();
 
-            // let key = match tps.key {
-            //     _ => tps.key.clone_in(&allocator),
-            // };
+                // value type
+                let result = type_alias::flatten_ts_type(
+                    &tis.type_annotation.type_annotation,
+                    semantic,
+                    env,
+                    allocator,
+                    result_program,
+                );
+                prop.type_annotation.type_annotation = result.type_decl(allocator);
 
-            if let Some(ta) = &tps.type_annotation {
-                match ta.type_annotation {
-                    TSType::TSTypeReference(_)
-                    | TSType::TSUnionType(_)
-                    | TSType::TSIntersectionType(_)
-                    | TSType::TSArrayType(_)
-                    | TSType::TSTupleType(_) => {
-                        let result = type_alias::flatten_ts_type(
-                            &ta.type_annotation,
-                            semantic,
-                            &new_env,
-                            allocator,
-                            result_program,
-                        );
-                        if let Some(decl) = result {
-                            // result_program.push(decl);
+                // key flat type
+                for param in prop.parameters.iter_mut() {
+                    let param_clone = allocator.alloc(param.clone_in(allocator));
 
-                            let decl_type = match decl {
-                                DeclRef::Interface(tid) => {
-                                    let new_type = TSType::TSTypeLiteral(Box::new_in(
-                                        TSTypeLiteral {
-                                            span: Default::default(),
-                                            members: tid.body.body.clone_in(allocator),
-                                        },
-                                        allocator,
-                                    ));
+                    let new_type = type_alias::flatten_ts_type(
+                        &param_clone.type_annotation.type_annotation,
+                        semantic,
+                        env,
+                        allocator,
+                        result_program,
+                    )
+                    .type_decl(allocator);
 
-                                    new_type
-                                }
-                                DeclRef::TypeAlias(tad) => tad.type_annotation.clone_in(allocator),
-                            };
+                    param.type_annotation.type_annotation = new_type;
+                }
 
-                            prop.type_annotation = Some(Box::new_in(
-                                TSTypeAnnotation {
+                new_body
+                    .body
+                    .push(TSSignature::TSIndexSignature(Box::new_in(prop, &allocator)));
+            }
+            TSSignature::TSPropertySignature(tps) => {
+                let mut prop = tps.clone_in(allocator).unbox();
+
+                if let Some(ta) = &tps.type_annotation {
+                    let decl = type_alias::flatten_ts_type(
+                        &ta.type_annotation,
+                        semantic,
+                        &new_env,
+                        allocator,
+                        result_program,
+                    );
+
+                    let decl_type = match decl {
+                        DeclRef::Interface(tid) => {
+                            let new_type = TSType::TSTypeLiteral(Box::new_in(
+                                TSTypeLiteral {
                                     span: Default::default(),
-                                    type_annotation: decl_type,
+                                    members: tid.body.body.clone_in(allocator),
                                 },
                                 allocator,
                             ));
-                        };
-                    }
-                    _ => {}
-                };
-            };
 
-            new_body
-                .body
-                .push(TSSignature::TSPropertySignature(Box::new_in(
-                    prop, &allocator,
-                )));
+                            new_type
+                        }
+                        DeclRef::TypeAlias(tad) => tad.type_annotation.clone_in(allocator),
+                    };
+
+                    prop.type_annotation = Some(Box::new_in(
+                        TSTypeAnnotation {
+                            span: Default::default(),
+                            type_annotation: decl_type,
+                        },
+                        allocator,
+                    ));
+                };
+
+                new_body
+                    .body
+                    .push(TSSignature::TSPropertySignature(Box::new_in(
+                        prop, &allocator,
+                    )));
+            }
+            _ => {}
         }
     }
 

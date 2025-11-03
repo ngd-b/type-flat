@@ -6,8 +6,8 @@ use oxc_ast::{
     AstKind,
     ast::{
         BindingIdentifier, Program, PropertyKey, Statement, StringLiteral, TSInterfaceDeclaration,
-        TSLiteral, TSLiteralType, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeAnnotation,
-        TSTypeLiteral, TSUnionType,
+        TSLiteral, TSLiteralType, TSMappedTypeModifierOperator, TSSignature, TSType,
+        TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSUnionType,
     },
 };
 use oxc_semantic::Semantic;
@@ -202,6 +202,13 @@ pub fn get_keyof_union_type<'a>(
 
                 for member in tl.members.iter() {
                     match member {
+                        TSSignature::TSIndexSignature(tis) => {
+                            for param in tis.parameters.iter() {
+                                keys.push(
+                                    param.type_annotation.type_annotation.clone_in(allocator),
+                                );
+                            }
+                        }
                         TSSignature::TSPropertySignature(ps) => {
                             let key = match &ps.key {
                                 PropertyKey::StaticIdentifier(si) => si.name.as_str(),
@@ -285,5 +292,40 @@ pub fn get_field_type<'a>(
             None
         }
         _ => None,
+    }
+}
+
+///
+/// Computed field optional from type
+///
+pub fn computed_optional_or_readonly(optional: Option<TSMappedTypeModifierOperator>) -> bool {
+    match optional {
+        Some(TSMappedTypeModifierOperator::Plus) | Some(TSMappedTypeModifierOperator::True) => {
+            return true;
+        }
+        Some(TSMappedTypeModifierOperator::Minus) => {
+            return false;
+        }
+        _ => {
+            return false;
+        }
+    }
+}
+
+///
+/// Get normal type string name
+///
+pub fn get_normal_type_str<'a>(ts_type: &'a TSType<'a>) -> &'a str {
+    match ts_type {
+        TSType::TSStringKeyword(_) => "string",
+        TSType::TSNumberKeyword(_) => "number",
+        TSType::TSBooleanKeyword(_) => "boolean",
+        TSType::TSBigIntKeyword(_) => "bigint",
+        TSType::TSUndefinedKeyword(_) => "undefined",
+        TSType::TSNullKeyword(_) => "null",
+        TSType::TSSymbolKeyword(_) => "symbol",
+        TSType::TSVoidKeyword(_) => "void",
+
+        _ => "unknown",
     }
 }

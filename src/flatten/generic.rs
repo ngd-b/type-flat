@@ -54,13 +54,11 @@ pub fn flatten_generic<'a>(
         let mut decl_names = Vec::new();
 
         for (formal, actual) in arg_params.iter().zip(type_params) {
-            let result =
+            let decl =
                 type_alias::flatten_ts_type(actual, semantic, &new_env, allocator, result_program);
 
-            if let Some(decl) = result {
-                decl_vec.push(Rc::new(decl));
-                decl_names.push(formal.name.to_string());
-            }
+            decl_vec.push(Rc::new(decl));
+            decl_names.push(formal.name.to_string());
         }
 
         new_env = new_env.update(&decl_names, &decl_vec);
@@ -122,90 +120,86 @@ pub fn flatten_pick_omit<'a>(
         _ => vec![],
     };
 
-    if let Some(refer) = refer_type {
-        match refer {
-            DeclRef::Interface(tid) => {
-                let mut members = AstVec::new_in(allocator);
+    match refer_type {
+        DeclRef::Interface(tid) => {
+            let mut members = AstVec::new_in(allocator);
 
-                for sg in &tid.body.body {
-                    match sg {
-                        TSSignature::TSPropertySignature(ps) => match &ps.key {
-                            PropertyKey::StaticIdentifier(si) => {
-                                if kind == "Pick" && keys.contains(&si.name.to_string()) {
-                                    members.push(sg.clone_in(allocator))
-                                }
-                                if kind == "Omit" && !keys.contains(&si.name.to_string()) {
-                                    members.push(sg.clone_in(allocator))
-                                }
+            for sg in &tid.body.body {
+                match sg {
+                    TSSignature::TSPropertySignature(ps) => match &ps.key {
+                        PropertyKey::StaticIdentifier(si) => {
+                            if kind == "Pick" && keys.contains(&si.name.to_string()) {
+                                members.push(sg.clone_in(allocator))
                             }
-                            _ => {}
-                        },
-                        _ => {}
-                    }
-                }
-
-                let result = allocator.alloc(TSInterfaceDeclaration {
-                    span: Default::default(),
-                    id: tid.id.clone_in(allocator),
-                    type_parameters: None,
-                    extends: AstVec::new_in(allocator),
-                    body: Box::new_in(
-                        TSInterfaceBody {
-                            span: Default::default(),
-                            body: members,
-                        },
-                        allocator,
-                    ),
-                    scope_id: tid.scope_id.clone_in(allocator),
-                    declare: tid.declare,
-                });
-
-                DeclRef::Interface(result)
-            }
-            DeclRef::TypeAlias(tad) => {
-                let mut members = AstVec::new_in(allocator);
-
-                match &tad.type_annotation {
-                    TSType::TSTypeLiteral(tl) => {
-                        for sg in tl.members.iter() {
-                            match sg {
-                                TSSignature::TSPropertySignature(ps) => match &ps.key {
-                                    PropertyKey::StaticIdentifier(si) => {
-                                        if kind == "Pick" && keys.contains(&si.name.to_string()) {
-                                            members.push(sg.clone_in(allocator))
-                                        }
-                                        if kind == "Omit" && !keys.contains(&si.name.to_string()) {
-                                            members.push(sg.clone_in(allocator))
-                                        }
-                                    }
-                                    _ => {}
-                                },
-                                _ => {}
+                            if kind == "Omit" && !keys.contains(&si.name.to_string()) {
+                                members.push(sg.clone_in(allocator))
                             }
                         }
-                    }
+                        _ => {}
+                    },
                     _ => {}
                 }
-
-                let result = allocator.alloc(TSTypeAliasDeclaration {
-                    id: tad.id.clone_in(allocator),
-                    type_parameters: None,
-                    type_annotation: TSType::TSTypeLiteral(Box::new_in(
-                        TSTypeLiteral {
-                            span: Default::default(),
-                            members: members,
-                        },
-                        allocator,
-                    )),
-                    declare: tad.declare,
-                    span: Default::default(),
-                    scope_id: tad.scope_id.clone_in(allocator),
-                });
-
-                DeclRef::TypeAlias(result)
             }
+
+            let result = allocator.alloc(TSInterfaceDeclaration {
+                span: Default::default(),
+                id: tid.id.clone_in(allocator),
+                type_parameters: None,
+                extends: AstVec::new_in(allocator),
+                body: Box::new_in(
+                    TSInterfaceBody {
+                        span: Default::default(),
+                        body: members,
+                    },
+                    allocator,
+                ),
+                scope_id: tid.scope_id.clone_in(allocator),
+                declare: tid.declare,
+            });
+
+            DeclRef::Interface(result)
         }
-    } else {
-        panic!("type is not found in AST")
+        DeclRef::TypeAlias(tad) => {
+            let mut members = AstVec::new_in(allocator);
+
+            match &tad.type_annotation {
+                TSType::TSTypeLiteral(tl) => {
+                    for sg in tl.members.iter() {
+                        match sg {
+                            TSSignature::TSPropertySignature(ps) => match &ps.key {
+                                PropertyKey::StaticIdentifier(si) => {
+                                    if kind == "Pick" && keys.contains(&si.name.to_string()) {
+                                        members.push(sg.clone_in(allocator))
+                                    }
+                                    if kind == "Omit" && !keys.contains(&si.name.to_string()) {
+                                        members.push(sg.clone_in(allocator))
+                                    }
+                                }
+                                _ => {}
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {}
+            }
+
+            let result = allocator.alloc(TSTypeAliasDeclaration {
+                id: tad.id.clone_in(allocator),
+                type_parameters: None,
+                type_annotation: TSType::TSTypeLiteral(Box::new_in(
+                    TSTypeLiteral {
+                        span: Default::default(),
+                        members: members,
+                    },
+                    allocator,
+                )),
+                declare: tad.declare,
+                span: Default::default(),
+                scope_id: tad.scope_id.clone_in(allocator),
+            });
+
+            DeclRef::TypeAlias(result)
+        }
     }
 }

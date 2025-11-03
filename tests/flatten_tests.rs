@@ -297,6 +297,8 @@ fn test_index_signature_and_literal_index() {
             [key: string]: number;
         }
         type ValueOf<T> = T[keyof T]
+        
+        type DictionaryValue = ValueOf<Dictionary>;
         "#,
     )
     .unwrap();
@@ -304,8 +306,8 @@ fn test_index_signature_and_literal_index() {
     let result = run_flat(tmp.to_str().unwrap(), "Dictionary");
     assert!(result.contains("[key: string]: number"));
 
-    let result_value = run_flat(tmp.to_str().unwrap(), "ValueOf<Dictionary>");
-    assert!(result_value.contains("number"));
+    let result_value = run_flat(tmp.to_str().unwrap(), "DictionaryValue");
+    assert!(result_value.contains("type DictionaryValue = number"));
 
     fs::remove_file(&tmp).unwrap();
 }
