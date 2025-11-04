@@ -5,8 +5,9 @@ use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
     ast::{
-        BindingIdentifier, Program, PropertyKey, Statement, StringLiteral, TSInterfaceDeclaration,
-        TSLiteral, TSLiteralType, TSMappedTypeModifierOperator, TSSignature, TSType,
+        BindingIdentifier, IdentifierName, NumericLiteral, Program, PropertyKey, Statement,
+        StringLiteral, TSInterfaceDeclaration, TSLiteral, TSLiteralType,
+        TSMappedTypeModifierOperator, TSPropertySignature, TSSignature, TSType,
         TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSUnionType,
     },
 };
@@ -328,4 +329,59 @@ pub fn get_normal_type_str<'a>(ts_type: &'a TSType<'a>) -> &'a str {
 
         _ => "unknown",
     }
+}
+
+///
+/// New TSSignature type member
+///
+pub fn new_ts_signature<'a>(
+    literal: &'a TSLiteral<'a>,
+    ts_type: &'a TSType<'a>,
+    allocator: &'a Allocator,
+) -> TSSignature<'a> {
+    let key;
+
+    match literal {
+        TSLiteral::StringLiteral(sl) => {
+            key = PropertyKey::StaticIdentifier(AstBox::new_in(
+                IdentifierName {
+                    span: Default::default(),
+                    name: sl.value.clone_in(allocator),
+                },
+                allocator,
+            ))
+        }
+        TSLiteral::NumericLiteral(nl) => {
+            key = PropertyKey::NumericLiteral(nl.clone_in(allocator));
+        }
+
+        TSLiteral::BooleanLiteral(bl) => key = PropertyKey::BooleanLiteral(bl.clone_in(allocator)),
+        TSLiteral::BigIntLiteral(bl) => key = PropertyKey::BigIntLiteral(bl.clone_in(allocator)),
+        TSLiteral::TemplateLiteral(tl) => {
+            key = PropertyKey::TemplateLiteral(tl.clone_in(allocator))
+        }
+        TSLiteral::UnaryExpression(ue) => {
+            key = PropertyKey::UnaryExpression(ue.clone_in(allocator))
+        }
+    }
+
+    let new_signature = TSSignature::TSPropertySignature(AstBox::new_in(
+        TSPropertySignature {
+            span: Default::default(),
+            key,
+            type_annotation: Option::Some(AstBox::new_in(
+                TSTypeAnnotation {
+                    span: Default::default(),
+                    type_annotation: ts_type.clone_in(allocator),
+                },
+                allocator,
+            )),
+            computed: false,
+            optional: false,
+            readonly: false,
+        },
+        allocator,
+    ));
+
+    new_signature
 }

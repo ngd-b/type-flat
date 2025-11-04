@@ -10,6 +10,7 @@ use oxc_span::SourceType;
 
 pub mod generic;
 pub mod interface;
+pub mod keyword;
 pub mod type_alias;
 pub mod utils;
 

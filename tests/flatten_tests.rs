@@ -336,8 +336,8 @@ fn test_builtin_utility_types() {
     assert!(result_readonly.contains("readonly id: number"));
 
     let result_record = run_flat(tmp.to_str().unwrap(), "UserRecord");
-    assert!(result_record.contains("'a'"));
-    assert!(result_record.contains("'b'"));
+    assert!(result_record.contains("a:{ id: number; name?: string }"));
+    assert!(result_record.contains("b:{ id: number; name?: string }"));
 
     fs::remove_file(&tmp).unwrap();
 }

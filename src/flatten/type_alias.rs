@@ -1,4 +1,4 @@
-use std::{cell::Cell, rc::Rc};
+use std::cell::Cell;
 
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::ast::{
@@ -11,7 +11,9 @@ use oxc_span::Atom;
 
 use crate::flatten::{
     generic::{self, GenericEnv},
-    interface, type_alias,
+    interface,
+    keyword::Keyword,
+    type_alias,
     utils::{self, DeclRef, ResultProgram},
 };
 
@@ -59,7 +61,7 @@ pub fn flatten_ts_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> DeclRef<'a> {
-    let new_type = TSTypeAliasDeclaration {
+    let mut new_type = TSTypeAliasDeclaration {
         span: Default::default(),
         id: BindingIdentifier {
             span: Default::default(),
@@ -86,6 +88,13 @@ pub fn flatten_ts_type<'a>(
                     generic::flatten_pick_omit(&tr, semantic, env, allocator, result_program);
                 return result;
             };
+
+            if let Some(keyword) = Keyword::is_keyword(tr) {
+                let result_type = keyword.flatten(semantic, env, allocator, result_program);
+
+                new_type.type_annotation = result_type;
+                return DeclRef::TypeAlias(allocator.alloc(new_type));
+            }
 
             // if it's a generic type
             if let Some(decl) = env.get(&reference_name) {
@@ -237,18 +246,7 @@ pub fn flatten_ts_type<'a>(
                     allocator,
                 ));
 
-                let new_type = TSTypeAliasDeclaration {
-                    span: Default::default(),
-                    id: BindingIdentifier {
-                        span: Default::default(),
-                        name: Atom::new_const("ConditionalTmp"),
-                        symbol_id: Cell::new(None),
-                    },
-                    type_parameters: None,
-                    type_annotation: new_conditional_type,
-                    scope_id: Cell::new(None),
-                    declare: false,
-                };
+                new_type.type_annotation = new_conditional_type;
 
                 return DeclRef::TypeAlias(allocator.alloc(new_type));
             }
@@ -277,11 +275,12 @@ pub fn flatten_ts_type<'a>(
             };
             let mut keys = vec![];
 
-            let mut new_env = env.clone();
+            // let mut new_env = env.clone();
 
             if let Some(decl) = key_type {
                 // save the key_type to env
-                new_env = env.update(&[key_name.clone()], &[Rc::new(decl)]);
+                // Not need map key to value Index access type
+                // new_env = env.update(&[key_name.clone()], &[Rc::new(decl)]);
 
                 match decl.type_alias(allocator) {
                     Some(tad) => match &tad.type_annotation {
@@ -353,24 +352,13 @@ pub fn flatten_ts_type<'a>(
                                     members.push(element_type);
                                 }
 
-                                let new_type = TSTypeAliasDeclaration {
-                                    span: Default::default(),
-                                    id: BindingIdentifier {
+                                new_type.type_annotation = TSType::TSTypeLiteral(AstBox::new_in(
+                                    TSTypeLiteral {
                                         span: Default::default(),
-                                        name: Atom::new_const("ConditionalTmp"),
-                                        symbol_id: Cell::new(None),
+                                        members,
                                     },
-                                    type_parameters: None,
-                                    type_annotation: TSType::TSTypeLiteral(AstBox::new_in(
-                                        TSTypeLiteral {
-                                            span: Default::default(),
-                                            members,
-                                        },
-                                        allocator,
-                                    )),
-                                    scope_id: Cell::new(None),
-                                    declare: false,
-                                };
+                                    allocator,
+                                ));
 
                                 return DeclRef::TypeAlias(allocator.alloc(new_type));
                             }
@@ -417,18 +405,7 @@ pub fn flatten_ts_type<'a>(
                 result_program,
             );
 
-            let new_type = TSTypeAliasDeclaration {
-                span: Default::default(),
-                id: BindingIdentifier {
-                    span: Default::default(),
-                    name: Atom::new_const("ConditionalTmp"),
-                    symbol_id: Cell::new(None),
-                },
-                type_parameters: None,
-                type_annotation: result,
-                scope_id: Cell::new(None),
-                declare: false,
-            };
+            new_type.type_annotation = result;
 
             return DeclRef::TypeAlias(allocator.alloc(new_type));
         }
