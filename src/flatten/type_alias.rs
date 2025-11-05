@@ -4,7 +4,7 @@ use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::ast::{
     BindingIdentifier, IdentifierName, PropertyKey, TSConditionalType, TSIndexedAccessType,
     TSLiteral, TSPropertySignature, TSSignature, TSTupleElement, TSType, TSTypeAliasDeclaration,
-    TSTypeLiteral, TSTypeName, TSTypeOperatorOperator, TSUnionType,
+    TSTypeLiteral, TSTypeName, TSTypeOperatorOperator, TSTypeQueryExprName, TSUnionType,
 };
 use oxc_semantic::Semantic;
 use oxc_span::Atom;
@@ -409,6 +409,24 @@ pub fn flatten_ts_type<'a>(
 
             return DeclRef::TypeAlias(allocator.alloc(new_type));
         }
+        TSType::TSTypeQuery(tq) => match &tq.expr_name {
+            TSTypeQueryExprName::IdentifierReference(ir) => {
+                let reference_name = ir.name.as_str();
+
+                let decl = utils::get_reference_type(
+                    reference_name,
+                    semantic,
+                    env,
+                    allocator,
+                    result_program,
+                );
+
+                if let Ok(decl) = decl {
+                    return decl;
+                }
+            }
+            _ => {}
+        },
         _ => {}
     }
 

@@ -11,3 +11,5 @@ node_modules
 # already existing elements were commented out
 
 #/target
+
+tests/**.ts

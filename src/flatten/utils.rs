@@ -5,10 +5,10 @@ use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
     ast::{
-        BindingIdentifier, IdentifierName, Program, PropertyKey, Statement, StringLiteral,
-        TSInterfaceDeclaration, TSLiteral, TSLiteralType, TSMappedTypeModifierOperator,
-        TSPropertySignature, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeAnnotation,
-        TSTypeLiteral, TSUnionType,
+        BindingIdentifier, BindingPatternKind, IdentifierName, Program, PropertyKey, Statement,
+        StringLiteral, TSInterfaceDeclaration, TSLiteral, TSLiteralType,
+        TSMappedTypeModifierOperator, TSPropertySignature, TSSignature, TSType,
+        TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSUnionType, VariableDeclaration,
     },
 };
 use oxc_semantic::Semantic;
@@ -23,16 +23,6 @@ pub enum DeclRef<'a> {
 }
 
 impl<'a> DeclRef<'a> {
-    ///
-    /// Get type name
-    ///
-    pub fn name(&self) -> &str {
-        match self {
-            DeclRef::Interface(decl) => decl.id.name.as_str(),
-            DeclRef::TypeAlias(decl) => decl.id.name.as_str(),
-        }
-    }
-
     ///
     /// Get type alias declaration
     ///
@@ -109,6 +99,12 @@ impl<'a> ResultProgram<'a> {
         self.program.body.iter().any(|st| match st {
             Statement::TSInterfaceDeclaration(decl) => decl.id.name == name,
             Statement::TSTypeAliasDeclaration(decl) => decl.id.name == name,
+            Statement::VariableDeclaration(vd) => {
+                vd.declarations.iter().any(|decl| match decl.id.kind {
+                    BindingPatternKind::BindingIdentifier(ref id) => id.name.as_str() == name,
+                    _ => false,
+                })
+            }
             _ => false,
         })
     }
@@ -136,6 +132,26 @@ impl<'a> ResultProgram<'a> {
                 self.allocator,
             )));
     }
+    pub fn add_statement(&mut self, decl: VariableDeclaration<'a>) {
+        let name = if let Some(decl) = decl.declarations.first() {
+            if let BindingPatternKind::BindingIdentifier(bi) = &decl.id.kind {
+                bi.name.as_str()
+            } else {
+                return;
+            }
+        } else {
+            return;
+        };
+        if self.has_decl(name) {
+            return;
+        }
+        self.program
+            .body
+            .push(Statement::VariableDeclaration(AstBox::new_in(
+                decl,
+                self.allocator,
+            )));
+    }
     pub fn push(&mut self, decl: DeclRef<'a>) {
         match decl {
             DeclRef::Interface(decl) => {
@@ -156,34 +172,53 @@ pub fn get_reference_type<'a>(
     semantic: &Semantic<'a>,
     _env: &GenericEnv<'a>,
     allocator: &'a Allocator,
-    _result_program: &mut ResultProgram<'a>,
+    result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
     let scope = semantic.scoping();
 
-    for symbol_id in scope.symbol_ids() {
-        let name = scope.symbol_name(symbol_id);
+    let symbol_id = match scope
+        .get_root_binding(reference_name)
+        .or_else(|| scope.find_binding(scope.root_scope_id(), reference_name))
+    {
+        Some(id) => id,
+        None => bail!("symbol {} is not found", reference_name),
+    };
 
-        if name == reference_name {
-            let ast_node = semantic.symbol_declaration(symbol_id);
+    let ast_node = semantic.symbol_declaration(symbol_id);
 
-            match ast_node.kind() {
-                AstKind::TSTypeAliasDeclaration(tad) => {
-                    // let refer =
-                    //     type_alias::flatten_type(tad, semantic, env, allocator, result_program);
-                    return Ok(DeclRef::TypeAlias(allocator.alloc(tad)));
-                }
-                AstKind::TSInterfaceDeclaration(tid) => {
-                    // let refer =
-                    //     interface::flatten_type(tid, semantic, env, allocator, result_program);
-
-                    return Ok(DeclRef::Interface(allocator.alloc(tid)));
-                }
-                _ => bail!("Unsupported Referenc Type"),
-            }
+    match ast_node.kind() {
+        AstKind::TSTypeAliasDeclaration(tad) => {
+            // let refer =
+            //     type_alias::flatten_type(tad, semantic, env, allocator, result_program);
+            return Ok(DeclRef::TypeAlias(allocator.alloc(tad)));
         }
-    }
+        AstKind::TSInterfaceDeclaration(tid) => {
+            // let refer =
+            //     interface::flatten_type(tid, semantic, env, allocator, result_program);
 
-    bail!("Unsupported Declaration Type")
+            return Ok(DeclRef::Interface(allocator.alloc(tid)));
+        }
+        // AstKind::VariableDeclaration(vd) => {
+        //     result_program
+        //         .program
+        //         .body
+        //         .push(Statement::VariableDeclaration(AstBox::new_in(
+        //             vd.clone_in(allocator),
+        //             allocator,
+        //         )));
+        // }
+        AstKind::VariableDeclarator(vd) => {
+            result_program.add_statement(VariableDeclaration {
+                span: Default::default(),
+                declarations: AstVec::from_array_in([vd.clone_in(allocator)], allocator),
+                kind: vd.kind.clone_in(allocator),
+                declare: true,
+            });
+        }
+
+        _ => {}
+    }
+    bail!("Unsupported Referenc Type")
 }
 
 ///
@@ -384,4 +419,58 @@ pub fn new_ts_signature<'a>(
     ));
 
     new_signature
+}
+
+///
+/// TSSignature is equal
+///
+pub fn ts_signature_is_equal<'a>(
+    signature1: &'a TSSignature<'a>,
+    signature2: &'a TSSignature<'a>,
+) -> bool {
+    match (signature1, signature2) {
+        (TSSignature::TSPropertySignature(ps1), TSSignature::TSPropertySignature(ps2)) => {
+            match (&ps1.key, &ps2.key) {
+                (PropertyKey::StaticIdentifier(si1), PropertyKey::StaticIdentifier(si2)) => {
+                    si1.name.as_str() == si2.name.as_str()
+                }
+                _ => false,
+            }
+        }
+        (TSSignature::TSIndexSignature(is1), TSSignature::TSIndexSignature(is2)) => {
+            for (p1, p2) in is1.parameters.iter().zip(&is2.parameters) {
+                if p1.name.as_str() != p2.name.as_str() {
+                    return false;
+                }
+            }
+            true
+        }
+        (
+            TSSignature::TSCallSignatureDeclaration(_csd1),
+            TSSignature::TSCallSignatureDeclaration(_csd2),
+        ) => false,
+
+        (
+            TSSignature::TSConstructSignatureDeclaration(_csd1),
+            TSSignature::TSConstructSignatureDeclaration(_csd2),
+        ) => false,
+
+        (TSSignature::TSMethodSignature(_ms1), TSSignature::TSMethodSignature(_ms2)) => false,
+        _ => false,
+    }
+}
+
+///
+/// Exist the same signature
+///
+pub fn exist_same_signature<'a>(
+    signatures: &'a [TSSignature<'a>],
+    signature: &'a TSSignature<'a>,
+) -> bool {
+    for sig in signatures {
+        if ts_signature_is_equal(sig, signature) {
+            return true;
+        }
+    }
+    false
 }
