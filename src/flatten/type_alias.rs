@@ -447,25 +447,14 @@ pub fn merge_ts_type<'a>(
                 }
             }
             DeclRef::TypeAlias(tad) => {
+                if is_union {
+                    union_types.push(tad.type_annotation.clone_in(allocator));
+                    continue;
+                }
                 // get type literal
                 match &tad.type_annotation {
                     TSType::TSTypeLiteral(tl) => {
-                        if is_union {
-                            union_types.push(TSType::TSTypeLiteral(AstBox::new_in(
-                                TSTypeLiteral {
-                                    span: Default::default(),
-                                    members: tl.members.clone_in(allocator),
-                                },
-                                allocator,
-                            )))
-                        } else {
-                            memebers.extend(tl.members.clone_in(allocator));
-                        }
-                    }
-                    TSType::TSUnionType(ut) => {
-                        if is_union {
-                            union_types.extend(ut.types.clone_in(allocator));
-                        }
+                        memebers.extend(tl.members.clone_in(allocator));
                     }
                     _ => {}
                 }

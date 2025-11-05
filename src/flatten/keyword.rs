@@ -127,13 +127,22 @@ impl<'a> Keyword<'a> {
                             result_program,
                         )
                         .type_decl(allocator);
+                        // flatten value
+                        let value_type = type_alias::flatten_ts_type(
+                            value_type,
+                            semantic,
+                            env,
+                            allocator,
+                            result_program,
+                        )
+                        .type_decl(allocator);
 
                         match key_type {
                             TSType::TSLiteralType(tlt) => {
                                 if let TSLiteral::StringLiteral(_sl) = &tlt.literal {
                                     new_type.members.push(utils::new_ts_signature(
                                         &tlt.literal,
-                                        value_type,
+                                        &value_type,
                                         allocator,
                                     ));
 
@@ -151,12 +160,7 @@ impl<'a> Keyword<'a> {
                                             | TSLiteral::StringLiteral(_) => {
                                                 new_type.members.push(utils::new_ts_signature(
                                                     &tlt.literal,
-                                                    value_type,
-                                                    allocator,
-                                                ));
-
-                                                return TSType::TSTypeLiteral(AstBox::new_in(
-                                                    new_type.clone_in(allocator),
+                                                    &value_type,
                                                     allocator,
                                                 ));
                                             }
@@ -165,6 +169,10 @@ impl<'a> Keyword<'a> {
                                         }
                                     }
                                 }
+                                return TSType::TSTypeLiteral(AstBox::new_in(
+                                    new_type.clone_in(allocator),
+                                    allocator,
+                                ));
                             }
                             _ => {}
                         }

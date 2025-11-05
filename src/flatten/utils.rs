@@ -5,10 +5,10 @@ use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
     ast::{
-        BindingIdentifier, IdentifierName, NumericLiteral, Program, PropertyKey, Statement,
-        StringLiteral, TSInterfaceDeclaration, TSLiteral, TSLiteralType,
-        TSMappedTypeModifierOperator, TSPropertySignature, TSSignature, TSType,
-        TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSUnionType,
+        BindingIdentifier, IdentifierName, Program, PropertyKey, Statement, StringLiteral,
+        TSInterfaceDeclaration, TSLiteral, TSLiteralType, TSMappedTypeModifierOperator,
+        TSPropertySignature, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeAnnotation,
+        TSTypeLiteral, TSUnionType,
     },
 };
 use oxc_semantic::Semantic;
