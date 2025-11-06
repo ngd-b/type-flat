@@ -6,8 +6,9 @@ use oxc_semantic::Semantic;
 
 use crate::flatten::{
     generic::GenericEnv,
+    result::ResultProgram,
     type_alias,
-    utils::{self, ResultProgram},
+    utils::{self},
 };
 
 #[derive(Debug, Clone, Copy)]

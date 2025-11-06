@@ -8,8 +8,9 @@ use oxc_semantic::Semantic;
 
 use crate::flatten::{
     generic::{self, GenericEnv},
+    result::ResultProgram,
     type_alias,
-    utils::{self, DeclRef, ResultProgram},
+    utils::{self, DeclRef},
 };
 
 ///

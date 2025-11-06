@@ -11,6 +11,7 @@ use oxc_span::SourceType;
 pub mod generic;
 pub mod interface;
 pub mod keyword;
+pub mod result;
 pub mod type_alias;
 pub mod utils;
 
@@ -60,7 +61,7 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
 
     let env = GenericEnv::new();
 
-    let mut result_program = utils::ResultProgram::new(&ast, &allocator);
+    let mut result_program = result::ResultProgram::new(&ast, &allocator);
 
     match target_type {
         DeclRef::Interface(decl) => {

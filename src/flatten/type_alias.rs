@@ -13,8 +13,9 @@ use crate::flatten::{
     generic::{self, GenericEnv},
     interface,
     keyword::Keyword,
+    result::ResultProgram,
     type_alias,
-    utils::{self, DeclRef, ResultProgram},
+    utils::{self, DeclRef},
 };
 
 ///
@@ -82,6 +83,10 @@ pub fn flatten_ts_type<'a>(
                 _ => "".to_string(),
             };
 
+            if result_program.visited.contains(&reference_name) {
+                return DeclRef::TypeAlias(allocator.alloc(new_type));
+            }
+
             // Keyword type flatten
             if let Some(keyword) = Keyword::is_keyword(tr) {
                 let result_type = keyword.flatten(semantic, env, allocator, result_program);
@@ -94,6 +99,8 @@ pub fn flatten_ts_type<'a>(
             if let Some(decl) = env.get(&reference_name) {
                 return *decl;
             }
+            // Not exist
+            result_program.visited.insert(reference_name.clone());
 
             let result = utils::get_reference_type(
                 &reference_name,
@@ -123,6 +130,7 @@ pub fn flatten_ts_type<'a>(
                             result_program,
                         );
 
+                        result_program.visited.remove(&reference_name);
                         return DeclRef::Interface(allocator.alloc(result));
                     }
                     DeclRef::TypeAlias(tad) => {
@@ -143,10 +151,13 @@ pub fn flatten_ts_type<'a>(
                             result_program,
                         );
 
+                        result_program.visited.remove(&reference_name);
                         return DeclRef::TypeAlias(allocator.alloc(result));
                     }
                 }
             }
+
+            result_program.visited.remove(&reference_name);
         }
         // union type. only flat not merge
         TSType::TSUnionType(ut) => {
