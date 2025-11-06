@@ -82,13 +82,7 @@ pub fn flatten_ts_type<'a>(
                 _ => "".to_string(),
             };
 
-            // Pick / Omit
-            if reference_name == "Pick" || reference_name == "Omit" {
-                let result =
-                    generic::flatten_pick_omit(&tr, semantic, env, allocator, result_program);
-                return result;
-            };
-
+            // Keyword type flatten
             if let Some(keyword) = Keyword::is_keyword(tr) {
                 let result_type = keyword.flatten(semantic, env, allocator, result_program);
 
@@ -182,14 +176,15 @@ pub fn flatten_ts_type<'a>(
             let mut elements = AstVec::new_in(allocator);
 
             for element in tut.element_types.iter() {
-                let ts_type = flatten_ts_type(
+                let decl = flatten_ts_type(
                     element.to_ts_type(),
                     semantic,
                     env,
                     allocator,
                     result_program,
-                )
-                .type_decl(allocator);
+                );
+
+                let ts_type = decl.type_decl(allocator);
 
                 match element {
                     TSTupleElement::TSOptionalType(tot) => {
@@ -206,6 +201,7 @@ pub fn flatten_ts_type<'a>(
                         elements.push(TSTupleElement::TSRestType(new_element))
                     }
                     _ => {
+                        result_program.push(decl);
                         elements.push(element.clone_in(allocator));
                     }
                 }

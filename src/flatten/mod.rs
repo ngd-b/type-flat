@@ -91,25 +91,7 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
         }
     };
 
-    let code_gen = Codegen::new()
-        // .with_options(CodegenOptions {
-        //     minify: true,
-        //     ..Default::default()
-        // })
-        .build(&result_program.program);
-
-    // let ast_result = TSTypeAliasDeclaration {
-    //     id:BindingIdentifier {
-    //         name: type_name.to_string(),
-    //         span:Default::default(),
-    //         symbol_id: todo!(),
-    //     },
-    //     type_parameters:None,
-    //     type_annotation:result,
-    //     declare:false,
-    //     span:Default::default(),
-    //     scope_id: todo!(),
-    // };
+    let code_gen = Codegen::new().build(&result_program.program);
 
     Ok(code_gen.code)
 }

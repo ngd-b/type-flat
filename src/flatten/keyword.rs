@@ -1,5 +1,7 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
-use oxc_ast::ast::{TSLiteral, TSSignature, TSType, TSTypeLiteral, TSTypeName, TSTypeReference};
+use oxc_ast::ast::{
+    PropertyKey, TSLiteral, TSSignature, TSType, TSTypeLiteral, TSTypeName, TSTypeReference,
+};
 use oxc_semantic::Semantic;
 
 use crate::flatten::{
@@ -14,14 +16,27 @@ pub enum Keyword<'a> {
     Readonly(&'a TSTypeReference<'a>),
     Partial(&'a TSTypeReference<'a>),
     Record(&'a TSTypeReference<'a>),
-    // Pick(&'a TSTypeReference<'a>, &'a TSTypeReference<'a>),
-    // Omit(&'a TSTypeReference<'a>, &'a TSTypeReference<'a>),
+    Pick(&'a TSTypeReference<'a>),
+    Omit(&'a TSTypeReference<'a>),
     // Exclude(&'a TSTypeReference<'a>, &'a TSTypeReference<'a>),
     // Extract(&'a TSTypeReference<'a>, &'a TSTypeReference<'a>),
     // ReturnType(&'a TSTypeReference<'a>),
 }
 
 impl<'a> Keyword<'a> {
+    ///
+    /// Get keyword name
+    ///
+    pub fn name(&self) -> &'static str {
+        match self {
+            Keyword::Required(_) => "Required",
+            Keyword::Readonly(_) => "Readonly",
+            Keyword::Partial(_) => "Partial",
+            Keyword::Record(_) => "Record",
+            Keyword::Pick(_) => "Pick",
+            Keyword::Omit(_) => "Omit",
+        }
+    }
     ///
     /// Get keyword type
     ///
@@ -36,6 +51,8 @@ impl<'a> Keyword<'a> {
             "Readonly" => Some(Keyword::Readonly(ts_type)),
             "Partial" => Some(Keyword::Partial(ts_type)),
             "Record" => Some(Keyword::Record(ts_type)),
+            "Pick" => Some(Keyword::Pick(ts_type)),
+            "Omit" => Some(Keyword::Omit(ts_type)),
             _ => None,
         }
     }
@@ -54,6 +71,12 @@ impl<'a> Keyword<'a> {
                 TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
             }
             Keyword::Record(ts_type) => {
+                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
+            }
+            Keyword::Pick(ts_type) => {
+                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
+            }
+            Keyword::Omit(ts_type) => {
                 TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
             }
         }
@@ -179,6 +202,18 @@ impl<'a> Keyword<'a> {
                     }
                 };
             }
+            Keyword::Pick(refer) => {
+                let ts_type =
+                    flatten_pick_omit(self.name(), refer, semantic, env, allocator, result_program);
+
+                return TSType::TSTypeLiteral(AstBox::new_in(ts_type, allocator));
+            }
+            Keyword::Omit(refer) => {
+                let ts_type =
+                    flatten_pick_omit(self.name(), refer, semantic, env, allocator, result_program);
+
+                return TSType::TSTypeLiteral(AstBox::new_in(ts_type, allocator));
+            }
         }
 
         self.get_type(allocator)
@@ -285,4 +320,100 @@ pub fn set_type_readonly<'a>(
     new_type.members = members;
 
     TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator))
+}
+
+///
+/// Flatten Pick/Omit keyword type
+///
+pub fn flatten_pick_omit<'a>(
+    kind: &str,
+    refer: &'a TSTypeReference<'a>,
+    semantic: &Semantic<'a>,
+    env: &GenericEnv<'a>,
+    allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
+) -> TSTypeLiteral<'a> {
+    let mut new_type = TSTypeLiteral {
+        span: Default::default(),
+        members: AstVec::new_in(allocator),
+    };
+
+    let params = if let Some(ta) = &refer.type_arguments {
+        ta.params.clone_in(allocator)
+    } else {
+        AstVec::new_in(allocator)
+    };
+
+    if params.is_empty() {
+        return new_type;
+    }
+    // reference type name
+    let refer_type = if let Some(ts_type) = params.get(0) {
+        type_alias::flatten_ts_type(
+            allocator.alloc(ts_type.clone_in(allocator)),
+            semantic,
+            env,
+            allocator,
+            result_program,
+        )
+    } else {
+        return new_type;
+    };
+    let keys: Vec<String> = match params.get(1) {
+        Some(TSType::TSUnionType(ut)) => ut
+            .types
+            .iter()
+            .filter_map(|t| {
+                if let TSType::TSLiteralType(lit) = t {
+                    if let TSLiteral::StringLiteral(s) = &lit.literal {
+                        Some(s.to_string())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect(),
+        Some(TSType::TSLiteralType(lt)) => {
+            if let TSLiteral::StringLiteral(sl) = &lt.literal {
+                vec![sl.to_string()]
+            } else {
+                vec![]
+            }
+        }
+        _ => vec![],
+    };
+
+    let mut members = AstVec::new_in(allocator);
+
+    match refer_type.type_decl(allocator) {
+        TSType::TSTypeLiteral(tl) => {
+            for sg in tl.members.iter() {
+                match sg {
+                    TSSignature::TSPropertySignature(ps) => match &ps.key {
+                        PropertyKey::StaticIdentifier(si) => {
+                            if kind == Keyword::Pick(refer).name()
+                                && keys.contains(&si.name.to_string())
+                            {
+                                members.push(sg.clone_in(allocator))
+                            }
+                            if kind == Keyword::Omit(refer).name()
+                                && !keys.contains(&si.name.to_string())
+                            {
+                                members.push(sg.clone_in(allocator))
+                            }
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+
+    new_type.members = members;
+
+    new_type
 }

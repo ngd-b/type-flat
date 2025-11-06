@@ -12,7 +12,7 @@
           "name": "type_flat"
         }
       },
-      "args": ["--file-or-dir-path", "tests/echarts.d.ts", "--type-name", "DownplayPayload"],
+      "args": ["--file-or-dir-path", "tests/echarts.d.ts", "--type-name", "TextProps"],
       "cwd": "${workspaceFolder}",
       "env": {
         "RUST_BACKTRACE": "1"
