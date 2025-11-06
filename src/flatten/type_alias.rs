@@ -84,12 +84,17 @@ pub fn flatten_ts_type<'a>(
             };
 
             if result_program.visited.contains(&reference_name) {
+                // recursion type
+                if let Some(decl) = result_program.cached.get(reference_name.as_str()) {
+                    result_program.push(*decl);
+                }
                 return DeclRef::TypeAlias(allocator.alloc(new_type));
             }
 
             // Keyword type flatten
             if let Some(keyword) = Keyword::is_keyword(tr) {
-                let result_type = keyword.flatten(semantic, env, allocator, result_program);
+                let result_type: TSType<'_> =
+                    keyword.flatten(semantic, env, allocator, result_program);
 
                 new_type.type_annotation = result_type;
                 return DeclRef::TypeAlias(allocator.alloc(new_type));
@@ -131,7 +136,12 @@ pub fn flatten_ts_type<'a>(
                         );
 
                         result_program.visited.remove(&reference_name);
-                        return DeclRef::Interface(allocator.alloc(result));
+                        let decl = DeclRef::Interface(allocator.alloc(result));
+                        result_program
+                            .cached
+                            .insert(allocator.alloc_str(&reference_name), decl);
+
+                        return decl;
                     }
                     DeclRef::TypeAlias(tad) => {
                         let new_env = generic::flatten_generic(
@@ -152,7 +162,12 @@ pub fn flatten_ts_type<'a>(
                         );
 
                         result_program.visited.remove(&reference_name);
-                        return DeclRef::TypeAlias(allocator.alloc(result));
+                        let decl = DeclRef::TypeAlias(allocator.alloc(result));
+                        result_program
+                            .cached
+                            .insert(allocator.alloc_str(&reference_name), decl);
+
+                        return decl;
                     }
                 }
             }
@@ -212,7 +227,7 @@ pub fn flatten_ts_type<'a>(
                         elements.push(TSTupleElement::TSRestType(new_element))
                     }
                     _ => {
-                        result_program.push(decl);
+                        // result_program.push(decl);
                         elements.push(element.clone_in(allocator));
                     }
                 }

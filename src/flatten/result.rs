@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap as AstHashMap, Vec as AstVec};
 use oxc_ast::ast::{
     BindingPatternKind, Program, Statement, TSInterfaceDeclaration, TSTypeAliasDeclaration,
     VariableDeclaration,
@@ -12,6 +12,7 @@ pub struct ResultProgram<'a> {
     pub program: Program<'a>,
     allocator: &'a Allocator,
     pub visited: HashSet<String>,
+    pub cached: AstHashMap<'a, &'a str, DeclRef<'a>>,
 }
 
 impl<'a> ResultProgram<'a> {
@@ -29,6 +30,7 @@ impl<'a> ResultProgram<'a> {
             },
             allocator,
             visited: Default::default(),
+            cached: AstHashMap::new_in(allocator),
         }
     }
     pub fn has_decl(&self, name: &str) -> bool {
