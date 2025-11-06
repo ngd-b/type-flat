@@ -142,20 +142,14 @@ pub fn flatten_type<'a>(
             if let Ok(decl) = result {
                 match decl {
                     DeclRef::Interface(tid) => {
-                        let new_env = if let (Some(tp), Some(ta)) =
-                            (&tid.type_parameters, &extend.type_arguments)
-                        {
-                            generic::flatten_generic(
-                                tp,
-                                ta,
-                                semantic,
-                                env,
-                                allocator,
-                                result_program,
-                            )
-                        } else {
-                            env.clone()
-                        };
+                        let new_env = generic::flatten_generic(
+                            &tid.type_parameters,
+                            &extend.type_arguments,
+                            semantic,
+                            env,
+                            allocator,
+                            result_program,
+                        );
 
                         let decl = flatten_type(tid, semantic, &new_env, allocator, result_program);
 
@@ -168,20 +162,14 @@ pub fn flatten_type<'a>(
                         // new_body.body.extend(decl.body.body.clone_in(allocator));
                     }
                     DeclRef::TypeAlias(tad) => {
-                        let new_env = if let (Some(tp), Some(ta)) =
-                            (&tad.type_parameters, &extend.type_arguments)
-                        {
-                            generic::flatten_generic(
-                                tp,
-                                ta,
-                                semantic,
-                                env,
-                                allocator,
-                                result_program,
-                            )
-                        } else {
-                            env.clone()
-                        };
+                        let new_env = generic::flatten_generic(
+                            &tad.type_parameters,
+                            &extend.type_arguments,
+                            semantic,
+                            env,
+                            allocator,
+                            result_program,
+                        );
                         let decl = type_alias::flatten_type(
                             tad,
                             semantic,

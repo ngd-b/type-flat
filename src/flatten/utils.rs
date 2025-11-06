@@ -1,18 +1,15 @@
-use std::cell::Cell;
-
 use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
     ast::{
-        BindingIdentifier, BindingPatternKind, IdentifierName, Program, PropertyKey, Statement,
-        StringLiteral, TSInterfaceDeclaration, TSLiteral, TSLiteralType,
-        TSMappedTypeModifierOperator, TSPropertySignature, TSSignature, TSType,
-        TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSUnionType, VariableDeclaration,
+        BindingPatternKind, IdentifierName, Program, PropertyKey, Statement, StringLiteral,
+        TSInterfaceDeclaration, TSLiteral, TSLiteralType, TSMappedTypeModifierOperator,
+        TSPropertySignature, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeAnnotation,
+        TSTypeLiteral, TSUnionType, VariableDeclaration,
     },
 };
 use oxc_semantic::Semantic;
-use oxc_span::Atom;
 
 use crate::flatten::generic::GenericEnv;
 
@@ -230,7 +227,7 @@ pub fn get_keyof_union_type<'a>(
     _env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     _result_program: &mut ResultProgram<'a>,
-) -> Option<TSTypeAliasDeclaration<'a>> {
+) -> Option<TSType<'a>> {
     if let Some(tad) = decl.type_alias(allocator) {
         match &tad.type_annotation {
             TSType::TSTypeLiteral(tl) => {
@@ -271,24 +268,13 @@ pub fn get_keyof_union_type<'a>(
                     }
                 }
 
-                let new_type = TSTypeAliasDeclaration {
-                    span: Default::default(),
-                    id: BindingIdentifier {
+                let new_type = TSType::TSUnionType(AstBox::new_in(
+                    TSUnionType {
                         span: Default::default(),
-                        name: Atom::new_const("NormalTmp"),
-                        symbol_id: Cell::new(None),
+                        types: keys,
                     },
-                    type_parameters: None,
-                    type_annotation: TSType::TSUnionType(AstBox::new_in(
-                        TSUnionType {
-                            span: Default::default(),
-                            types: keys,
-                        },
-                        allocator,
-                    )),
-                    scope_id: Cell::new(None),
-                    declare: false,
-                };
+                    allocator,
+                ));
 
                 return Some(new_type);
             }

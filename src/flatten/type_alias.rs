@@ -112,20 +112,14 @@ pub fn flatten_ts_type<'a>(
             if let Ok(decl) = result {
                 match decl {
                     DeclRef::Interface(tid) => {
-                        let new_env = if let (Some(tp), Some(ta)) =
-                            (&tid.type_parameters, &tr.type_arguments)
-                        {
-                            generic::flatten_generic(
-                                tp,
-                                ta,
-                                semantic,
-                                env,
-                                allocator,
-                                result_program,
-                            )
-                        } else {
-                            env.clone()
-                        };
+                        let new_env = generic::flatten_generic(
+                            &tid.type_parameters,
+                            &tr.type_arguments,
+                            semantic,
+                            env,
+                            allocator,
+                            result_program,
+                        );
 
                         let result = interface::flatten_type(
                             tid,
@@ -138,20 +132,14 @@ pub fn flatten_ts_type<'a>(
                         return DeclRef::Interface(allocator.alloc(result));
                     }
                     DeclRef::TypeAlias(tad) => {
-                        let new_env = if let (Some(tp), Some(ta)) =
-                            (&tad.type_parameters, &tr.type_arguments)
-                        {
-                            generic::flatten_generic(
-                                tp,
-                                ta,
-                                semantic,
-                                env,
-                                allocator,
-                                result_program,
-                            )
-                        } else {
-                            env.clone()
-                        };
+                        let new_env = generic::flatten_generic(
+                            &tad.type_parameters,
+                            &tr.type_arguments,
+                            semantic,
+                            env,
+                            allocator,
+                            result_program,
+                        );
 
                         let result = type_alias::flatten_type(
                             tad,
@@ -168,53 +156,66 @@ pub fn flatten_ts_type<'a>(
         }
         // union type. only flat not merge
         TSType::TSUnionType(ut) => {
-            return merge_ts_type(&ut.types, semantic, env, allocator, result_program, true);
+            let new_union_type =
+                merge_ts_type(&ut.types, semantic, env, allocator, result_program, true);
+
+            new_type.type_annotation = new_union_type;
         }
         TSType::TSIntersectionType(it) => {
-            return merge_ts_type(&it.types, semantic, env, allocator, result_program, false);
+            let new_intersection_type =
+                merge_ts_type(&it.types, semantic, env, allocator, result_program, false);
+
+            new_type.type_annotation = new_intersection_type;
         }
         TSType::TSArrayType(at) => {
-            let result =
-                flatten_ts_type(&at.element_type, semantic, env, allocator, result_program);
+            let decl = flatten_ts_type(&at.element_type, semantic, env, allocator, result_program)
+                .type_decl(allocator);
 
             // 存储输出该类型
-            result_program.push(result);
+            // result_program.push(result);
+            let mut new_array_type = at.clone_in(allocator);
+            new_array_type.element_type = decl;
+
+            new_type.type_annotation = TSType::TSArrayType(new_array_type);
         }
         TSType::TSTupleType(tut) => {
-            let mut result;
+            let mut elements = AstVec::new_in(allocator);
+
             for element in tut.element_types.iter() {
+                let ts_type = flatten_ts_type(
+                    element.to_ts_type(),
+                    semantic,
+                    env,
+                    allocator,
+                    result_program,
+                )
+                .type_decl(allocator);
+
                 match element {
                     TSTupleElement::TSOptionalType(tot) => {
-                        result = flatten_ts_type(
-                            &tot.type_annotation,
-                            semantic,
-                            env,
-                            allocator,
-                            result_program,
-                        );
+                        let mut new_element = tot.clone_in(allocator);
+                        new_element.type_annotation = ts_type;
+
+                        elements.push(TSTupleElement::TSOptionalType(
+                            new_element.clone_in(allocator),
+                        ))
                     }
                     TSTupleElement::TSRestType(trt) => {
-                        result = flatten_ts_type(
-                            &trt.type_annotation,
-                            semantic,
-                            env,
-                            allocator,
-                            result_program,
-                        );
+                        let mut new_element = trt.clone_in(allocator);
+                        new_element.type_annotation = ts_type;
+                        elements.push(TSTupleElement::TSRestType(new_element))
                     }
                     _ => {
-                        result = flatten_ts_type(
-                            element.to_ts_type(),
-                            semantic,
-                            env,
-                            allocator,
-                            result_program,
-                        );
+                        elements.push(element.clone_in(allocator));
                     }
                 }
 
                 // save the type in result output code
-                result_program.push(result);
+                // result_program.push(result);
+                let mut new_tuple_type = tut.clone_in(allocator);
+                new_tuple_type.element_types = elements.clone_in(allocator);
+
+                new_type.type_annotation = TSType::TSTupleType(new_tuple_type);
             }
         }
         TSType::TSConditionalType(ct) => {
@@ -228,13 +229,14 @@ pub fn flatten_ts_type<'a>(
             let false_type =
                 flatten_ts_type(&ct.false_type, semantic, env, allocator, result_program);
 
+            // if extends type is empty , use false_type
             if let (Some(check), Some(extends), Some(true_type), Some(false_type)) = (
                 check_type.type_alias(allocator),
                 extends_type.type_alias(allocator),
                 true_type.type_alias(allocator),
                 false_type.type_alias(allocator),
             ) {
-                let new_conditional_type = TSType::TSConditionalType(AstBox::new_in(
+                let mut new_conditional_type = TSType::TSConditionalType(AstBox::new_in(
                     TSConditionalType {
                         span: Default::default(),
                         check_type: check.type_annotation.clone_in(allocator),
@@ -245,10 +247,19 @@ pub fn flatten_ts_type<'a>(
                     },
                     allocator,
                 ));
+                match &extends.type_annotation {
+                    TSType::TSUnionType(ttl) => {
+                        if ttl.types.is_empty() {
+                            new_conditional_type = false_type.type_annotation.clone_in(allocator);
+                        }
+                    }
+                    // TSType::TSLiteralType(tlt)=> {
+
+                    // }
+                    _ => {}
+                }
 
                 new_type.type_annotation = new_conditional_type;
-
-                return DeclRef::TypeAlias(allocator.alloc(new_type));
             }
         }
         TSType::TSMappedType(mt) => {
@@ -359,8 +370,6 @@ pub fn flatten_ts_type<'a>(
                                     },
                                     allocator,
                                 ));
-
-                                return DeclRef::TypeAlias(allocator.alloc(new_type));
                             }
                         }
                         _ => {}
@@ -382,7 +391,7 @@ pub fn flatten_ts_type<'a>(
                 if let Some(tad) =
                     utils::get_keyof_union_type(decl, semantic, env, allocator, result_program)
                 {
-                    return DeclRef::TypeAlias(allocator.alloc(tad));
+                    new_type.type_annotation = tad;
                 }
             }
             _ => {}
@@ -406,8 +415,6 @@ pub fn flatten_ts_type<'a>(
             );
 
             new_type.type_annotation = result;
-
-            return DeclRef::TypeAlias(allocator.alloc(new_type));
         }
         TSType::TSTypeQuery(tq) => match &tq.expr_name {
             TSTypeQueryExprName::IdentifierReference(ir) => {
@@ -427,6 +434,93 @@ pub fn flatten_ts_type<'a>(
             }
             _ => {}
         },
+        TSType::TSParenthesizedType(tpt) => {
+            let decl = flatten_ts_type(
+                &tpt.type_annotation,
+                semantic,
+                env,
+                allocator,
+                result_program,
+            )
+            .type_decl(allocator);
+
+            let mut new_parenthesized_type = tpt.clone_in(allocator);
+            new_parenthesized_type.type_annotation = decl;
+
+            new_type.type_annotation = TSType::TSParenthesizedType(new_parenthesized_type);
+        }
+        TSType::TSTypeLiteral(ttl) => {
+            let mut members = AstVec::new_in(allocator);
+
+            for member in ttl.members.iter() {
+                match member {
+                    TSSignature::TSIndexSignature(tis) => {
+                        let ts_type = flatten_ts_type(
+                            &tis.type_annotation.type_annotation,
+                            semantic,
+                            env,
+                            allocator,
+                            result_program,
+                        )
+                        .type_decl(allocator);
+
+                        let mut new_member = tis.clone_in(allocator);
+                        new_member.type_annotation.type_annotation = ts_type;
+
+                        members.push(TSSignature::TSIndexSignature(new_member));
+                    }
+                    TSSignature::TSPropertySignature(ps) => {
+                        if let Some(pta) = &ps.type_annotation {
+                            let ts_type = flatten_ts_type(
+                                &pta.type_annotation,
+                                semantic,
+                                env,
+                                allocator,
+                                result_program,
+                            )
+                            .type_decl(allocator);
+
+                            let mut new_member = ps.clone_in(allocator);
+                            let mut new_member_type = pta.clone_in(allocator);
+                            new_member_type.type_annotation = ts_type;
+
+                            new_member.type_annotation = Option::Some(new_member_type);
+
+                            members.push(TSSignature::TSPropertySignature(new_member));
+                        } else {
+                            members.push(member.clone_in(allocator))
+                        }
+                    }
+
+                    _ => members.push(member.clone_in(allocator)),
+                }
+            }
+
+            let mut new_literal = ttl.clone_in(allocator);
+            new_literal.members = members;
+
+            new_type.type_annotation = TSType::TSTypeLiteral(new_literal);
+        }
+        TSType::TSFunctionType(tft) => {
+            let mut new_fn_type = tft.clone_in(allocator);
+
+            // return-type flatten
+            let return_type = flatten_ts_type(
+                &tft.return_type.type_annotation,
+                semantic,
+                env,
+                allocator,
+                result_program,
+            )
+            .type_decl(allocator);
+
+            new_fn_type.return_type.type_annotation = return_type;
+
+            // param types flatten
+            // todo
+
+            new_type.type_annotation = TSType::TSFunctionType(new_fn_type);
+        }
         _ => {}
     }
 
@@ -442,7 +536,7 @@ pub fn merge_ts_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
     is_union: bool,
-) -> DeclRef<'a> {
+) -> TSType<'a> {
     let mut memebers = AstVec::new_in(allocator);
     // union type
     let mut union_types = AstVec::new_in(allocator);
@@ -480,7 +574,7 @@ pub fn merge_ts_type<'a>(
         }
     }
 
-    let type_annotation = if is_union {
+    if is_union {
         TSType::TSUnionType(AstBox::new_in(
             TSUnionType {
                 span: Default::default(),
@@ -496,21 +590,7 @@ pub fn merge_ts_type<'a>(
             },
             allocator,
         ))
-    };
-    let new_type = TSTypeAliasDeclaration {
-        span: Default::default(),
-        id: BindingIdentifier {
-            span: Default::default(),
-            name: Atom::new_const("IntersectionTmp"),
-            symbol_id: Cell::new(None),
-        },
-        type_parameters: None,
-        type_annotation,
-        scope_id: Cell::new(None),
-        declare: false,
-    };
-
-    DeclRef::TypeAlias(allocator.alloc(new_type))
+    }
 }
 
 ///
