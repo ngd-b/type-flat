@@ -8,6 +8,7 @@ use oxc_parser::Parser as OxcParser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 
+pub mod class;
 pub mod declare;
 pub mod generic;
 pub mod interface;
@@ -90,6 +91,9 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
             target_result.type_parameters = decl.type_parameters.clone_in(&allocator);
 
             result_program.add_type_alias(target_result);
+        }
+        _ => {
+            bail!("only interface and type alias are supported");
         }
     };
 

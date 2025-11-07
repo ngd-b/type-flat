@@ -1,14 +1,13 @@
 use std::rc::Rc;
 
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
-use oxc_ast::ast::{
-    Expression, TSInterfaceBody, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAnnotation,
-};
+use oxc_ast::ast::{Expression, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAnnotation};
 use oxc_semantic::Semantic;
+use oxc_span::ContentEq;
 
 use crate::flatten::{
     declare::DeclRef,
-    generic::{self, GenericEnv},
+    generic::GenericEnv,
     result::ResultProgram,
     type_alias,
     utils::{self},
@@ -142,49 +141,33 @@ pub fn flatten_type<'a>(
 
             //
             if let Ok(decl) = result {
-                match decl {
+                match decl.flatten_type(
+                    &extend.type_arguments,
+                    semantic,
+                    env,
+                    allocator,
+                    result_program,
+                ) {
                     DeclRef::Interface(tid) => {
-                        let new_env = generic::flatten_generic(
-                            &tid.type_parameters,
-                            &extend.type_arguments,
-                            semantic,
-                            env,
-                            allocator,
-                            result_program,
-                        );
-
-                        let decl = flatten_type(tid, semantic, &new_env, allocator, result_program);
-
-                        for member in decl.body.body.iter() {
-                            if utils::exist_same_signature(&members, member) {
+                        for member in tid.body.body.iter() {
+                            // if utils::exist_same_signature(&members, member) {
+                            //     continue;
+                            // }
+                            if members.iter().any(|mb| mb.content_eq(member)) {
                                 continue;
                             }
                             members.push(member.clone_in(allocator));
                         }
-                        // new_body.body.extend(decl.body.body.clone_in(allocator));
                     }
                     DeclRef::TypeAlias(tad) => {
-                        let new_env = generic::flatten_generic(
-                            &tad.type_parameters,
-                            &extend.type_arguments,
-                            semantic,
-                            env,
-                            allocator,
-                            result_program,
-                        );
-                        let decl = type_alias::flatten_type(
-                            tad,
-                            semantic,
-                            &new_env,
-                            allocator,
-                            result_program,
-                        );
-
                         // get literal type
-                        match &decl.type_annotation {
+                        match &tad.type_annotation {
                             TSType::TSTypeLiteral(tl) => {
                                 for member in tl.members.iter() {
-                                    if utils::exist_same_signature(&members, member) {
+                                    // if utils::exist_same_signature(&members, member) {
+                                    //     continue;
+                                    // }
+                                    if members.iter().any(|mb| mb.content_eq(member)) {
                                         continue;
                                     }
                                     members.push(member.clone_in(allocator));
@@ -193,27 +176,31 @@ pub fn flatten_type<'a>(
                             _ => {}
                         }
                     }
+                    DeclRef::Class(tcd) => match DeclRef::Class(tcd).type_decl(allocator) {
+                        TSType::TSTypeLiteral(tl) => {
+                            for member in tl.members.iter() {
+                                // if utils::exist_same_signature(&members, member) {
+                                //     continue;
+                                // }
+                                if members.iter().any(|mb| mb.content_eq(member)) {
+                                    continue;
+                                }
+                                members.push(member.clone_in(allocator));
+                            }
+                        }
+                        _ => {}
+                    },
                 }
             }
         }
     }
 
     // create new type. return new type
-    let new_type = TSInterfaceDeclaration {
-        id: ts_type.id.clone_in(allocator),
-        body: AstBox::new_in(
-            TSInterfaceBody {
-                span: Default::default(),
-                body: members,
-            },
-            allocator,
-        ),
-        extends: AstVec::new_in(allocator),
-        span: ts_type.span.clone_in(allocator),
-        type_parameters: None,
-        scope_id: ts_type.scope_id.clone_in(allocator),
-        declare: ts_type.declare,
-    };
+    let mut new_type = ts_type.clone_in(allocator);
+    new_type.extends = AstVec::new_in(allocator);
+    new_type.type_parameters = None;
+
+    new_type.body.body = members;
 
     new_type
 }

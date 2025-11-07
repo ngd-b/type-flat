@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap as AstHashMap, Vec as AstVec};
 use oxc_ast::ast::{
-    BindingPatternKind, Program, Statement, TSInterfaceDeclaration, TSTypeAliasDeclaration,
+    BindingPatternKind, Class, Program, Statement, TSInterfaceDeclaration, TSTypeAliasDeclaration,
     VariableDeclaration,
 };
 
@@ -72,6 +72,22 @@ impl<'a> ResultProgram<'a> {
                 self.allocator,
             )));
     }
+    pub fn add_class(&mut self, decl: Class<'a>) {
+        let name = if let Some(id) = &decl.id {
+            id.name.as_str()
+        } else {
+            return;
+        };
+        if self.has_decl(name) {
+            return;
+        }
+        self.program
+            .body
+            .push(Statement::ClassDeclaration(AstBox::new_in(
+                decl,
+                self.allocator,
+            )));
+    }
     pub fn add_statement(&mut self, decl: VariableDeclaration<'a>) {
         let name = if let Some(decl) = decl.declarations.first() {
             if let BindingPatternKind::BindingIdentifier(bi) = &decl.id.kind {
@@ -99,6 +115,9 @@ impl<'a> ResultProgram<'a> {
             }
             DeclRef::TypeAlias(decl) => {
                 self.add_type_alias(decl.clone_in(self.allocator));
+            }
+            DeclRef::Class(decl) => {
+                self.add_class(decl.clone_in(self.allocator));
             }
         };
     }

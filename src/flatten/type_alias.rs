@@ -83,7 +83,11 @@ pub fn flatten_ts_type<'a>(
                 TSTypeName::IdentifierReference(ir) => ir.name.to_string(),
                 _ => "".to_string(),
             };
-
+            // Get reference type from cached
+            if let Some(decl) = result_program.cached.get(reference_name.as_str()) {
+                return *decl;
+            }
+            // If already visited, return directly to avoid recursion
             if result_program.visited.contains(&reference_name) {
                 // recursion type
                 if let Some(decl) = result_program.cached.get(reference_name.as_str()) {
@@ -117,27 +121,17 @@ pub fn flatten_ts_type<'a>(
             );
 
             if let Ok(decl) = result {
-                match decl {
+                match decl.flatten_type(
+                    &tr.type_arguments,
+                    semantic,
+                    env,
+                    allocator,
+                    result_program,
+                ) {
                     DeclRef::Interface(tid) => {
-                        let new_env = generic::flatten_generic(
-                            &tid.type_parameters,
-                            &tr.type_arguments,
-                            semantic,
-                            env,
-                            allocator,
-                            result_program,
-                        );
-
-                        let result = interface::flatten_type(
-                            tid,
-                            semantic,
-                            &new_env,
-                            allocator,
-                            result_program,
-                        );
-
                         result_program.visited.remove(&reference_name);
-                        let decl = DeclRef::Interface(allocator.alloc(result));
+
+                        let decl = DeclRef::Interface(allocator.alloc(tid));
                         result_program
                             .cached
                             .insert(allocator.alloc_str(&reference_name), decl);
@@ -145,25 +139,20 @@ pub fn flatten_ts_type<'a>(
                         return decl;
                     }
                     DeclRef::TypeAlias(tad) => {
-                        let new_env = generic::flatten_generic(
-                            &tad.type_parameters,
-                            &tr.type_arguments,
-                            semantic,
-                            env,
-                            allocator,
-                            result_program,
-                        );
-
-                        let result = type_alias::flatten_type(
-                            tad,
-                            semantic,
-                            &new_env,
-                            allocator,
-                            result_program,
-                        );
-
                         result_program.visited.remove(&reference_name);
-                        let decl = DeclRef::TypeAlias(allocator.alloc(result));
+
+                        let decl = DeclRef::TypeAlias(allocator.alloc(tad));
+                        result_program
+                            .cached
+                            .insert(allocator.alloc_str(&reference_name), decl);
+
+                        return decl;
+                    }
+                    DeclRef::Class(tcd) => {
+                        result_program.visited.remove(&reference_name);
+
+                        let decl = DeclRef::Class(allocator.alloc(tcd));
+
                         result_program
                             .cached
                             .insert(allocator.alloc_str(&reference_name), decl);
@@ -565,35 +554,19 @@ pub fn merge_ts_type<'a>(
     let mut union_types = AstVec::new_in(allocator);
 
     for it in types.iter() {
-        let result = flatten_ts_type(it, semantic, env, allocator, result_program);
+        let ts_type =
+            flatten_ts_type(it, semantic, env, allocator, result_program).type_decl(allocator);
 
-        match result {
-            DeclRef::Interface(tid) => {
-                if is_union {
-                    union_types.push(TSType::TSTypeLiteral(AstBox::new_in(
-                        TSTypeLiteral {
-                            span: Default::default(),
-                            members: tid.body.body.clone_in(allocator),
-                        },
-                        allocator,
-                    )))
-                } else {
-                    memebers.extend(tid.body.body.clone_in(allocator));
-                }
+        if is_union {
+            union_types.push(ts_type.clone_in(allocator));
+            continue;
+        }
+        // get type literal
+        match &ts_type {
+            TSType::TSTypeLiteral(tl) => {
+                memebers.extend(tl.members.clone_in(allocator));
             }
-            DeclRef::TypeAlias(tad) => {
-                if is_union {
-                    union_types.push(tad.type_annotation.clone_in(allocator));
-                    continue;
-                }
-                // get type literal
-                match &tad.type_annotation {
-                    TSType::TSTypeLiteral(tl) => {
-                        memebers.extend(tl.members.clone_in(allocator));
-                    }
-                    _ => {}
-                }
-            }
+            _ => {}
         }
     }
 
