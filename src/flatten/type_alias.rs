@@ -10,12 +10,13 @@ use oxc_semantic::Semantic;
 use oxc_span::Atom;
 
 use crate::flatten::{
+    declare::DeclRef,
     generic::{self, GenericEnv},
     interface,
     keyword::Keyword,
     result::ResultProgram,
     type_alias,
-    utils::{self, DeclRef},
+    utils::{self},
 };
 
 ///

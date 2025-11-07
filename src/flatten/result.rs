@@ -6,13 +6,14 @@ use oxc_ast::ast::{
     VariableDeclaration,
 };
 
-use crate::flatten::utils::DeclRef;
+use crate::flatten::declare::DeclRef;
 
 pub struct ResultProgram<'a> {
     pub program: Program<'a>,
     allocator: &'a Allocator,
     pub visited: HashSet<String>,
     pub cached: AstHashMap<'a, &'a str, DeclRef<'a>>,
+    pub merged: AstHashMap<'a, &'a str, DeclRef<'a>>,
 }
 
 impl<'a> ResultProgram<'a> {
@@ -31,6 +32,7 @@ impl<'a> ResultProgram<'a> {
             allocator,
             visited: Default::default(),
             cached: AstHashMap::new_in(allocator),
+            merged: AstHashMap::new_in(allocator),
         }
     }
     pub fn has_decl(&self, name: &str) -> bool {

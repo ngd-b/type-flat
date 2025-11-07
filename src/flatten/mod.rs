@@ -1,4 +1,4 @@
-use crate::flatten::{generic::GenericEnv, utils::DeclRef};
+use crate::flatten::{declare::DeclRef, generic::GenericEnv};
 use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, CloneIn};
 use oxc_ast::ast::Statement;
@@ -8,6 +8,7 @@ use oxc_parser::Parser as OxcParser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 
+pub mod declare;
 pub mod generic;
 pub mod interface;
 pub mod keyword;

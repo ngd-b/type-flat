@@ -7,10 +7,11 @@ use oxc_ast::ast::{
 use oxc_semantic::Semantic;
 
 use crate::flatten::{
+    declare::DeclRef,
     generic::{self, GenericEnv},
     result::ResultProgram,
     type_alias,
-    utils::{self, DeclRef},
+    utils::{self},
 };
 
 ///

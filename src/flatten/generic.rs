@@ -4,7 +4,7 @@ use oxc_allocator::{Allocator, Box, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{TSTypeParameterDeclaration, TSTypeParameterInstantiation};
 use oxc_semantic::Semantic;
 
-use crate::flatten::{result::ResultProgram, type_alias, utils::DeclRef};
+use crate::flatten::{declare::DeclRef, result::ResultProgram, type_alias};
 
 #[derive(Default, Clone, Debug)]
 pub struct GenericEnv<'a> {
