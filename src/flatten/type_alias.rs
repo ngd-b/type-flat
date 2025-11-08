@@ -11,11 +11,9 @@ use oxc_span::Atom;
 
 use crate::flatten::{
     declare::DeclRef,
-    generic::{self, GenericEnv},
-    interface,
+    generic::GenericEnv,
     keyword::Keyword,
     result::ResultProgram,
-    type_alias,
     utils::{self},
 };
 
@@ -83,17 +81,20 @@ pub fn flatten_ts_type<'a>(
                 TSTypeName::IdentifierReference(ir) => ir.name.to_string(),
                 _ => "".to_string(),
             };
-            // Get reference type from cached
-            if let Some(decl) = result_program.cached.get(reference_name.as_str()) {
-                return *decl;
-            }
+
+            let reference_name_str = allocator.alloc_str(reference_name.as_str());
+
             // If already visited, return directly to avoid recursion
             if result_program.visited.contains(&reference_name) {
                 // recursion type
-                if let Some(decl) = result_program.cached.get(reference_name.as_str()) {
+                if let Some(decl) = result_program.cached.get(reference_name_str) {
                     result_program.push(*decl);
                 }
                 return DeclRef::TypeAlias(allocator.alloc(new_type));
+            }
+            // Get reference type from cached
+            if let Some(decl) = result_program.cached.get(reference_name_str) {
+                return *decl;
             }
 
             // Keyword type flatten
@@ -132,9 +133,7 @@ pub fn flatten_ts_type<'a>(
                         result_program.visited.remove(&reference_name);
 
                         let decl = DeclRef::Interface(allocator.alloc(tid));
-                        result_program
-                            .cached
-                            .insert(allocator.alloc_str(&reference_name), decl);
+                        result_program.cached.insert(reference_name_str, decl);
 
                         return decl;
                     }
@@ -142,9 +141,7 @@ pub fn flatten_ts_type<'a>(
                         result_program.visited.remove(&reference_name);
 
                         let decl = DeclRef::TypeAlias(allocator.alloc(tad));
-                        result_program
-                            .cached
-                            .insert(allocator.alloc_str(&reference_name), decl);
+                        result_program.cached.insert(reference_name_str, decl);
 
                         return decl;
                     }
@@ -153,9 +150,7 @@ pub fn flatten_ts_type<'a>(
 
                         let decl = DeclRef::Class(allocator.alloc(tcd));
 
-                        result_program
-                            .cached
-                            .insert(allocator.alloc_str(&reference_name), decl);
+                        result_program.cached.insert(reference_name_str, decl);
 
                         return decl;
                     }
@@ -218,7 +213,8 @@ pub fn flatten_ts_type<'a>(
                     }
                     _ => {
                         // result_program.push(decl);
-                        elements.push(element.clone_in(allocator));
+                        // elements.push(element.clone_in(allocator));
+                        elements.push(ts_type.into())
                     }
                 }
 

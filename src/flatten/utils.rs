@@ -1,5 +1,3 @@
-use std::mem;
-
 use anyhow::{Ok, Result, bail};
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
@@ -50,12 +48,19 @@ pub fn get_reference_type<'a>(
                 }
             }
             AstKind::VariableDeclarator(vd) => {
-                result_program.add_statement(VariableDeclaration {
-                    span: Default::default(),
-                    declarations: AstVec::from_array_in([vd.clone_in(allocator)], allocator),
-                    kind: vd.kind.clone_in(allocator),
-                    declare: true,
-                });
+                if let Some(name) = vd.id.get_identifier_name() {
+                    if name.as_str() == reference_name {
+                        result_program.add_statement(VariableDeclaration {
+                            span: Default::default(),
+                            declarations: AstVec::from_array_in(
+                                [vd.clone_in(allocator)],
+                                allocator,
+                            ),
+                            kind: vd.kind.clone_in(allocator),
+                            declare: true,
+                        });
+                    }
+                }
             }
             _ => {}
         }
@@ -65,13 +70,25 @@ pub fn get_reference_type<'a>(
         return Ok(decls[0]);
     };
     if decls.len() > 1 {
-        return Ok(merge_type_to_class(
+        if let Some(decl) = result_program
+            .merged
+            .get(allocator.alloc_str(reference_name))
+        {
+            return Ok(*decl);
+        }
+        let result = merge_type_to_class(
             allocator.alloc(decls),
             semantic,
             env,
             allocator,
             result_program,
-        ));
+        );
+
+        result_program
+            .merged
+            .insert(allocator.alloc_str(reference_name), result);
+
+        return Ok(result);
     }
 
     bail!("Unsupported Referenc Type")
@@ -346,60 +363,6 @@ pub fn new_ts_signature<'a>(
 }
 
 ///
-/// TSSignature is equal
-///
-// pub fn ts_signature_is_equal<'a>(
-//     signature1: &'a TSSignature<'a>,
-//     signature2: &'a TSSignature<'a>,
-// ) -> bool {
-//     match (signature1, signature2) {
-//         (TSSignature::TSPropertySignature(ps1), TSSignature::TSPropertySignature(ps2)) => {
-//             match (&ps1.key, &ps2.key) {
-//                 (PropertyKey::StaticIdentifier(si1), PropertyKey::StaticIdentifier(si2)) => {
-//                     si1.name.as_str() == si2.name.as_str()
-//                 }
-//                 _ => false,
-//             }
-//         }
-//         (TSSignature::TSIndexSignature(is1), TSSignature::TSIndexSignature(is2)) => {
-//             for (p1, p2) in is1.parameters.iter().zip(&is2.parameters) {
-//                 if p1.name.as_str() != p2.name.as_str() {
-//                     return false;
-//                 }
-//             }
-//             true
-//         }
-//         (
-//             TSSignature::TSCallSignatureDeclaration(_csd1),
-//             TSSignature::TSCallSignatureDeclaration(_csd2),
-//         ) => false,
-
-//         (
-//             TSSignature::TSConstructSignatureDeclaration(_csd1),
-//             TSSignature::TSConstructSignatureDeclaration(_csd2),
-//         ) => false,
-
-//         (TSSignature::TSMethodSignature(_ms1), TSSignature::TSMethodSignature(_ms2)) => false,
-//         _ => false,
-//     }
-// }
-
-///
-/// Exist the same signature
-///
-// pub fn exist_same_signature<'a>(
-//     signatures: &'a [TSSignature<'a>],
-//     signature: &'a TSSignature<'a>,
-// ) -> bool {
-//     for sig in signatures {
-//         if ts_signature_is_equal(sig, signature) {
-//             return true;
-//         }
-//     }
-//     false
-// }
-
-///
 /// Class method to map type method
 ///
 pub fn class_method_to_map_type_method(md: &MethodDefinitionKind) -> TSMethodSignatureKind {
@@ -448,10 +411,8 @@ pub fn type_members_to_class_elements<'a>(
 
                 elements.push(new_signature);
             }
-            TSSignature::TSCallSignatureDeclaration(tcsd) => todo!(),
-            TSSignature::TSConstructSignatureDeclaration(tcsd) => {
-                todo!()
-            }
+            TSSignature::TSCallSignatureDeclaration(_tcsd) => {}
+            TSSignature::TSConstructSignatureDeclaration(_tcsd) => {}
             TSSignature::TSMethodSignature(tms) => {
                 let new_signature = ClassElement::MethodDefinition(AstBox::new_in(
                     MethodDefinition {
