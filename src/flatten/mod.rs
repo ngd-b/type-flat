@@ -97,6 +97,13 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
         }
     };
 
+    // add merged Class
+    let class_decls = result_program.merged.values().copied().collect::<Vec<_>>();
+
+    for class_decl in class_decls {
+        result_program.push(class_decl.clone());
+    }
+
     let code_gen = Codegen::new().build(&result_program.program);
 
     Ok(code_gen.code)

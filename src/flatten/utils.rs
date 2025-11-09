@@ -72,10 +72,14 @@ pub fn get_reference_type<'a>(
     if decls.len() > 1 {
         if let Some(decl) = result_program
             .merged
-            .get(allocator.alloc_str(reference_name))
+            .get(reference_name.clone_in(allocator))
         {
             return Ok(*decl);
         }
+
+        // visted
+        result_program.visited.insert(reference_name.to_string());
+
         let result = merge_type_to_class(
             allocator.alloc(decls),
             semantic,
@@ -86,7 +90,7 @@ pub fn get_reference_type<'a>(
 
         result_program
             .merged
-            .insert(allocator.alloc_str(reference_name), result);
+            .insert(reference_name.clone_in(allocator), result);
 
         return Ok(result);
     }
