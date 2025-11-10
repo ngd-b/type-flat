@@ -1,7 +1,6 @@
 use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{Class, ClassElement, Expression, TSType};
 use oxc_semantic::Semantic;
-use oxc_span::ContentEq;
 
 use crate::flatten::{
     declare::DeclRef, generic::GenericEnv, result::ResultProgram, type_alias, utils,
@@ -54,7 +53,10 @@ pub fn flatten_type<'a>(
                 ) {
                     DeclRef::Class(tcd) => {
                         for element in tcd.body.body.iter() {
-                            if elements.iter().any(|el| el.content_eq(element)) {
+                            if elements
+                                .iter()
+                                .any(|el| utils::eq_class_element(el, element))
+                            {
                                 continue;
                             }
                             elements.push(element.clone_in(allocator));
@@ -66,7 +68,10 @@ pub fn flatten_type<'a>(
                                 utils::type_members_to_class_elements(&ttl.members, allocator);
 
                             for member in members.iter() {
-                                if elements.iter().any(|el| el.content_eq(member)) {
+                                if elements
+                                    .iter()
+                                    .any(|el| utils::eq_class_element(el, member))
+                                {
                                     continue;
                                 }
                                 elements.push(member.clone_in(allocator));

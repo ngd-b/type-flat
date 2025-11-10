@@ -3,15 +3,14 @@ use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
     ast::{
-        ClassElement, Function, FunctionType, IdentifierName, MethodDefinition,
-        MethodDefinitionKind, MethodDefinitionType, PropertyDefinition, PropertyDefinitionType,
-        PropertyKey, StringLiteral, TSLiteral, TSLiteralType, TSMappedTypeModifierOperator,
-        TSMethodSignatureKind, TSPropertySignature, TSSignature, TSType, TSTypeAnnotation,
-        TSUnionType, VariableDeclaration,
+        BindingPatternKind, ClassElement, FormalParameters, Function, FunctionType, IdentifierName,
+        MethodDefinition, MethodDefinitionKind, MethodDefinitionType, PropertyDefinition,
+        PropertyDefinitionType, PropertyKey, StringLiteral, TSLiteral, TSLiteralType,
+        TSMappedTypeModifierOperator, TSMethodSignatureKind, TSPropertySignature, TSSignature,
+        TSType, TSTypeAnnotation, TSUnionType, VariableDeclaration,
     },
 };
 use oxc_semantic::Semantic;
-use oxc_span::ContentEq;
 
 use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram};
 
@@ -118,7 +117,7 @@ pub fn merge_type_to_class<'a>(
         match new_type {
             TSType::TSTypeLiteral(tl) => {
                 for member in tl.members.iter() {
-                    if members.iter().any(|tsig| tsig.content_eq(member)) {
+                    if members.iter().any(|tsig| eq_ts_signature(tsig, member)) {
                         continue;
                     }
                     members.push(member.clone_in(allocator));
@@ -133,7 +132,12 @@ pub fn merge_type_to_class<'a>(
             let mut new_type = tid.clone_in(allocator);
 
             for member in members.iter() {
-                if new_type.body.body.iter().any(|mb| mb.content_eq(member)) {
+                if new_type
+                    .body
+                    .body
+                    .iter()
+                    .any(|mb| eq_ts_signature(mb, member))
+                {
                     continue;
                 }
                 new_type.body.body.push(member.clone_in(allocator));
@@ -148,7 +152,11 @@ pub fn merge_type_to_class<'a>(
                     let mut new_literal = tl.clone_in(allocator);
 
                     for member in members.iter() {
-                        if new_literal.members.iter().any(|mb| mb.content_eq(member)) {
+                        if new_literal
+                            .members
+                            .iter()
+                            .any(|mb| eq_ts_signature(mb, member))
+                        {
                             continue;
                         }
                         new_literal.members.push(member.clone_in(allocator));
@@ -166,7 +174,12 @@ pub fn merge_type_to_class<'a>(
             let elements = type_members_to_class_elements(&members, allocator);
 
             for member in elements.iter() {
-                if new_type.body.body.iter().any(|mb| mb.content_eq(member)) {
+                if new_type
+                    .body
+                    .body
+                    .iter()
+                    .any(|mb| eq_class_element(mb, member))
+                {
                     continue;
                 }
                 new_type.body.body.push(member.clone_in(allocator));
@@ -459,4 +472,144 @@ pub fn type_members_to_class_elements<'a>(
     }
 
     elements
+}
+
+///
+/// TSSignature Type is Equal to other
+///
+/// Construct Signatrure always equal
+///
+pub fn eq_ts_signature<'a>(ts_signature: &'a TSSignature<'a>, other: &'a TSSignature<'a>) -> bool {
+    match (ts_signature, other) {
+        (TSSignature::TSIndexSignature(a), TSSignature::TSIndexSignature(b)) => {
+            for (ap, bp) in a.parameters.iter().zip(&b.parameters) {
+                if ap.name.as_str() != bp.name.as_str() {
+                    return false;
+                }
+            }
+            return true;
+        }
+        (TSSignature::TSPropertySignature(a), TSSignature::TSPropertySignature(b)) => {
+            match (&a.key, &b.key) {
+                (PropertyKey::Identifier(ak), PropertyKey::Identifier(bk)) => {
+                    if ak.name.as_str() == bk.name.as_str() {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        (
+            TSSignature::TSConstructSignatureDeclaration(_a),
+            TSSignature::TSConstructSignatureDeclaration(_b),
+        ) => {
+            return true;
+        }
+        (
+            TSSignature::TSCallSignatureDeclaration(a),
+            TSSignature::TSCallSignatureDeclaration(b),
+        ) => {
+            return eq_function(&a.params, &b.params);
+        }
+
+        (TSSignature::TSMethodSignature(a), TSSignature::TSMethodSignature(b)) => {
+            if a.kind != b.kind {
+                return false;
+            }
+            return eq_function(&a.params, &b.params);
+        }
+        _ => {}
+    }
+    false
+}
+
+///
+/// Compare function type is equal
+///
+pub fn eq_function<'a>(fun: &'a FormalParameters<'a>, other: &'a FormalParameters<'a>) -> bool {
+    // params
+    for (ap, bp) in fun.items.iter().zip(other.items.iter()) {
+        match (&ap.pattern.kind, &bp.pattern.kind) {
+            (
+                BindingPatternKind::BindingIdentifier(abi),
+                BindingPatternKind::BindingIdentifier(bbi),
+            ) => {
+                if abi.name.as_str() != bbi.name.as_str() {
+                    return false;
+                }
+            }
+            _ => {
+                return false;
+            }
+        }
+    }
+    // rest params
+    if let (Some(ar), Some(br)) = (&fun.rest, &other.rest) {
+        match (&ar.argument.kind, &br.argument.kind) {
+            (
+                BindingPatternKind::BindingIdentifier(abi),
+                BindingPatternKind::BindingIdentifier(bbi),
+            ) => {
+                if abi.name.as_str() != bbi.name.as_str() {
+                    return false;
+                }
+            }
+            _ => {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+///
+/// Compare Class type element is equal
+///
+pub fn eq_class_element<'a>(
+    class_element: &'a ClassElement<'a>,
+    other: &'a ClassElement<'a>,
+) -> bool {
+    match (class_element, other) {
+        (ClassElement::MethodDefinition(a), ClassElement::MethodDefinition(b)) => {
+            if a.kind == MethodDefinitionKind::Constructor
+                || b.kind == MethodDefinitionKind::Constructor
+            {
+                return true;
+            }
+
+            if a.kind != b.kind {
+                return false;
+            }
+            match (&a.key, &b.key) {
+                (PropertyKey::Identifier(ak), PropertyKey::Identifier(bk)) => {
+                    if ak.name.as_str() == bk.name.as_str() {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        (ClassElement::PropertyDefinition(a), ClassElement::PropertyDefinition(b)) => {
+            match (&a.key, &b.key) {
+                (PropertyKey::Identifier(ak), PropertyKey::Identifier(bk)) => {
+                    if ak.name.as_str() == bk.name.as_str() {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        (ClassElement::TSIndexSignature(a), ClassElement::TSIndexSignature(b)) => {
+            for (ap, bp) in a.parameters.iter().zip(&b.parameters) {
+                if ap.name.as_str() != bp.name.as_str() {
+                    return false;
+                }
+            }
+            return true;
+        }
+        _ => {}
+    }
+    false
 }

@@ -3,7 +3,6 @@ use std::rc::Rc;
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{Expression, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAnnotation};
 use oxc_semantic::Semantic;
-use oxc_span::ContentEq;
 
 use crate::flatten::{
     declare::DeclRef,
@@ -150,10 +149,7 @@ pub fn flatten_type<'a>(
                 ) {
                     DeclRef::Interface(tid) => {
                         for member in tid.body.body.iter() {
-                            // if utils::exist_same_signature(&members, member) {
-                            //     continue;
-                            // }
-                            if members.iter().any(|mb| mb.content_eq(member)) {
+                            if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
                                 continue;
                             }
                             members.push(member.clone_in(allocator));
@@ -167,7 +163,7 @@ pub fn flatten_type<'a>(
                                     // if utils::exist_same_signature(&members, member) {
                                     //     continue;
                                     // }
-                                    if members.iter().any(|mb| mb.content_eq(member)) {
+                                    if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
                                         continue;
                                     }
                                     members.push(member.clone_in(allocator));
@@ -182,7 +178,7 @@ pub fn flatten_type<'a>(
                                 // if utils::exist_same_signature(&members, member) {
                                 //     continue;
                                 // }
-                                if members.iter().any(|mb| mb.content_eq(member)) {
+                                if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
                                     continue;
                                 }
                                 members.push(member.clone_in(allocator));
