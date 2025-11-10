@@ -16,18 +16,7 @@ pub fn flatten_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Class<'a> {
-    let mut elements = AstVec::new_in(allocator);
-
-    // Flatten class elements
-    for element in class_type.body.body.iter() {
-        elements.push(flatten_class_elements_type(
-            element,
-            semantic,
-            env,
-            allocator,
-            result_program,
-        ));
-    }
+    let mut elements = class_type.body.body.clone_in(allocator);
 
     // Flatten class extends
     if let Some(extend) = &class_type.super_class {
@@ -83,8 +72,21 @@ pub fn flatten_type<'a>(
             }
         }
     }
+
+    let mut new_elements = AstVec::new_in(allocator);
+    // Flatten class elements
+    for element in elements.iter() {
+        new_elements.push(flatten_class_elements_type(
+            allocator.alloc(element.clone_in(allocator)),
+            semantic,
+            env,
+            allocator,
+            result_program,
+        ));
+    }
+
     let mut new_class = class_type.clone_in(allocator);
-    new_class.body.body = elements;
+    new_class.body.body = new_elements;
 
     new_class
 }

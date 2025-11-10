@@ -21,7 +21,7 @@ pub enum Keyword<'a> {
     Omit(&'a TSTypeReference<'a>),
     // Exclude(&'a TSTypeReference<'a>, &'a TSTypeReference<'a>),
     // Extract(&'a TSTypeReference<'a>, &'a TSTypeReference<'a>),
-    // ReturnType(&'a TSTypeReference<'a>),
+    ReturnType(&'a TSTypeReference<'a>),
 }
 
 impl<'a> Keyword<'a> {
@@ -36,6 +36,7 @@ impl<'a> Keyword<'a> {
             Keyword::Record(_) => "Record",
             Keyword::Pick(_) => "Pick",
             Keyword::Omit(_) => "Omit",
+            Keyword::ReturnType(_) => "ReturnType",
         }
     }
     ///
@@ -54,6 +55,7 @@ impl<'a> Keyword<'a> {
             "Record" => Some(Keyword::Record(ts_type)),
             "Pick" => Some(Keyword::Pick(ts_type)),
             "Omit" => Some(Keyword::Omit(ts_type)),
+            "ReturnType" => Some(Keyword::ReturnType(ts_type)),
             _ => None,
         }
     }
@@ -78,6 +80,9 @@ impl<'a> Keyword<'a> {
                 TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
             }
             Keyword::Omit(ts_type) => {
+                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
+            }
+            Keyword::ReturnType(ts_type) => {
                 TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
             }
         }
@@ -214,6 +219,22 @@ impl<'a> Keyword<'a> {
                     flatten_pick_omit(self.name(), refer, semantic, env, allocator, result_program);
 
                 return TSType::TSTypeLiteral(AstBox::new_in(ts_type, allocator));
+            }
+            Keyword::ReturnType(tr) => {
+                if let Some(ta) = &tr.type_arguments {
+                    if let Some(ta_type) = ta.params.first() {
+                        let ts_type = type_alias::flatten_ts_type(
+                            ta_type,
+                            semantic,
+                            env,
+                            allocator,
+                            result_program,
+                        )
+                        .type_decl(allocator);
+
+                        return ts_type;
+                    }
+                };
             }
         }
 

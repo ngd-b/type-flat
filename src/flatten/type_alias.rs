@@ -1,13 +1,14 @@
-use std::cell::Cell;
-
+use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::ast::{
     BindingIdentifier, IdentifierName, PropertyKey, TSConditionalType, TSIndexedAccessType,
-    TSLiteral, TSPropertySignature, TSSignature, TSTupleElement, TSType, TSTypeAliasDeclaration,
-    TSTypeLiteral, TSTypeName, TSTypeOperatorOperator, TSTypeQueryExprName, TSUnionType,
+    TSLiteral, TSPropertySignature, TSQualifiedName, TSSignature, TSTupleElement, TSType,
+    TSTypeAliasDeclaration, TSTypeLiteral, TSTypeName, TSTypeOperatorOperator,
+    TSTypeParameterInstantiation, TSTypeQueryExprName, TSUnionType,
 };
 use oxc_semantic::Semantic;
 use oxc_span::Atom;
+use std::cell::Cell;
 
 use crate::flatten::{
     declare::DeclRef,
@@ -437,7 +438,27 @@ pub fn flatten_ts_type<'a>(
                 );
 
                 if let Ok(decl) = decl {
-                    return decl;
+                    return decl.flatten_type(
+                        &tq.type_arguments,
+                        semantic,
+                        env,
+                        allocator,
+                        result_program,
+                    );
+                }
+            }
+            TSTypeQueryExprName::QualifiedName(qn) => {
+                let result = flatten_ts_query_qualified(
+                    qn,
+                    &tq.type_arguments,
+                    semantic,
+                    env,
+                    allocator,
+                    result_program,
+                );
+
+                if let Ok(ts_type) = result {
+                    new_type.type_annotation = ts_type;
                 }
             }
             _ => {}
@@ -675,4 +696,68 @@ pub fn flatten_index_access_type<'a>(
     }
 
     new_type
+}
+
+///
+/// Rescurive the ts type QueryQualified
+///
+pub fn flatten_ts_query_qualified<'a>(
+    qq: &'a TSQualifiedName<'a>,
+    extend_args: &'a Option<AstBox<'a, TSTypeParameterInstantiation<'a>>>,
+    semantic: &Semantic<'a>,
+    env: &GenericEnv<'a>,
+    allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
+) -> Result<TSType<'a>> {
+    let decl_type = match &qq.left {
+        TSTypeName::QualifiedName(qn) => {
+            let result = flatten_ts_query_qualified(
+                &qn,
+                extend_args,
+                semantic,
+                env,
+                allocator,
+                result_program,
+            );
+
+            if let Ok(ts_type) = result {
+                Some(ts_type)
+            } else {
+                None
+            }
+        }
+        TSTypeName::IdentifierReference(ir) => {
+            let reference_name = ir.name.as_str();
+
+            let result =
+                utils::get_reference_type(reference_name, semantic, env, allocator, result_program);
+
+            if let Ok(decl) = result {
+                Some(
+                    decl.flatten_type(extend_args, semantic, env, allocator, result_program)
+                        .type_decl(allocator),
+                )
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+
+    if let Some(ts_type) = decl_type {
+        let key_type = utils::get_field_type(
+            &qq.right.name.as_str(),
+            allocator.alloc(ts_type),
+            semantic,
+            env,
+            allocator,
+            result_program,
+        );
+
+        if let Some(ta) = key_type {
+            return Ok(ta.type_annotation.clone_in(allocator));
+        }
+    }
+
+    bail!("Can not find type for query: {:?}", qq.right.name.as_str())
 }

@@ -1,12 +1,16 @@
 use std::rc::Rc;
 
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
-use oxc_ast::ast::{Expression, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAnnotation};
+use oxc_ast::ast::{
+    Expression, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAnnotation, TSTypeName,
+    TSTypeReference,
+};
 use oxc_semantic::Semantic;
 
 use crate::flatten::{
     declare::DeclRef,
     generic::GenericEnv,
+    keyword::Keyword,
     result::ResultProgram,
     type_alias,
     utils::{self},
@@ -30,8 +34,7 @@ pub fn flatten_type<'a>(
     result_program: &mut ResultProgram<'a>,
 ) -> TSInterfaceDeclaration<'a> {
     // all extend type. include self
-
-    let mut members = AstVec::new_in(allocator);
+    let mut members = ts_type.body.body.clone_in(allocator);
 
     let mut new_env = env.clone();
     // generic params
@@ -59,8 +62,88 @@ pub fn flatten_type<'a>(
         new_env = new_env.update(&arg_names, &arg_types);
     };
 
+    // the extends type
+    for extend in ts_type.extends.iter() {
+        if let Expression::Identifier(ei) = &extend.expression {
+            let reference_name = ei.name.to_string();
+
+            let new_reference_type = TSTypeReference {
+                span: extend.span.clone_in(allocator),
+                type_name: TSTypeName::IdentifierReference(ei.clone_in(allocator)),
+                type_arguments: extend.type_arguments.clone_in(allocator),
+            };
+            // Keyword type flatten
+            if let Some(keyword) = Keyword::is_keyword(allocator.alloc(new_reference_type)) {
+                let result_type = keyword.flatten(semantic, env, allocator, result_program);
+
+                if let TSType::TSTypeLiteral(tl) = result_type {
+                    for member in tl.members.iter() {
+                        if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
+                            continue;
+                        }
+                        members.push(member.clone_in(allocator));
+                    }
+                }
+                continue;
+            }
+
+            let result = utils::get_reference_type(
+                &reference_name,
+                semantic,
+                env,
+                allocator,
+                result_program,
+            );
+            //
+            if let Ok(decl) = result {
+                match decl.flatten_type(
+                    &extend.type_arguments,
+                    semantic,
+                    env,
+                    allocator,
+                    result_program,
+                ) {
+                    DeclRef::Interface(tid) => {
+                        for member in tid.body.body.iter() {
+                            if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
+                                continue;
+                            }
+                            members.push(member.clone_in(allocator));
+                        }
+                    }
+                    DeclRef::TypeAlias(tad) => {
+                        // get literal type
+                        match &tad.type_annotation {
+                            TSType::TSTypeLiteral(tl) => {
+                                for member in tl.members.iter() {
+                                    if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
+                                        continue;
+                                    }
+                                    members.push(member.clone_in(allocator));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    DeclRef::Class(tcd) => match DeclRef::Class(tcd).type_decl(allocator) {
+                        TSType::TSTypeLiteral(tl) => {
+                            for member in tl.members.iter() {
+                                if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
+                                    continue;
+                                }
+                                members.push(member.clone_in(allocator));
+                            }
+                        }
+                        _ => {}
+                    },
+                }
+            }
+        }
+    }
+
+    let mut new_members = AstVec::new_in(allocator);
     // self members
-    for member in ts_type.body.body.iter() {
+    for member in members.iter() {
         // the key is normal property
         match member {
             TSSignature::TSIndexSignature(tis) => {
@@ -68,7 +151,7 @@ pub fn flatten_type<'a>(
 
                 // value type
                 let result = type_alias::flatten_ts_type(
-                    &tis.type_annotation.type_annotation,
+                    allocator.alloc(tis.type_annotation.type_annotation.clone_in(allocator)),
                     semantic,
                     env,
                     allocator,
@@ -92,7 +175,7 @@ pub fn flatten_type<'a>(
                     param.type_annotation.type_annotation = new_type;
                 }
 
-                members.push(TSSignature::TSIndexSignature(AstBox::new_in(
+                new_members.push(TSSignature::TSIndexSignature(AstBox::new_in(
                     prop, &allocator,
                 )))
             }
@@ -101,7 +184,7 @@ pub fn flatten_type<'a>(
 
                 if let Some(ta) = &tps.type_annotation {
                     let decl = type_alias::flatten_ts_type(
-                        &ta.type_annotation,
+                        allocator.alloc(ta.type_annotation.clone_in(allocator)),
                         semantic,
                         &new_env,
                         allocator,
@@ -117,76 +200,12 @@ pub fn flatten_type<'a>(
                         allocator,
                     ));
                 };
-                members.push(TSSignature::TSPropertySignature(AstBox::new_in(
+                new_members.push(TSSignature::TSPropertySignature(AstBox::new_in(
                     prop, &allocator,
                 )))
             }
-            _ => {}
-        }
-    }
-
-    // the extends type
-    for extend in ts_type.extends.iter() {
-        if let Expression::Identifier(ei) = &extend.expression {
-            let reference_name = ei.name.to_string();
-
-            let result = utils::get_reference_type(
-                &reference_name,
-                semantic,
-                env,
-                allocator,
-                result_program,
-            );
-
-            //
-            if let Ok(decl) = result {
-                match decl.flatten_type(
-                    &extend.type_arguments,
-                    semantic,
-                    env,
-                    allocator,
-                    result_program,
-                ) {
-                    DeclRef::Interface(tid) => {
-                        for member in tid.body.body.iter() {
-                            if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
-                                continue;
-                            }
-                            members.push(member.clone_in(allocator));
-                        }
-                    }
-                    DeclRef::TypeAlias(tad) => {
-                        // get literal type
-                        match &tad.type_annotation {
-                            TSType::TSTypeLiteral(tl) => {
-                                for member in tl.members.iter() {
-                                    // if utils::exist_same_signature(&members, member) {
-                                    //     continue;
-                                    // }
-                                    if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
-                                        continue;
-                                    }
-                                    members.push(member.clone_in(allocator));
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    DeclRef::Class(tcd) => match DeclRef::Class(tcd).type_decl(allocator) {
-                        TSType::TSTypeLiteral(tl) => {
-                            for member in tl.members.iter() {
-                                // if utils::exist_same_signature(&members, member) {
-                                //     continue;
-                                // }
-                                if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
-                                    continue;
-                                }
-                                members.push(member.clone_in(allocator));
-                            }
-                        }
-                        _ => {}
-                    },
-                }
+            _ => {
+                new_members.push(member.clone_in(allocator));
             }
         }
     }
@@ -196,7 +215,7 @@ pub fn flatten_type<'a>(
     new_type.extends = AstVec::new_in(allocator);
     new_type.type_parameters = None;
 
-    new_type.body.body = members;
+    new_type.body.body = new_members;
 
     new_type
 }
