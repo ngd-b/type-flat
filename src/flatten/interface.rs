@@ -6,6 +6,7 @@ use oxc_ast::ast::{
     TSTypeReference,
 };
 use oxc_semantic::Semantic;
+use tracing::instrument;
 
 use crate::flatten::{
     declare::DeclRef,
@@ -25,7 +26,7 @@ use crate::flatten::{
 /// - env - The generic environment
 /// - allocator - The allocator
 ///
-///
+#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn flatten_type<'a>(
     ts_type: &'a TSInterfaceDeclaration<'a>,
     semantic: &Semantic<'a>,

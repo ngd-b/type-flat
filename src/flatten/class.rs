@@ -1,6 +1,7 @@
 use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{Class, ClassElement, Expression, TSType};
 use oxc_semantic::Semantic;
+use tracing::instrument;
 
 use crate::flatten::{
     declare::DeclRef, generic::GenericEnv, result::ResultProgram, type_alias, utils,
@@ -9,6 +10,7 @@ use crate::flatten::{
 ///
 /// Flatten the class type
 ///
+#[instrument(skip(class_type, semantic, env, allocator, result_program))]
 pub fn flatten_type<'a>(
     class_type: &'a Class<'a>,
     semantic: &Semantic<'a>,
@@ -94,6 +96,7 @@ pub fn flatten_type<'a>(
 ///
 /// Flatten the class elements type
 ///
+#[instrument(skip(element, semantic, env, allocator, result_program))]
 pub fn flatten_class_elements_type<'a>(
     element: &'a ClassElement<'a>,
     semantic: &Semantic<'a>,

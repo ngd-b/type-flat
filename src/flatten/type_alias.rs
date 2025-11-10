@@ -9,6 +9,7 @@ use oxc_ast::ast::{
 use oxc_semantic::Semantic;
 use oxc_span::Atom;
 use std::cell::Cell;
+use tracing::instrument;
 
 use crate::flatten::{
     declare::DeclRef,
@@ -22,6 +23,8 @@ use crate::flatten::{
 /// Flattens a type alias declaration into a single type
 ///
 /// Returns a new type alias declaration
+///
+#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn flatten_type<'a>(
     ts_type: &'a TSTypeAliasDeclaration<'a>,
     semantic: &Semantic<'a>,
@@ -55,6 +58,8 @@ pub fn flatten_type<'a>(
 ///
 /// Flattens a type
 ///
+///
+#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn flatten_ts_type<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
@@ -558,6 +563,8 @@ pub fn flatten_ts_type<'a>(
 
 ///
 /// merge union or intersection type
+///
+#[instrument(skip(types, semantic, env, allocator, result_program),fields(len=types.len()))]
 pub fn merge_ts_type<'a>(
     types: &'a [TSType<'a>],
     semantic: &Semantic<'a>,
@@ -609,6 +616,7 @@ pub fn merge_ts_type<'a>(
 ///
 /// Flatten the index access type
 ///
+#[instrument(skip(object_type, index_type, semantic, env, allocator, result_program))]
 pub fn flatten_index_access_type<'a>(
     object_type: &'a TSType<'a>,
     index_type: &'a TSType<'a>,
@@ -701,6 +709,7 @@ pub fn flatten_index_access_type<'a>(
 ///
 /// Rescurive the ts type QueryQualified
 ///
+#[instrument(skip(qq, extend_args, semantic, env, allocator, result_program))]
 pub fn flatten_ts_query_qualified<'a>(
     qq: &'a TSQualifiedName<'a>,
     extend_args: &'a Option<AstBox<'a, TSTypeParameterInstantiation<'a>>>,

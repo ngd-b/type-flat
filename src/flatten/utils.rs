@@ -11,6 +11,7 @@ use oxc_ast::{
     },
 };
 use oxc_semantic::Semantic;
+use tracing::instrument;
 
 use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram};
 
@@ -18,6 +19,7 @@ use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgra
 ///
 /// Get reference type from semantic
 ///
+#[instrument(skip(semantic, env, allocator, result_program))]
 pub fn get_reference_type<'a>(
     reference_name: &str,
     semantic: &Semantic<'a>,
@@ -100,6 +102,7 @@ pub fn get_reference_type<'a>(
 ///
 /// Merge type to class declare
 ///
+#[instrument(skip(decls, _semantic, _env, allocator, _result_program),fields(len=decls.len()))]
 pub fn merge_type_to_class<'a>(
     decls: &'a [DeclRef<'a>],
     _semantic: &Semantic<'a>,
@@ -193,6 +196,7 @@ pub fn merge_type_to_class<'a>(
 ///
 /// Get keyof union type from DeclRef
 ///
+#[instrument(skip(decl, _semantic, _env, allocator, _result_program))]
 pub fn get_keyof_union_type<'a>(
     decl: DeclRef<'a>,
     _semantic: &Semantic<'a>,
@@ -260,6 +264,7 @@ pub fn get_keyof_union_type<'a>(
 ///
 /// Get field tyep from type
 ///
+#[instrument(skip(ts_type, _semantic, _env, allocator, _result_program))]
 pub fn get_field_type<'a>(
     field_name: &str,
     ts_type: &'a TSType<'a>,
@@ -394,6 +399,7 @@ pub fn class_method_to_map_type_method(md: &MethodDefinitionKind) -> TSMethodSig
 ///
 /// Type members transform to Class elements
 ///
+#[instrument(skip(members, allocator),fields(len=members.len()))]
 pub fn type_members_to_class_elements<'a>(
     members: &'a [TSSignature<'a>],
     allocator: &'a Allocator,

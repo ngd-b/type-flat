@@ -7,6 +7,7 @@ use oxc_codegen::Codegen;
 use oxc_parser::Parser as OxcParser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
+use tracing::instrument;
 
 pub mod class;
 pub mod declare;
@@ -17,6 +18,7 @@ pub mod result;
 pub mod type_alias;
 pub mod utils;
 
+#[instrument(skip(content))]
 pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
     let allocator = Allocator::new();
     // ast parser
