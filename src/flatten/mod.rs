@@ -7,7 +7,6 @@ use oxc_codegen::Codegen;
 use oxc_parser::Parser as OxcParser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
-use tracing::instrument;
 
 pub mod class;
 pub mod declare;
@@ -18,7 +17,6 @@ pub mod result;
 pub mod type_alias;
 pub mod utils;
 
-#[instrument(skip(content))]
 pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
     let allocator = Allocator::new();
     // ast parser
@@ -67,6 +65,9 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
 
     let mut result_program = result::ResultProgram::new(&ast, &allocator);
 
+    // Stop recursive flatten self
+    result_program.visited.insert(type_name.to_string());
+
     match target_type {
         DeclRef::Interface(decl) => {
             let mut target_result = interface::flatten_type(
@@ -100,11 +101,11 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
     };
 
     // add merged Class
-    let class_decls = result_program.merged.values().copied().collect::<Vec<_>>();
+    // let class_decls = result_program.merged.values().copied().collect::<Vec<_>>();
 
-    for class_decl in class_decls {
-        result_program.push(class_decl.clone());
-    }
+    // for class_decl in class_decls {
+    //     result_program.push(class_decl.clone());
+    // }
 
     let code_gen = Codegen::new().build(&result_program.program);
 

@@ -88,21 +88,6 @@ pub fn flatten_ts_type<'a>(
                 _ => "".to_string(),
             };
 
-            let reference_name_str = allocator.alloc_str(reference_name.as_str());
-
-            // If already visited, return directly to avoid recursion
-            if result_program.visited.contains(&reference_name) {
-                // recursion type
-                if let Some(decl) = result_program.cached.get(reference_name_str) {
-                    result_program.push(*decl);
-                }
-                return DeclRef::TypeAlias(allocator.alloc(new_type));
-            }
-            // Get reference type from cached
-            if let Some(decl) = result_program.cached.get(reference_name_str) {
-                return *decl;
-            }
-
             // Keyword type flatten
             if let Some(keyword) = Keyword::is_keyword(tr) {
                 let result_type: TSType<'_> =
@@ -116,8 +101,6 @@ pub fn flatten_ts_type<'a>(
             if let Some(decl) = env.get(&reference_name) {
                 return *decl;
             }
-            // Not exist
-            result_program.visited.insert(reference_name.clone());
 
             let result = utils::get_reference_type(
                 &reference_name,
@@ -128,42 +111,33 @@ pub fn flatten_ts_type<'a>(
             );
 
             if let Ok(decl) = result {
-                match decl.flatten_type(
-                    &tr.type_arguments,
-                    semantic,
-                    env,
-                    allocator,
-                    result_program,
-                ) {
-                    DeclRef::Interface(tid) => {
-                        result_program.visited.remove(&reference_name);
+                result_program.visited.insert(reference_name.clone());
 
+                let decl: DeclRef<'_> =
+                    decl.flatten_type(&tr.type_arguments, semantic, env, allocator, result_program);
+
+                // result_program
+                //     .cached
+                //     .insert(allocator.alloc_str(&reference_name), decl);
+
+                match decl {
+                    DeclRef::Interface(tid) => {
                         let decl = DeclRef::Interface(allocator.alloc(tid));
-                        result_program.cached.insert(reference_name_str, decl);
 
                         return decl;
                     }
                     DeclRef::TypeAlias(tad) => {
-                        result_program.visited.remove(&reference_name);
-
                         let decl = DeclRef::TypeAlias(allocator.alloc(tad));
-                        result_program.cached.insert(reference_name_str, decl);
 
                         return decl;
                     }
                     DeclRef::Class(tcd) => {
-                        result_program.visited.remove(&reference_name);
-
                         let decl = DeclRef::Class(allocator.alloc(tcd));
-
-                        result_program.cached.insert(reference_name_str, decl);
 
                         return decl;
                     }
                 }
             }
-
-            result_program.visited.remove(&reference_name);
         }
         // union type. only flat not merge
         TSType::TSUnionType(ut) => {
@@ -434,7 +408,7 @@ pub fn flatten_ts_type<'a>(
             TSTypeQueryExprName::IdentifierReference(ir) => {
                 let reference_name = ir.name.as_str();
 
-                let decl = utils::get_reference_type(
+                let result = utils::get_reference_type(
                     reference_name,
                     semantic,
                     env,
@@ -442,14 +416,22 @@ pub fn flatten_ts_type<'a>(
                     result_program,
                 );
 
-                if let Ok(decl) = decl {
-                    return decl.flatten_type(
+                if let Ok(decl) = result {
+                    result_program.visited.insert(reference_name.to_string());
+
+                    let decl: DeclRef<'_> = decl.flatten_type(
                         &tq.type_arguments,
                         semantic,
                         env,
                         allocator,
                         result_program,
                     );
+
+                    // result_program
+                    //     .cached
+                    //     .insert(allocator.alloc_str(&reference_name), decl);
+
+                    return decl;
                 }
             }
             TSTypeQueryExprName::QualifiedName(qn) => {
@@ -742,10 +724,16 @@ pub fn flatten_ts_query_qualified<'a>(
                 utils::get_reference_type(reference_name, semantic, env, allocator, result_program);
 
             if let Ok(decl) = result {
-                Some(
-                    decl.flatten_type(extend_args, semantic, env, allocator, result_program)
-                        .type_decl(allocator),
-                )
+                result_program.visited.insert(reference_name.to_string());
+
+                let decl: DeclRef<'_> =
+                    decl.flatten_type(extend_args, semantic, env, allocator, result_program);
+
+                // result_program
+                //     .cached
+                //     .insert(allocator.alloc_str(&reference_name), decl);
+
+                Some(decl.type_decl(allocator))
             } else {
                 None
             }

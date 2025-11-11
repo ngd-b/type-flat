@@ -1,5 +1,5 @@
 use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
-use oxc_ast::ast::{Class, ClassElement, Expression, TSType};
+use oxc_ast::ast::{Class, ClassElement, Expression, MethodDefinitionKind, TSType};
 use oxc_semantic::Semantic;
 use tracing::instrument;
 
@@ -35,38 +35,53 @@ pub fn flatten_type<'a>(
 
             //
             if let Ok(decl) = result {
-                match decl.flatten_type(
+                result_program.visited.insert(reference_name.clone());
+
+                let decl: DeclRef<'_> = decl.flatten_type(
                     &class_type.super_type_arguments,
                     semantic,
                     env,
                     allocator,
                     result_program,
-                ) {
+                );
+                // result_program
+                //     .cached
+                //     .insert(allocator.alloc_str(&reference_name), decl);
+
+                match decl {
                     DeclRef::Class(tcd) => {
+                        let mut new_elements = AstVec::new_in(allocator);
+
                         for element in tcd.body.body.iter() {
                             if elements
                                 .iter()
-                                .any(|el| utils::eq_class_element(el, element))
+                                .any(|el| utils::eq_class_element(el, element, allocator))
                             {
                                 continue;
                             }
-                            elements.push(element.clone_in(allocator));
+                            new_elements.push(element.clone_in(allocator));
                         }
+
+                        elements.extend(new_elements);
                     }
                     other => match other.type_decl(allocator) {
                         TSType::TSTypeLiteral(ttl) => {
                             let members =
                                 utils::type_members_to_class_elements(&ttl.members, allocator);
 
+                            let mut new_elements = AstVec::new_in(allocator);
+
                             for member in members.iter() {
                                 if elements
                                     .iter()
-                                    .any(|el| utils::eq_class_element(el, member))
+                                    .any(|el| utils::eq_class_element(el, member, allocator))
                                 {
                                     continue;
                                 }
-                                elements.push(member.clone_in(allocator));
+                                new_elements.push(member.clone_in(allocator));
                             }
+
+                            elements.extend(new_elements);
                         }
                         _ => {}
                     },
@@ -78,13 +93,15 @@ pub fn flatten_type<'a>(
     let mut new_elements = AstVec::new_in(allocator);
     // Flatten class elements
     for element in elements.iter() {
-        new_elements.push(flatten_class_elements_type(
+        if let Some(new_element) = flatten_class_elements_type(
             allocator.alloc(element.clone_in(allocator)),
             semantic,
             env,
             allocator,
             result_program,
-        ));
+        ) {
+            new_elements.push(new_element);
+        }
     }
 
     let mut new_class = class_type.clone_in(allocator);
@@ -103,7 +120,7 @@ pub fn flatten_class_elements_type<'a>(
     env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
-) -> ClassElement<'a> {
+) -> Option<ClassElement<'a>> {
     match element {
         ClassElement::TSIndexSignature(tis) => {
             let mut new_element = tis.clone_in(allocator);
@@ -119,12 +136,12 @@ pub fn flatten_class_elements_type<'a>(
 
             new_element.type_annotation.type_annotation = ts_type;
 
-            ClassElement::TSIndexSignature(new_element)
+            Some(ClassElement::TSIndexSignature(new_element))
         }
         ClassElement::PropertyDefinition(tpd) => {
             let mut new_element = tpd.clone_in(allocator);
 
-            let ts_type = if let Some(ta) = &tpd.type_annotation {
+            if let Some(ta) = &tpd.type_annotation {
                 let result = type_alias::flatten_ts_type(
                     &ta.type_annotation,
                     semantic,
@@ -136,16 +153,18 @@ pub fn flatten_class_elements_type<'a>(
 
                 let mut new_type = ta.clone_in(allocator);
                 new_type.type_annotation = result;
-                Some(new_type)
+
+                new_element.type_annotation = Some(new_type);
+
+                Some(ClassElement::PropertyDefinition(new_element))
             } else {
                 None
-            };
-
-            new_element.type_annotation = ts_type;
-
-            ClassElement::PropertyDefinition(new_element)
+            }
         }
         ClassElement::MethodDefinition(tmd) => {
+            if tmd.kind != MethodDefinitionKind::Method {
+                return None;
+            }
             let mut new_element = tmd.clone_in(allocator);
 
             // flatten return type
@@ -216,8 +235,8 @@ pub fn flatten_class_elements_type<'a>(
             new_params.items = items;
             new_element.value.params = new_params;
 
-            ClassElement::MethodDefinition(new_element)
+            Some(ClassElement::MethodDefinition(new_element))
         }
-        _ => element.clone_in(allocator),
+        _ => None,
     }
 }

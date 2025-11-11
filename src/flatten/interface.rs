@@ -78,12 +78,19 @@ pub fn flatten_type<'a>(
                 let result_type = keyword.flatten(semantic, env, allocator, result_program);
 
                 if let TSType::TSTypeLiteral(tl) = result_type {
+                    let mut new_members = AstVec::new_in(allocator);
+
                     for member in tl.members.iter() {
-                        if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
+                        if members
+                            .iter()
+                            .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                        {
                             continue;
                         }
-                        members.push(member.clone_in(allocator));
+                        new_members.push(member.clone_in(allocator));
                     }
+
+                    members.extend(new_members);
                 }
                 continue;
             }
@@ -97,43 +104,71 @@ pub fn flatten_type<'a>(
             );
             //
             if let Ok(decl) = result {
-                match decl.flatten_type(
+                result_program.visited.insert(reference_name.clone());
+
+                let decl: DeclRef<'_> = decl.flatten_type(
                     &extend.type_arguments,
                     semantic,
                     env,
                     allocator,
                     result_program,
-                ) {
+                );
+                // result_program
+                //     .cached
+                //     .insert(allocator.alloc_str(&reference_name), decl);
+
+                match decl {
                     DeclRef::Interface(tid) => {
+                        let mut new_members = AstVec::new_in(allocator);
+
                         for member in tid.body.body.iter() {
-                            if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
+                            if members
+                                .iter()
+                                .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                            {
                                 continue;
                             }
-                            members.push(member.clone_in(allocator));
+                            new_members.push(member.clone_in(allocator));
                         }
+
+                        members.extend(new_members);
                     }
                     DeclRef::TypeAlias(tad) => {
                         // get literal type
                         match &tad.type_annotation {
                             TSType::TSTypeLiteral(tl) => {
+                                let mut new_members = AstVec::new_in(allocator);
+
                                 for member in tl.members.iter() {
-                                    if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
+                                    if members
+                                        .iter()
+                                        .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                                    {
                                         continue;
                                     }
-                                    members.push(member.clone_in(allocator));
+                                    new_members.push(member.clone_in(allocator));
                                 }
+
+                                members.extend(new_members);
                             }
                             _ => {}
                         }
                     }
                     DeclRef::Class(tcd) => match DeclRef::Class(tcd).type_decl(allocator) {
                         TSType::TSTypeLiteral(tl) => {
+                            let mut new_members = AstVec::new_in(allocator);
+
                             for member in tl.members.iter() {
-                                if members.iter().any(|mb| utils::eq_ts_signature(mb, member)) {
+                                if members
+                                    .iter()
+                                    .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                                {
                                     continue;
                                 }
-                                members.push(member.clone_in(allocator));
+                                new_members.push(member.clone_in(allocator));
                             }
+
+                            members.extend(new_members);
                         }
                         _ => {}
                     },

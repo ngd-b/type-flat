@@ -20,7 +20,7 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
-    logger::init();
+    let _guard = logger::init();
 
     info!("Start flattening...");
 

@@ -382,9 +382,9 @@ fn test_infer_type() {
     fs::write(
         &tmp,
         r#"
-        type ReturnType<T> = T extends (...args: any[]) => infer R ? R : any;
+        type GetType<T> = T extends (...args: any[]) => infer R ? R : any;
         type Fn = () => number;
-        type Result = ReturnType<Fn>
+        type Result = GetType<Fn>
         "#,
     )
     .unwrap();

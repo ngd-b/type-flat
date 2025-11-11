@@ -11,7 +11,7 @@ use oxc_ast::{
     },
 };
 use oxc_semantic::Semantic;
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram};
 
@@ -27,6 +27,22 @@ pub fn get_reference_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
+    if result_program.visited.contains(reference_name) {
+        if let Some(value) = result_program
+            .cached
+            .iter()
+            .find(|(key, _)| key.to_string() == reference_name)
+            .map(|(_, value)| (*value).clone())
+        {
+            info!("Get cached reference_name:{} will output!", reference_name);
+            result_program.push(value.clone());
+
+            return Ok(value.clone());
+        }
+
+        bail!("Circular reference detected: {}", reference_name);
+    }
+
     let mut decls = AstVec::new_in(allocator);
 
     for ast_node in semantic.nodes().iter() {
@@ -71,15 +87,15 @@ pub fn get_reference_type<'a>(
         return Ok(decls[0]);
     };
     if decls.len() > 1 {
-        if let Some(decl) = result_program
-            .merged
-            .get(reference_name.clone_in(allocator))
-        {
-            return Ok(*decl);
-        }
+        // if let Some((_, value)) = result_program
+        //     .merged
+        //     .iter()
+        //     .find(|(key, _)| key.to_string() == reference_name)
+        // {
+        //     info!("Get merged reference_name:{} will output!", reference_name);
 
-        // visted
-        result_program.visited.insert(reference_name.to_string());
+        //     return Ok(value.clone());
+        // }
 
         let result = merge_type_to_class(
             allocator.alloc(decls),
@@ -89,9 +105,11 @@ pub fn get_reference_type<'a>(
             result_program,
         );
 
-        result_program
-            .merged
-            .insert(reference_name.clone_in(allocator), result);
+        // result_program
+        //     .merged
+        //     .insert(allocator.alloc_str(reference_name), result);
+
+        // result_program.push(result);
 
         return Ok(result);
     }
@@ -110,7 +128,7 @@ pub fn merge_type_to_class<'a>(
     allocator: &'a Allocator,
     _result_program: &mut ResultProgram<'a>,
 ) -> DeclRef<'a> {
-    let decl = decls.last().unwrap();
+    let decl = decls.last().unwrap().clone();
 
     let mut members: AstVec<'_, TSSignature<'a>> = AstVec::new_in(allocator);
 
@@ -119,12 +137,19 @@ pub fn merge_type_to_class<'a>(
 
         match new_type {
             TSType::TSTypeLiteral(tl) => {
+                let mut new_members = AstVec::new_in(allocator);
+
                 for member in tl.members.iter() {
-                    if members.iter().any(|tsig| eq_ts_signature(tsig, member)) {
+                    if members
+                        .iter()
+                        .any(|tsig| eq_ts_signature(tsig, member, allocator))
+                    {
                         continue;
                     }
-                    members.push(member.clone_in(allocator));
+                    new_members.push(member.clone_in(allocator));
                 }
+
+                members.extend(new_members);
             }
             _ => {}
         }
@@ -134,17 +159,21 @@ pub fn merge_type_to_class<'a>(
         DeclRef::Interface(tid) => {
             let mut new_type = tid.clone_in(allocator);
 
+            let mut new_members = AstVec::new_in(allocator);
+
             for member in members.iter() {
                 if new_type
                     .body
                     .body
                     .iter()
-                    .any(|mb| eq_ts_signature(mb, member))
+                    .any(|mb| eq_ts_signature(mb, member, allocator))
                 {
                     continue;
                 }
-                new_type.body.body.push(member.clone_in(allocator));
+                new_members.push(member.clone_in(allocator));
             }
+
+            new_type.body.body.extend(new_members);
             DeclRef::Interface(allocator.alloc(new_type))
         }
         DeclRef::TypeAlias(tad) => {
@@ -154,16 +183,20 @@ pub fn merge_type_to_class<'a>(
                 TSType::TSTypeLiteral(tl) => {
                     let mut new_literal = tl.clone_in(allocator);
 
+                    let mut new_members = AstVec::new_in(allocator);
+
                     for member in members.iter() {
                         if new_literal
                             .members
                             .iter()
-                            .any(|mb| eq_ts_signature(mb, member))
+                            .any(|mb| eq_ts_signature(mb, member, allocator))
                         {
                             continue;
                         }
-                        new_literal.members.push(member.clone_in(allocator));
+                        new_members.push(member.clone_in(allocator));
                     }
+
+                    new_literal.members.extend(new_members);
                     new_type.type_annotation = TSType::TSTypeLiteral(new_literal);
                 }
                 _ => {}
@@ -176,17 +209,21 @@ pub fn merge_type_to_class<'a>(
             // transform type members
             let elements = type_members_to_class_elements(&members, allocator);
 
+            let mut new_members = AstVec::new_in(allocator);
+
             for member in elements.iter() {
                 if new_type
                     .body
                     .body
                     .iter()
-                    .any(|mb| eq_class_element(mb, member))
+                    .any(|mb| eq_class_element(mb, member, allocator))
                 {
                     continue;
                 }
-                new_type.body.body.push(member.clone_in(allocator));
+                new_members.push(member.clone_in(allocator));
             }
+
+            new_type.body.body.extend(new_members);
 
             DeclRef::Class(allocator.alloc(new_type))
         }
@@ -485,7 +522,11 @@ pub fn type_members_to_class_elements<'a>(
 ///
 /// Construct Signatrure always equal
 ///
-pub fn eq_ts_signature<'a>(ts_signature: &'a TSSignature<'a>, other: &'a TSSignature<'a>) -> bool {
+pub fn eq_ts_signature<'a>(
+    ts_signature: &'a TSSignature<'a>,
+    other: &'a TSSignature<'a>,
+    allocator: &'a Allocator,
+) -> bool {
     match (ts_signature, other) {
         (TSSignature::TSIndexSignature(a), TSSignature::TSIndexSignature(b)) => {
             for (ap, bp) in a.parameters.iter().zip(&b.parameters) {
@@ -496,13 +537,13 @@ pub fn eq_ts_signature<'a>(ts_signature: &'a TSSignature<'a>, other: &'a TSSigna
             return true;
         }
         (TSSignature::TSPropertySignature(a), TSSignature::TSPropertySignature(b)) => {
-            match (&a.key, &b.key) {
-                (PropertyKey::Identifier(ak), PropertyKey::Identifier(bk)) => {
-                    if ak.name.as_str() == bk.name.as_str() {
-                        return true;
-                    }
+            if let (Some(a_name), Some(b_name)) = (
+                get_property_key_name(&a.key, allocator),
+                get_property_key_name(&b.key, allocator),
+            ) {
+                if a_name == b_name {
+                    return true;
                 }
-                _ => {}
             }
         }
         (
@@ -575,6 +616,7 @@ pub fn eq_function<'a>(fun: &'a FormalParameters<'a>, other: &'a FormalParameter
 pub fn eq_class_element<'a>(
     class_element: &'a ClassElement<'a>,
     other: &'a ClassElement<'a>,
+    allocator: &'a Allocator,
 ) -> bool {
     match (class_element, other) {
         (ClassElement::MethodDefinition(a), ClassElement::MethodDefinition(b)) => {
@@ -597,13 +639,13 @@ pub fn eq_class_element<'a>(
             }
         }
         (ClassElement::PropertyDefinition(a), ClassElement::PropertyDefinition(b)) => {
-            match (&a.key, &b.key) {
-                (PropertyKey::Identifier(ak), PropertyKey::Identifier(bk)) => {
-                    if ak.name.as_str() == bk.name.as_str() {
-                        return true;
-                    }
+            if let (Some(a_name), Some(b_name)) = (
+                get_property_key_name(&a.key, allocator),
+                get_property_key_name(&b.key, allocator),
+            ) {
+                if a_name == b_name {
+                    return true;
                 }
-                _ => {}
             }
         }
 
@@ -618,4 +660,26 @@ pub fn eq_class_element<'a>(
         _ => {}
     }
     false
+}
+
+///
+/// Get PropertyKey name
+///
+pub fn get_property_key_name<'a>(
+    property_key: &'a PropertyKey<'a>,
+    allocator: &'a Allocator,
+) -> Option<&'a str> {
+    let name = match property_key {
+        PropertyKey::Identifier(pi) => pi.name.as_str(),
+        PropertyKey::StringLiteral(psl) => psl.value.as_str(),
+        PropertyKey::StaticIdentifier(psi) => psi.name.as_str(),
+        PropertyKey::PrivateIdentifier(ppi) => ppi.name.as_str(),
+        _ => "",
+    };
+
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.into_in(allocator))
+    }
 }

@@ -23,6 +23,10 @@ pub enum Keyword<'a> {
     // Exclude(&'a TSTypeReference<'a>, &'a TSTypeReference<'a>),
     // Extract(&'a TSTypeReference<'a>, &'a TSTypeReference<'a>),
     ReturnType(&'a TSTypeReference<'a>),
+
+    // Not need handle
+    Function(&'a TSTypeReference<'a>),
+    Object(&'a TSTypeReference<'a>),
 }
 
 impl<'a> Keyword<'a> {
@@ -38,6 +42,8 @@ impl<'a> Keyword<'a> {
             Keyword::Pick(_) => "Pick",
             Keyword::Omit(_) => "Omit",
             Keyword::ReturnType(_) => "ReturnType",
+            Keyword::Function(_) => "Function",
+            Keyword::Object(_) => "Object",
         }
     }
     ///
@@ -57,6 +63,8 @@ impl<'a> Keyword<'a> {
             "Pick" => Some(Keyword::Pick(ts_type)),
             "Omit" => Some(Keyword::Omit(ts_type)),
             "ReturnType" => Some(Keyword::ReturnType(ts_type)),
+            "Function" => Some(Keyword::Function(ts_type)),
+            "Object" => Some(Keyword::Object(ts_type)),
             _ => None,
         }
     }
@@ -64,29 +72,19 @@ impl<'a> Keyword<'a> {
     /// Get keyword type
     ///
     pub fn get_type(&self, allocator: &'a Allocator) -> TSType<'a> {
-        match self {
-            Keyword::Required(ts_type) => {
-                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
-            }
-            Keyword::Readonly(ts_type) => {
-                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
-            }
-            Keyword::Partial(ts_type) => {
-                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
-            }
-            Keyword::Record(ts_type) => {
-                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
-            }
-            Keyword::Pick(ts_type) => {
-                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
-            }
-            Keyword::Omit(ts_type) => {
-                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
-            }
-            Keyword::ReturnType(ts_type) => {
-                TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
-            }
-        }
+        let ts_type = match self {
+            Keyword::Required(ts_type)
+            | Keyword::Readonly(ts_type)
+            | Keyword::Partial(ts_type)
+            | Keyword::Record(ts_type)
+            | Keyword::Pick(ts_type)
+            | Keyword::Omit(ts_type)
+            | Keyword::ReturnType(ts_type)
+            | Keyword::Function(ts_type)
+            | Keyword::Object(ts_type) => ts_type,
+        };
+
+        TSType::TSTypeReference(AstBox::new_in(ts_type.clone_in(allocator), allocator))
     }
     ///
     /// Flatten keyword type
@@ -238,6 +236,7 @@ impl<'a> Keyword<'a> {
                     }
                 };
             }
+            _ => {}
         }
 
         self.get_type(allocator)
