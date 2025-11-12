@@ -32,15 +32,6 @@ pub fn flatten_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSTypeAliasDeclaration<'a> {
-    let mut new_type = TSTypeAliasDeclaration {
-        span: Default::default(),
-        id: ts_type.id.clone_in(&allocator),
-        type_parameters: None,
-        type_annotation: ts_type.type_annotation.clone_in(&allocator),
-        scope_id: ts_type.scope_id.clone_in(&allocator),
-        declare: ts_type.declare,
-    };
-
     //
     let result = flatten_ts_type(
         &ts_type.type_annotation,
@@ -50,7 +41,14 @@ pub fn flatten_type<'a>(
         result_program,
     );
 
-    new_type.type_annotation = result.type_decl(allocator);
+    let new_type = TSTypeAliasDeclaration {
+        span: Default::default(),
+        id: ts_type.id.clone_in(&allocator),
+        type_parameters: None,
+        type_annotation: result.type_decl(allocator),
+        scope_id: ts_type.scope_id.clone_in(&allocator),
+        declare: ts_type.declare,
+    };
 
     new_type
 }
@@ -116,9 +114,10 @@ pub fn flatten_ts_type<'a>(
                 let decl: DeclRef<'_> =
                     decl.flatten_type(&tr.type_arguments, semantic, env, allocator, result_program);
 
-                // result_program
-                //     .cached
-                //     .insert(allocator.alloc_str(&reference_name), decl);
+                result_program.visited.remove(&reference_name);
+                result_program
+                    .cached
+                    .insert(allocator.alloc_str(&reference_name), decl);
 
                 match decl {
                     DeclRef::Interface(tid) => {
@@ -426,10 +425,10 @@ pub fn flatten_ts_type<'a>(
                         allocator,
                         result_program,
                     );
-
-                    // result_program
-                    //     .cached
-                    //     .insert(allocator.alloc_str(&reference_name), decl);
+                    result_program.visited.remove(reference_name);
+                    result_program
+                        .cached
+                        .insert(allocator.alloc_str(&reference_name), decl);
 
                     return decl;
                 }
@@ -729,9 +728,11 @@ pub fn flatten_ts_query_qualified<'a>(
                 let decl: DeclRef<'_> =
                     decl.flatten_type(extend_args, semantic, env, allocator, result_program);
 
-                // result_program
-                //     .cached
-                //     .insert(allocator.alloc_str(&reference_name), decl);
+                result_program.visited.remove(reference_name);
+
+                result_program
+                    .cached
+                    .insert(allocator.alloc_str(&reference_name), decl);
 
                 Some(decl.type_decl(allocator))
             } else {

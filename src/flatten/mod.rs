@@ -1,6 +1,6 @@
 use crate::flatten::{declare::DeclRef, generic::GenericEnv};
 use anyhow::{Result, bail};
-use oxc_allocator::{Allocator, CloneIn};
+use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::Statement;
 
 use oxc_codegen::Codegen;
@@ -101,11 +101,17 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
     };
 
     // add merged Class
-    // let class_decls = result_program.merged.values().copied().collect::<Vec<_>>();
+    let mut merged_class = AstVec::new_in(&allocator);
 
-    // for class_decl in class_decls {
-    //     result_program.push(class_decl.clone());
-    // }
+    for name in result_program.merged.iter() {
+        if let Some(decl) = result_program.get_reference_type(name) {
+            merged_class.push(decl);
+        }
+    }
+
+    for decl in merged_class.iter() {
+        result_program.push(decl.clone());
+    }
 
     let code_gen = Codegen::new().build(&result_program.program);
 

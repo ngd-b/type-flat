@@ -102,6 +102,7 @@ pub fn flatten_type<'a>(
                 allocator,
                 result_program,
             );
+
             //
             if let Ok(decl) = result {
                 result_program.visited.insert(reference_name.clone());
@@ -113,9 +114,10 @@ pub fn flatten_type<'a>(
                     allocator,
                     result_program,
                 );
-                // result_program
-                //     .cached
-                //     .insert(allocator.alloc_str(&reference_name), decl);
+                result_program.visited.remove(&reference_name);
+                result_program
+                    .cached
+                    .insert(allocator.alloc_str(&reference_name), decl);
 
                 match decl {
                     DeclRef::Interface(tid) => {

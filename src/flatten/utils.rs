@@ -27,20 +27,15 @@ pub fn get_reference_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
+    // has visited
     if result_program.visited.contains(reference_name) {
-        if let Some(value) = result_program
-            .cached
-            .iter()
-            .find(|(key, _)| key.to_string() == reference_name)
-            .map(|(_, value)| (*value).clone())
-        {
-            info!("Get cached reference_name:{} will output!", reference_name);
-            result_program.push(value.clone());
+        bail!("Circular reference: {}", reference_name);
+    }
+    // cached
+    if let Some(value) = result_program.get_reference_type(reference_name) {
+        info!("Get cached reference_name:{} will output!", reference_name);
 
-            return Ok(value.clone());
-        }
-
-        bail!("Circular reference detected: {}", reference_name);
+        return Ok(value.clone());
     }
 
     let mut decls = AstVec::new_in(allocator);
@@ -87,16 +82,6 @@ pub fn get_reference_type<'a>(
         return Ok(decls[0]);
     };
     if decls.len() > 1 {
-        // if let Some((_, value)) = result_program
-        //     .merged
-        //     .iter()
-        //     .find(|(key, _)| key.to_string() == reference_name)
-        // {
-        //     info!("Get merged reference_name:{} will output!", reference_name);
-
-        //     return Ok(value.clone());
-        // }
-
         let result = merge_type_to_class(
             allocator.alloc(decls),
             semantic,
@@ -104,12 +89,6 @@ pub fn get_reference_type<'a>(
             allocator,
             result_program,
         );
-
-        // result_program
-        //     .merged
-        //     .insert(allocator.alloc_str(reference_name), result);
-
-        // result_program.push(result);
 
         return Ok(result);
     }

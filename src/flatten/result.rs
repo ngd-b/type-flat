@@ -14,7 +14,7 @@ pub struct ResultProgram<'a> {
     allocator: &'a Allocator,
     pub visited: HashSet<String>,
     pub cached: AstHashMap<'a, &'a str, DeclRef<'a>>,
-    pub merged: AstHashMap<'a, &'a str, DeclRef<'a>>,
+    pub merged: HashSet<String>,
 }
 
 impl<'a> ResultProgram<'a> {
@@ -33,7 +33,7 @@ impl<'a> ResultProgram<'a> {
             allocator,
             visited: Default::default(),
             cached: AstHashMap::new_in(allocator),
-            merged: AstHashMap::new_in(allocator),
+            merged: Default::default(),
         }
     }
     pub fn has_decl(&self, name: &str) -> bool {
@@ -127,5 +127,14 @@ impl<'a> ResultProgram<'a> {
                 self.add_class(decl.clone_in(self.allocator));
             }
         };
+    }
+
+    // Get reference type already flatten
+    pub fn get_reference_type(&self, name: &str) -> Option<DeclRef<'a>> {
+        if let Some(decl) = self.cached.get(name) {
+            return Some(decl.clone());
+        }
+
+        None
     }
 }

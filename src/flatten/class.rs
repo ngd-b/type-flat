@@ -1,5 +1,7 @@
 use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
-use oxc_ast::ast::{Class, ClassElement, Expression, MethodDefinitionKind, TSType};
+use oxc_ast::ast::{
+    Class, ClassElement, Expression, MethodDefinitionKind, TSAccessibility, TSType,
+};
 use oxc_semantic::Semantic;
 use tracing::instrument;
 
@@ -44,9 +46,12 @@ pub fn flatten_type<'a>(
                     allocator,
                     result_program,
                 );
-                // result_program
-                //     .cached
-                //     .insert(allocator.alloc_str(&reference_name), decl);
+
+                result_program.visited.remove(&reference_name);
+
+                result_program
+                    .cached
+                    .insert(allocator.alloc_str(&reference_name), decl);
 
                 match decl {
                     DeclRef::Class(tcd) => {
@@ -123,6 +128,9 @@ pub fn flatten_class_elements_type<'a>(
 ) -> Option<ClassElement<'a>> {
     match element {
         ClassElement::TSIndexSignature(tis) => {
+            if tis.r#static {
+                return None;
+            }
             let mut new_element = tis.clone_in(allocator);
 
             let ts_type = type_alias::flatten_ts_type(
@@ -139,6 +147,12 @@ pub fn flatten_class_elements_type<'a>(
             Some(ClassElement::TSIndexSignature(new_element))
         }
         ClassElement::PropertyDefinition(tpd) => {
+            if tpd.r#static
+                || tpd.accessibility.is_none()
+                || tpd.accessibility != Some(TSAccessibility::Public)
+            {
+                return None;
+            }
             let mut new_element = tpd.clone_in(allocator);
 
             if let Some(ta) = &tpd.type_annotation {
@@ -162,9 +176,17 @@ pub fn flatten_class_elements_type<'a>(
             }
         }
         ClassElement::MethodDefinition(tmd) => {
+            if tmd.r#static
+                || tmd.accessibility.is_none()
+                || tmd.accessibility != Some(TSAccessibility::Public)
+            {
+                return None;
+            }
+            // Not a method. Skip Constructor or Getter/Setter
             if tmd.kind != MethodDefinitionKind::Method {
                 return None;
             }
+
             let mut new_element = tmd.clone_in(allocator);
 
             // flatten return type
