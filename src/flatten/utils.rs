@@ -5,9 +5,9 @@ use oxc_ast::{
     ast::{
         BindingPatternKind, ClassElement, FormalParameters, Function, FunctionType, IdentifierName,
         MethodDefinition, MethodDefinitionKind, MethodDefinitionType, PropertyDefinition,
-        PropertyDefinitionType, PropertyKey, StringLiteral, TSLiteral, TSLiteralType,
-        TSMappedTypeModifierOperator, TSMethodSignatureKind, TSPropertySignature, TSSignature,
-        TSType, TSTypeAnnotation, TSUnionType, VariableDeclaration,
+        PropertyDefinitionType, PropertyKey, StringLiteral, TSFunctionType, TSLiteral,
+        TSLiteralType, TSMappedTypeModifierOperator, TSMethodSignatureKind, TSPropertySignature,
+        TSSignature, TSType, TSTypeAnnotation, TSUnionType, TSVoidKeyword, VariableDeclaration,
     },
 };
 use oxc_semantic::Semantic;
@@ -29,6 +29,10 @@ pub fn get_reference_type<'a>(
 ) -> Result<DeclRef<'a>> {
     // has visited
     if result_program.visited.contains(reference_name) {
+        result_program
+            .circle_type
+            .insert(reference_name.to_string());
+
         bail!("Circular reference: {}", reference_name);
     }
     // cached
@@ -280,23 +284,64 @@ pub fn get_keyof_union_type<'a>(
 ///
 /// Get field tyep from type
 ///
-#[instrument(skip(ts_type, _semantic, _env, allocator, _result_program))]
+#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn get_field_type<'a>(
     field_name: &str,
     ts_type: &'a TSType<'a>,
-    _semantic: &Semantic<'a>,
-    _env: &GenericEnv<'a>,
+    semantic: &Semantic<'a>,
+    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
-    _result_program: &mut ResultProgram<'a>,
-) -> Option<AstBox<'a, TSTypeAnnotation<'a>>> {
+    result_program: &mut ResultProgram<'a>,
+) -> Option<TSType<'a>> {
     match ts_type {
         TSType::TSTypeLiteral(tl) => {
             for member in tl.members.iter() {
                 match member {
                     TSSignature::TSPropertySignature(ps) => {
+                        let ts_type = if let Some(ta) = &ps.type_annotation {
+                            ta.type_annotation.clone_in(allocator)
+                        } else {
+                            continue;
+                        };
                         if let PropertyKey::StaticIdentifier(si) = &ps.key {
                             if si.name.as_str() == field_name {
-                                return ps.type_annotation.clone_in(allocator);
+                                return Some(ts_type);
+                            }
+                        }
+                    }
+                    TSSignature::TSMethodSignature(tms) => {
+                        if let PropertyKey::StaticIdentifier(si) = &tms.key {
+                            if si.name.as_str() == field_name {
+                                return Some(TSType::TSFunctionType(AstBox::new_in(
+                                    TSFunctionType {
+                                        span: tms.span.clone_in(allocator),
+                                        type_parameters: tms.type_parameters.clone_in(allocator),
+                                        this_param: tms.this_param.clone_in(allocator),
+                                        params: tms.params.clone_in(allocator),
+                                        return_type: {
+                                            if let Some(return_type) = &tms.return_type {
+                                                return_type.clone_in(allocator)
+                                            } else {
+                                                AstBox::new_in(
+                                                    TSTypeAnnotation {
+                                                        span: Default::default(),
+                                                        type_annotation: TSType::TSVoidKeyword(
+                                                            AstBox::new_in(
+                                                                TSVoidKeyword {
+                                                                    span: Default::default(),
+                                                                },
+                                                                allocator,
+                                                            ),
+                                                        ),
+                                                    },
+                                                    allocator,
+                                                )
+                                            }
+                                        },
+                                        scope_id: tms.scope_id.clone_in(allocator),
+                                    },
+                                    allocator,
+                                )));
                             }
                         }
                     }
@@ -305,6 +350,23 @@ pub fn get_field_type<'a>(
             }
 
             None
+        }
+        TSType::TSUnionType(tut) => {
+            let mut new_type = tut.clone_in(allocator);
+
+            let mut members = AstVec::new_in(allocator);
+
+            for member in tut.types.iter() {
+                if let Some(new_member) =
+                    get_field_type(field_name, member, semantic, env, allocator, result_program)
+                {
+                    members.push(new_member);
+                }
+            }
+
+            new_type.types = members;
+
+            return Some(TSType::TSUnionType(new_type));
         }
         _ => None,
     }

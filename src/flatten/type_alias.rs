@@ -3,7 +3,7 @@ use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::ast::{
     BindingIdentifier, IdentifierName, PropertyKey, TSConditionalType, TSIndexedAccessType,
     TSLiteral, TSPropertySignature, TSQualifiedName, TSSignature, TSTupleElement, TSType,
-    TSTypeAliasDeclaration, TSTypeLiteral, TSTypeName, TSTypeOperatorOperator,
+    TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSTypeName, TSTypeOperatorOperator,
     TSTypeParameterInstantiation, TSTypeQueryExprName, TSUnionType,
 };
 use oxc_semantic::Semantic;
@@ -324,6 +324,17 @@ pub fn flatten_ts_type<'a>(
                                         result_program,
                                     );
 
+                                    let ts_type = if let Some(kt) = key_type {
+                                        Some(AstBox::new_in(
+                                            TSTypeAnnotation {
+                                                span: Default::default(),
+                                                type_annotation: kt,
+                                            },
+                                            allocator,
+                                        ))
+                                    } else {
+                                        None
+                                    };
                                     let element_type =
                                         TSSignature::TSPropertySignature(AstBox::new_in(
                                             TSPropertySignature {
@@ -335,7 +346,7 @@ pub fn flatten_ts_type<'a>(
                                                     },
                                                     allocator,
                                                 )),
-                                                type_annotation: key_type.clone_in(allocator),
+                                                type_annotation: ts_type,
                                                 computed: false,
                                                 optional: utils::computed_optional_or_readonly(
                                                     mt.optional,
@@ -531,9 +542,56 @@ pub fn flatten_ts_type<'a>(
 
             new_fn_type.return_type.type_annotation = return_type;
 
+            let mut new_params = tft.params.clone_in(allocator);
             // param types flatten
-            // todo
+            let mut items = AstVec::new_in(allocator);
 
+            for item in tft.params.items.iter() {
+                let mut new_item = item.clone_in(allocator);
+
+                if let Some(item_type) = &item.pattern.type_annotation {
+                    let ts_type = flatten_ts_type(
+                        &item_type.type_annotation,
+                        semantic,
+                        env,
+                        allocator,
+                        result_program,
+                    )
+                    .type_decl(allocator);
+
+                    let mut new_item_type = item_type.clone_in(allocator);
+                    new_item_type.type_annotation = ts_type;
+
+                    new_item.pattern.type_annotation = Some(new_item_type);
+                }
+                items.push(new_item);
+            }
+
+            // If exist rest params.
+            if let Some(rest) = &tft.params.rest {
+                let mut new_rest = rest.clone_in(allocator);
+
+                if let Some(rest_type) = &rest.argument.type_annotation {
+                    let ts_type = flatten_ts_type(
+                        &rest_type.type_annotation,
+                        semantic,
+                        env,
+                        allocator,
+                        result_program,
+                    )
+                    .type_decl(allocator);
+
+                    let mut new_rest_type = rest_type.clone_in(allocator);
+                    new_rest_type.type_annotation = ts_type;
+
+                    new_rest.argument.type_annotation = Some(new_rest_type);
+                }
+
+                new_params.rest = Some(new_rest);
+            }
+            new_params.items = items;
+
+            new_fn_type.params = new_params;
             new_type.type_annotation = TSType::TSFunctionType(new_fn_type);
         }
         _ => {}
@@ -614,11 +672,12 @@ pub fn flatten_index_access_type<'a>(
         },
         allocator,
     ));
+
     match index_type {
         TSType::TSLiteralType(tlt) => {
             if let TSLiteral::StringLiteral(sl) = &tlt.literal {
                 let result = utils::get_field_type(
-                    &sl.value,
+                    sl.value.as_str(),
                     object_type,
                     semantic,
                     env,
@@ -627,7 +686,7 @@ pub fn flatten_index_access_type<'a>(
                 );
 
                 if let Some(ts_type) = result {
-                    return ts_type.type_annotation.clone_in(allocator);
+                    return ts_type.clone_in(allocator);
                 }
             }
         }
@@ -753,7 +812,7 @@ pub fn flatten_ts_query_qualified<'a>(
         );
 
         if let Some(ta) = key_type {
-            return Ok(ta.type_annotation.clone_in(allocator));
+            return Ok(ta.clone_in(allocator));
         }
     }
 

@@ -14,7 +14,7 @@ pub struct ResultProgram<'a> {
     allocator: &'a Allocator,
     pub visited: HashSet<String>,
     pub cached: AstHashMap<'a, &'a str, DeclRef<'a>>,
-    pub merged: HashSet<String>,
+    pub circle_type: HashSet<String>,
 }
 
 impl<'a> ResultProgram<'a> {
@@ -33,7 +33,7 @@ impl<'a> ResultProgram<'a> {
             allocator,
             visited: Default::default(),
             cached: AstHashMap::new_in(allocator),
-            merged: Default::default(),
+            circle_type: Default::default(),
         }
     }
     pub fn has_decl(&self, name: &str) -> bool {

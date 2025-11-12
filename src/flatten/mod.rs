@@ -100,16 +100,16 @@ pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
         }
     };
 
-    // add merged Class
-    let mut merged_class = AstVec::new_in(&allocator);
+    // add circle Class
+    let mut output_class = AstVec::new_in(&allocator);
 
-    for name in result_program.merged.iter() {
+    for name in result_program.circle_type.iter() {
         if let Some(decl) = result_program.get_reference_type(name) {
-            merged_class.push(decl);
+            output_class.push(decl);
         }
     }
 
-    for decl in merged_class.iter() {
+    for decl in output_class.iter() {
         result_program.push(decl.clone());
     }
 
