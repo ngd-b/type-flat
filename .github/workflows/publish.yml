@@ -70,7 +70,7 @@ jobs:
         run: |
           mkdir -p release/cli
           if [ "$RUNNER_OS" == "Windows" ]; then
-            cp target\release\type_flat.exe release\cli\type-flat.exe
+            cp target/release/type-flat.exe release/cli/type-flat.exe
           else
             cp target/release/type_flat release/cli/type-flat
           fi
