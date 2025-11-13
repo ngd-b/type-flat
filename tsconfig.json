@@ -1,15 +1,15 @@
 {
   "compilerOptions": {
+    "importHelpers": true,
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "declaration": true,
-    "emitDeclarationOnly": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "declaration": false,
     "outDir": "dist",
     "allowJs": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "strict": true
+    "strict": true,
   },
-  "include": ["scripts"]
+  "include": ["web"]
 }

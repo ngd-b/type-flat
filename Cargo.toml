@@ -7,9 +7,6 @@ description = "Typesript type flatten tool"
 license = " Apache-2.0"
 repository = "https://github.com/ngd-b/type-flat"
 
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
-
 [lib]
 name = "type_flat"
 crate-type = ["cdylib", 'rlib']
@@ -33,16 +30,17 @@ oxc_span = { version = "0.95.0", features = ["serialize"] }
 oxc_semantic = { version = "0.95.0", features = ["cfg", "serialize"] }
 oxc_codegen = "0.95.0"
 
-# wasm
-wasm-bindgen = "0.2.104"
-serde-wasm-bindgen = "0.6.5"
-
 # logger
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 tracing-appender = "0.2.3"
 
-[dev-dependencies]
-wasm-bindgen-test = "0.3.54"
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# test
 assert_cmd = "2.0.17"
+
+# node native addon
+napi = "3.5.2"
+napi-derive = "3.3.3"
+
+[build-dependencies]
+napi-build = "2.3.1"

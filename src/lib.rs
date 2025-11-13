@@ -1,17 +1,10 @@
-use anyhow::Result;
+use napi::bindgen_prelude::*;
+use napi_derive::napi;
 
-use serde_wasm_bindgen::to_value as toValue;
+mod flatten;
 
-use wasm_bindgen::prelude::*;
-
-pub mod flatten;
-
-/// wasm 导出函数，npm 用户可调用
-
-#[wasm_bindgen]
-pub fn flatten(content: &str, type_name: &str) -> Result<JsValue, JsValue> {
-    let result =
-        flatten::flatten_ts(content, type_name).map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-    toValue(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+/// napi 导出函数，node 用户可调用
+#[napi]
+pub fn flatten(content: String, type_name: String) -> Result<String> {
+    flatten::flatten_ts(&content, &type_name).map_err(|err| Error::from_reason(err.to_string()))
 }

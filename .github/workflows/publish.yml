@@ -8,41 +8,105 @@ on:
   push:
     tags:
       - v*
+  workflow_dispatch:
 
 jobs:
-  publish-npm:
+  build-npm:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16, 18, 20, 22] # 多 Node 版本
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: ${{ matrix.node-version }}
           registry-url: https://registry.npmjs.org/
           cache: pnpm
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
-      - name: Install wasm-pack
-        run: cargo install wasm-pack
+      - name: Install dependencies
+        run: pnpm install
 
-      - run: pnpm install
-
-      - run: npx changelogithub --no-group
+      - name: Generate changelog
+        run: npx changelogithub --no-group
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
-      - name: pnpm build
-        run: pnpm run build
+      - name: Build binary node use NAPI
+        run: pnpm run build:napi
 
+      - name: Save node release
+        run: |
+          mkdir -p release/node/${{ matrix.node-version }}
+          cp pkg/type-flat.node release/node/${{ matrix.node-version }}/type-flat.node
+  build-cli:
+    name: Build CLI binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Cargo build
+        run: |
+          cargo build --release
+
+      - name: Copy executable
+        run: |
+          mkdir -p release/cli
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            copy target\release\type-flat.exe release\cli\type-flat.exe
+          else
+            cp target/release/type-flat release/cli/type-flat
+          fi
+
+  publish-npm:
+    name: Pbulish
+    runs-on: ubuntu-latest
+    needs: [build-npm, build-cli]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build entry
+        run: pnpm run build:es
+
+      - name: Copy node release
+        run: |
+          cp -r release/* dist/
       - run: pnpm run publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
