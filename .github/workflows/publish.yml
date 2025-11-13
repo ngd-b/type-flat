@@ -49,7 +49,7 @@ jobs:
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5
         with:
-          name: node-release
+          name: node-release-${{ matrix.node-version }}
           path: release/node
           
   build-cli:
@@ -84,7 +84,7 @@ jobs:
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5
         with:
-          name: cli-release
+          name: cli-release-${{ matrix.os }}
           path: release/cli
           
   publish-npm:
@@ -111,17 +111,35 @@ jobs:
       - name: Build entry
         run: pnpm run build:es
 
-      - name: Download Node binaries
+      - name: Download Node 20
         uses: actions/download-artifact@v5
         with:
-          name: node-release
-          path: release/node
+          name: node-release-20
+          path: release/node/20
+          
+      - name: Download Node 22
+        uses: actions/download-artifact@v5
+        with:
+          name: node-release-22
+          path: release/node/22
       
-      - name: Download CLI binaries
+      - name: Download CLI windows-latest
         uses: actions/download-artifact@v5
         with:
-          name: cli-release
-          path: release/cli
+          name: cli-release-windows-latest
+          path: release/cli/windows
+          
+      - name: Download CLI macos-latest
+        uses: actions/download-artifact@v5
+        with:
+          name: cli-release-macos-latest
+          path: release/cli/macos
+          
+      - name: Download CLI ubuntu-latest
+        uses: actions/download-artifact@v5
+        with:
+          name: cli-release-ubuntu-latest
+          path: release/cli/ubuntu
           
       - name: Copy node release
         run: |
