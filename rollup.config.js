@@ -19,9 +19,9 @@ export default defineConfig([
       PluginNodeResolve(),
       PluginCommonjs(),
       // PluginWasm({ inline: true }),
-      PluginCopy({
-        targets: [{ src: "pkg/type-flat.node", dest: "dist" }],
-      }),
+      // PluginCopy({
+      //   targets: [{ src: "pkg/type-flat.node", dest: "dist" }],
+      // }),
       // PluginReplace({
       //   preventAssignment: true,
       //   values: {

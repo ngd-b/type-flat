@@ -45,13 +45,13 @@ jobs:
         run: |
           mkdir -p release/node/
           cp pkg/type-flat.node release/node/type-flat.node
-      
+
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5
         with:
           name: node-release-${{ matrix.node-version }}
           path: release/node
-          
+
   build-cli:
     name: Build CLI binaries
     runs-on: ${{ matrix.os }}
@@ -86,7 +86,7 @@ jobs:
         with:
           name: cli-release-${{ matrix.os }}
           path: release/cli
-          
+
   publish-npm:
     name: Publish
     runs-on: ubuntu-latest
@@ -104,7 +104,7 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
           cache: pnpm
-          
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -115,7 +115,7 @@ jobs:
 
       - name: Build binary napi pkg
         run: pnpm run build:napi
-        
+
       - name: Build entry
         run: pnpm run build:es
 
@@ -124,31 +124,31 @@ jobs:
         with:
           name: node-release-20
           path: release/node/20
-          
+
       - name: Download Node 22
         uses: actions/download-artifact@v5
         with:
           name: node-release-22
           path: release/node/22
-      
+
       - name: Download CLI windows-latest
         uses: actions/download-artifact@v5
         with:
           name: cli-release-windows-latest
           path: release/cli/windows
-          
+
       - name: Download CLI macos-latest
         uses: actions/download-artifact@v5
         with:
           name: cli-release-macos-latest
           path: release/cli/macos
-          
+
       - name: Download CLI ubuntu-latest
         uses: actions/download-artifact@v5
         with:
           name: cli-release-ubuntu-latest
           path: release/cli/ubuntu
-          
+
       - name: Copy node release
         run: |
           cp -r release/* dist/
@@ -158,7 +158,7 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-      - run: pnpm run publish
+      - run: pnpm run publish:npm
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
           NPM_CONFIG_PROVENANCE: true
