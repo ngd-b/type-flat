@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [16, 18, 20, 22] # 多 Node 版本
+        node-version: [20, 22] # 多 Node 版本
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,9 +75,9 @@ jobs:
         run: |
           mkdir -p release/cli
           if [ "$RUNNER_OS" == "Windows" ]; then
-            copy target\release\type-flat.exe release\cli\type-flat.exe
+            copy target\release\type_flat.exe release\cli\type-flat.exe
           else
-            cp target/release/type-flat release/cli/type-flat
+            cp target/release/type_flat release/cli/type-flat
           fi
 
   publish-npm:
