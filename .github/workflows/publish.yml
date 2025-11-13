@@ -43,8 +43,15 @@ jobs:
 
       - name: Save node release
         run: |
-          mkdir -p release/node/${{ matrix.node-version }}
-          cp pkg/type-flat.node release/node/${{ matrix.node-version }}/type-flat.node
+          mkdir -p release/node/
+          cp pkg/type-flat.node release/node/type-flat.node
+      
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: node-release-${{ matrix.node-version }}
+          path: release/node
+          
   build-cli:
     name: Build CLI binaries
     runs-on: ${{ matrix.os }}
@@ -70,11 +77,16 @@ jobs:
         run: |
           mkdir -p release/cli
           if [ "$RUNNER_OS" == "Windows" ]; then
-            copy target\release\type_flat.exe release\cli\type-flat.exe
+            cp target/release/type_flat.exe release/cli/type-flat.exe
           else
             cp target/release/type_flat release/cli/type-flat
           fi
-
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: cli-release-${{ matrix.os }}
+          path: release/cli
+          
   publish-npm:
     name: Publish
     runs-on: ubuntu-latest
@@ -92,13 +104,51 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
           cache: pnpm
+          
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build binary napi pkg
+        run: pnpm run build:napi
+        
       - name: Build entry
         run: pnpm run build:es
 
+      - name: Download Node 20
+        uses: actions/download-artifact@v5
+        with:
+          name: node-release-20
+          path: release/node/20
+          
+      - name: Download Node 22
+        uses: actions/download-artifact@v5
+        with:
+          name: node-release-22
+          path: release/node/22
+      
+      - name: Download CLI windows-latest
+        uses: actions/download-artifact@v5
+        with:
+          name: cli-release-windows-latest
+          path: release/cli/windows
+          
+      - name: Download CLI macos-latest
+        uses: actions/download-artifact@v5
+        with:
+          name: cli-release-macos-latest
+          path: release/cli/macos
+          
+      - name: Download CLI ubuntu-latest
+        uses: actions/download-artifact@v5
+        with:
+          name: cli-release-ubuntu-latest
+          path: release/cli/ubuntu
+          
       - name: Copy node release
         run: |
           cp -r release/* dist/
