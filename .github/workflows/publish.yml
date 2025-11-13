@@ -43,8 +43,8 @@ jobs:
 
       - name: Save node release
         run: |
-          mkdir -p release/node/${{ matrix.node-version }}
-          cp pkg/type-flat.node release/node/${{ matrix.node-version }}/type-flat.node
+          mkdir -p release/node/
+          cp pkg/type-flat.node release/node/type-flat.node
       
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5
@@ -104,10 +104,18 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
           cache: pnpm
+          
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build binary napi pkg
+        run: pnpm run build:napi
+        
       - name: Build entry
         run: pnpm run build:es
 
