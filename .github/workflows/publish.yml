@@ -45,6 +45,13 @@ jobs:
         run: |
           mkdir -p release/node/${{ matrix.node-version }}
           cp pkg/type-flat.node release/node/${{ matrix.node-version }}/type-flat.node
+      
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: node-release
+          path: release/node
+          
   build-cli:
     name: Build CLI binaries
     runs-on: ${{ matrix.os }}
@@ -74,7 +81,12 @@ jobs:
           else
             cp target/release/type_flat release/cli/type-flat
           fi
-
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: cli-release
+          path: release/cli
+          
   publish-npm:
     name: Publish
     runs-on: ubuntu-latest
@@ -99,6 +111,18 @@ jobs:
       - name: Build entry
         run: pnpm run build:es
 
+      - name: Download Node binaries
+        uses: actions/download-artifact@v5
+        with:
+          name: node-release
+          path: release/node
+      
+      - name: Download CLI binaries
+        uses: actions/download-artifact@v5
+        with:
+          name: cli-release
+          path: release/cli
+          
       - name: Copy node release
         run: |
           cp -r release/* dist/
