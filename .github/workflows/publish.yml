@@ -36,6 +36,7 @@ jobs:
         run: pnpm run build:napi
 
       - name: Save node release
+        shell: bash
         run: |
           node_abi=$(node -p "process.versions.modules")
           os_name=$(node -p "process.platform")
