@@ -12,28 +12,22 @@ on:
 
 jobs:
   build-npm:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest] # 多系统
         node-version: [20, 22] # 多 Node 版本
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: ./.github/actions/setup-node
         with:
-          node-version: ${{ matrix.node-version }}
-          registry-url: https://registry.npmjs.org/
-          cache: pnpm
+          node_version: ${{ matrix.node-version }}
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Install dependencies
         run: pnpm install
@@ -43,13 +37,18 @@ jobs:
 
       - name: Save node release
         run: |
+          node_abi=$(node -p "process.versions.modules")
+          os_name=$(node -p "process.platform")
+          arch_name=$(node -p "process.arch")
+          echo "Node ABI: $node_abi, OS: $os_name, Arch: $arch_name"
+
           mkdir -p release/node/
-          cp pkg/type-flat.node release/node/type-flat.node
+          cp pkg/type-flat.node release/node/$node_abi/type-flat.$os_name-$arch-name.node
 
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5
         with:
-          name: node-release-${{ matrix.node-version }}
+          name: node-release-${{matrix.os}}-${{ matrix.node-version }}
           path: release/node
 
   build-cli:
@@ -62,10 +61,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
         with:
-          toolchain: stable
           components: rustfmt, clippy
 
       - name: Cargo build
@@ -95,20 +93,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org/
-          cache: pnpm
+        uses: ./.github/actions/setup-node
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
 
       - name: Install dependencies
         run: pnpm install
@@ -119,36 +108,14 @@ jobs:
       - name: Build entry
         run: pnpm run build:es
 
-      - name: Download Node 20
+      - name: Download all release
         uses: actions/download-artifact@v5
         with:
-          name: node-release-20
-          path: release/node/20
+          path: release
 
-      - name: Download Node 22
-        uses: actions/download-artifact@v5
-        with:
-          name: node-release-22
-          path: release/node/22
-
-      - name: Download CLI windows-latest
-        uses: actions/download-artifact@v5
-        with:
-          name: cli-release-windows-latest
-          path: release/cli/windows
-
-      - name: Download CLI macos-latest
-        uses: actions/download-artifact@v5
-        with:
-          name: cli-release-macos-latest
-          path: release/cli/macos
-
-      - name: Download CLI ubuntu-latest
-        uses: actions/download-artifact@v5
-        with:
-          name: cli-release-ubuntu-latest
-          path: release/cli/ubuntu
-
+      - name: List all release
+        run: ls -R release
+        shell: bash
       - name: Copy node release
         run: |
           cp -r release/* dist/
