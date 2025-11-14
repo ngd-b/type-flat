@@ -74,11 +74,14 @@ jobs:
       - name: Copy executable
         shell: bash
         run: |
-          mkdir -p release/cli
+          os_name=$(node -p "process.platform")
+          echo "OS: $os_name"
+
+          mkdir -p release/cli/$os_name
           if [ "$RUNNER_OS" == "Windows" ]; then
-            cp target/release/type_flat.exe release/cli/type-flat.exe
+            cp target/release/type_flat.exe release/cli/$os_name/type-flat.exe
           else
-            cp target/release/type_flat release/cli/type-flat
+            cp target/release/type_flat release/cli/$os_name/type-flat
           fi
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5
