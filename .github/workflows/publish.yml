@@ -42,7 +42,7 @@ jobs:
           arch_name=$(node -p "process.arch")
           echo "Node ABI: $node_abi, OS: $os_name, Arch: $arch_name"
 
-          mkdir -p release/node/
+          mkdir -p release/node/$node_abi/
           cp pkg/type-flat.node release/node/$node_abi/type-flat.$os_name-$arch_name.node
 
       - name: Upload a Build Artifact
