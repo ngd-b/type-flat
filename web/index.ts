@@ -10,7 +10,11 @@ type T = {
   flatten: typeof TSFlatten;
 };
 
-const binding = loadBinding(__dirname, "type-flat", "type_flat") as {
+// Node version
+const nodeABI = process.versions.modules;
+
+const binding_path = path.join(__dirname, "node", nodeABI);
+const binding = loadBinding(binding_path, "type-flat", "type-flat") as {
   [k in keyof T]: T[k];
 };
 
