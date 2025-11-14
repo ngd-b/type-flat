@@ -1,0 +1,14 @@
+name: Setup Rust
+description: Setup Rust evnironment
+inputs:
+  components:
+    description: Install the components
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        components: ${{ inputs.components }}

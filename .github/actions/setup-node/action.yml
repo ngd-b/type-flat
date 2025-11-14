@@ -1,0 +1,20 @@
+name: Setup Node
+description: Setup Node evnironment
+inputs:
+  node_version:
+    description: Setup Node version
+    required: false
+    default: "20"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+        registry-url: https://registry.npmjs.org/
+        cache: pnpm
