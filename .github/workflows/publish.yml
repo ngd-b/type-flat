@@ -82,6 +82,7 @@ jobs:
             cp target/release/type_flat.exe release/cli/$os_name/type-flat.exe
           else
             cp target/release/type_flat release/cli/$os_name/type-flat
+            chmod +x release/cli/$os_name/type-flat
           fi
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5
