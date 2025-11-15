@@ -17,7 +17,6 @@ impl Flatten {
 
     #[napi]
     pub fn flatten(
-        &self,
         content: String,
         #[napi(ts_arg_type = "string | string[]")] type_name: Unknown,
         #[napi(ts_arg_type = "string | string[]")] exclude_type: Option<Unknown>,
