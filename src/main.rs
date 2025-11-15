@@ -3,6 +3,8 @@ use clap::Parser;
 use std::{fs, path::Path};
 use tracing::info;
 
+use flatten::Flatten;
+
 mod flatten;
 mod logger;
 #[derive(Parser, Debug)]
@@ -30,7 +32,7 @@ fn main() -> Result<()> {
     let content = fs::read_to_string(&file_path)?;
 
     info!("Init finish. Start flattening...");
-    let flat_result = flatten::flatten_ts(&content, &cli.type_name)?;
+    let flat_result = Flatten::flatten_ts(&content, &cli.type_name)?;
 
     info!("Flatten finish. Start output...");
     // output to file

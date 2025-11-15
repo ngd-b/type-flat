@@ -1,4 +1,4 @@
-use crate::flatten::{declare::DeclRef, generic::GenericEnv};
+use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram};
 use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::Statement;
@@ -17,103 +17,94 @@ pub mod result;
 pub mod type_alias;
 pub mod utils;
 
-pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
-    let allocator = Allocator::new();
-    // ast parser
-    let parser = OxcParser::new(&allocator, content, SourceType::ts());
-    let result = parser.parse();
+pub struct Flatten;
 
-    if !result.errors.is_empty() {
-        eprintln!("{:?}", result.errors);
-        bail!("parser errors")
-    };
+impl Flatten {
+    pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
+        let allocator = Allocator::new();
+        // ast parser
+        let parser = OxcParser::new(&allocator, &content, SourceType::ts());
+        let result = parser.parse();
 
-    let ast = result.program;
-    // semantic analyzer
-    let semantic = SemanticBuilder::new()
-        .with_check_syntax_error(true)
-        .with_cfg(true)
-        .build(&ast);
+        if !result.errors.is_empty() {
+            eprintln!("{:?}", result.errors);
+            // bail!("parser errors")
+        };
 
-    if !semantic.errors.is_empty() {
-        eprintln!("{:?}", semantic.errors);
-        bail!("semantic errors");
-    }
+        let program = result.program;
+        // semantic analyzer
+        let semantic_build = SemanticBuilder::new()
+            .with_check_syntax_error(true)
+            .with_cfg(true)
+            .build(&program);
 
-    let mut target_decl = None;
+        if !semantic_build.errors.is_empty() {
+            eprintln!("{:?}", semantic_build.errors);
+            // bail!("semantic errors");
+        }
 
-    for statement in &ast.body {
-        if let Statement::TSTypeAliasDeclaration(decl) = statement {
-            if decl.id.name == type_name {
-                target_decl = Some(DeclRef::TypeAlias(decl));
-                break;
+        let semantic = semantic_build.semantic;
+        let mut target_decl = None;
+
+        for statement in program.body.iter() {
+            if let Statement::TSTypeAliasDeclaration(decl) = &statement {
+                if decl.id.name == type_name {
+                    target_decl = Some(DeclRef::TypeAlias(decl));
+                    break;
+                }
+            }
+            if let Statement::TSInterfaceDeclaration(decl) = &statement {
+                if decl.id.name == type_name {
+                    target_decl = Some(DeclRef::Interface(decl));
+                    break;
+                }
             }
         }
-        if let Statement::TSInterfaceDeclaration(decl) = statement {
-            if decl.id.name == type_name {
-                target_decl = Some(DeclRef::Interface(decl));
-                break;
+
+        let Some(target_type) = target_decl else {
+            bail!("type {} is not found in AST", &type_name);
+        };
+
+        let env = GenericEnv::new();
+
+        let mut result = ResultProgram::new(&program, &allocator);
+
+        match target_type {
+            DeclRef::Interface(decl) => {
+                let mut target_result =
+                    interface::flatten_type(&decl, &semantic, &env, &allocator, &mut result);
+                // self generic params saved
+                target_result.type_parameters = decl.type_parameters.clone_in(&allocator);
+
+                result.add_interface(target_result);
+            }
+            DeclRef::TypeAlias(decl) => {
+                let mut target_result =
+                    type_alias::flatten_type(&decl, &semantic, &env, &allocator, &mut result);
+                // self generic params saved
+                target_result.type_parameters = decl.type_parameters.clone_in(&allocator);
+
+                result.add_type_alias(target_result);
+            }
+            _ => {
+                bail!("only interface and type alias are supported");
+            }
+        };
+        // add circle Class
+        let mut output_class = AstVec::new_in(&allocator);
+
+        for name in result.circle_type.iter() {
+            if let Some(decl) = result.get_reference_type(name) {
+                output_class.push(decl);
             }
         }
+
+        for decl in output_class.iter() {
+            result.push(*decl);
+        }
+
+        let code_gen = Codegen::new().build(&result.program);
+
+        Ok(code_gen.code)
     }
-
-    let Some(target_type) = target_decl else {
-        bail!("type {} is not found in AST", &type_name);
-    };
-
-    let env = GenericEnv::new();
-
-    let mut result_program = result::ResultProgram::new(&ast, &allocator);
-
-    // Stop recursive flatten self
-    result_program.visited.insert(type_name.to_string());
-
-    match target_type {
-        DeclRef::Interface(decl) => {
-            let mut target_result = interface::flatten_type(
-                &decl,
-                &semantic.semantic,
-                &env,
-                &allocator,
-                &mut result_program,
-            );
-            // self generic params saved
-            target_result.type_parameters = decl.type_parameters.clone_in(&allocator);
-
-            result_program.add_interface(target_result);
-        }
-        DeclRef::TypeAlias(decl) => {
-            let mut target_result = type_alias::flatten_type(
-                &decl,
-                &semantic.semantic,
-                &env,
-                &allocator,
-                &mut result_program,
-            );
-            // self generic params saved
-            target_result.type_parameters = decl.type_parameters.clone_in(&allocator);
-
-            result_program.add_type_alias(target_result);
-        }
-        _ => {
-            bail!("only interface and type alias are supported");
-        }
-    };
-
-    // add circle Class
-    let mut output_class = AstVec::new_in(&allocator);
-
-    for name in result_program.circle_type.iter() {
-        if let Some(decl) = result_program.get_reference_type(name) {
-            output_class.push(decl);
-        }
-    }
-
-    for decl in output_class.iter() {
-        result_program.push(decl.clone());
-    }
-
-    let code_gen = Codegen::new().build(&result_program.program);
-
-    Ok(code_gen.code)
 }
