@@ -10,19 +10,19 @@ mod logger;
 #[derive(Parser, Debug)]
 #[command(author,version,about,long_about = None)]
 struct Cli {
-    // A path to a file or directory
+    /// A path to a file or directory
     #[arg(short, long)]
     file_or_dir_path: String,
-    // A type name
+    /// A type name
     #[arg(short, long)]
     type_name: String,
-    // output path
+    /// output path
     #[arg(long, short,num_args=0..=1, default_missing_value="true")]
     output: Option<String>,
-    // need output log
+    /// need output log
     #[arg(long, short)]
     quiet: bool,
-    // exclude type
+    /// exclude type
     #[arg(long, short)]
     exclude: Vec<String>,
 }
