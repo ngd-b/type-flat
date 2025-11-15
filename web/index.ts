@@ -8,10 +8,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 
-type T = {
-  flatten: typeof TSFlatten;
-};
-
 // Node version
 const nodeABI = process.versions.modules;
 // Platform
@@ -24,8 +20,9 @@ const binding_path = path.join(
   nodeABI,
   `type-flat.${platform}-${arch}.node`
 );
-const binding = require(binding_path) as {
-  [k in keyof T]: T[k];
-};
 
-export const { flatten } = binding;
+const binding = require(binding_path);
+
+export const { Flatten } = binding;
+
+export type Flatten = TSFlatten;

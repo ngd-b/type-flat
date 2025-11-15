@@ -16,13 +16,13 @@ struct Cli {
     /// A type name
     #[arg(short, long)]
     type_name: String,
-    /// output path
+    /// Output path
     #[arg(long, short,num_args=0..=1, default_missing_value="true")]
     output: Option<String>,
-    /// need output log
+    /// Don't output log
     #[arg(long, short)]
     quiet: bool,
-    /// exclude type
+    /// Exclude type
     #[arg(long, short)]
     exclude: Vec<String>,
 }
