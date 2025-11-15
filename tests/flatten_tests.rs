@@ -7,7 +7,13 @@ fn run_flat(file: &str, type_name: &str) -> String {
     let exe = assert_cmd::cargo::cargo_bin("type_flat");
 
     let output = Command::new(exe)
-        .args(["--file-or-dir-path", file, "--type-name", type_name])
+        .args([
+            "--file-or-dir-path",
+            file,
+            "--type-name",
+            type_name,
+            "--quiet",
+        ])
         .output()
         .expect("failed to run type_flat");
 

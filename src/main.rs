@@ -1,6 +1,6 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
-use std::{fs, path::Path};
+use std::{env, fs, path::Path};
 use tracing::info;
 
 use flatten::Flatten;
@@ -19,14 +19,21 @@ struct Cli {
     // output path
     #[arg(long, short,num_args=0..=1, default_missing_value="true")]
     output: Option<String>,
+    // need output log
+    #[arg(long, short)]
+    quiet: bool,
 }
 
 fn main() -> Result<()> {
-    let _guard = logger::init();
+    let cli = Cli::parse();
+
+    let _guard = if cli.quiet {
+        None
+    } else {
+        Some(logger::init())
+    };
 
     info!("Start flattening...");
-
-    let cli = Cli::parse();
 
     let file_path = Path::new(&cli.file_or_dir_path);
     let content = fs::read_to_string(&file_path)?;
@@ -37,11 +44,7 @@ fn main() -> Result<()> {
     info!("Flatten finish. Start output...");
     // output to file
 
-    let default_output_path = if file_path.is_dir() {
-        file_path
-    } else {
-        file_path.parent().unwrap_or_else(|| Path::new(""))
-    };
+    let default_output_path = env::current_dir()?;
 
     match cli.output.as_deref() {
         None => {
@@ -54,6 +57,11 @@ fn main() -> Result<()> {
         }
         Some(output_path) => {
             info!("Output to {:?}", output_path);
+            let output_path = if Path::new(output_path).is_dir() {
+                format!("{}/flatten.ts", output_path)
+            } else {
+                output_path.to_owned()
+            };
             fs::write(output_path, &flat_result)?;
         }
     }
