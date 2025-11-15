@@ -20,7 +20,7 @@ pub mod utils;
 pub struct Flatten;
 
 impl Flatten {
-    pub fn flatten_ts(content: &str, type_name: &str) -> Result<String> {
+    pub fn flatten_ts(content: &str, type_name: &str, exclude: &[String]) -> Result<String> {
         let allocator = Allocator::new();
         // ast parser
         let parser = OxcParser::new(&allocator, &content, SourceType::ts());
@@ -48,13 +48,13 @@ impl Flatten {
 
         for statement in program.body.iter() {
             if let Statement::TSTypeAliasDeclaration(decl) = &statement {
-                if decl.id.name == type_name {
+                if decl.id.name.as_str() == type_name {
                     target_decl = Some(DeclRef::TypeAlias(decl));
                     break;
                 }
             }
             if let Statement::TSInterfaceDeclaration(decl) = &statement {
-                if decl.id.name == type_name {
+                if decl.id.name.as_str() == type_name {
                     target_decl = Some(DeclRef::Interface(decl));
                     break;
                 }
@@ -68,6 +68,11 @@ impl Flatten {
         let env = GenericEnv::new();
 
         let mut result = ResultProgram::new(&program, &allocator);
+
+        // need to exclude type
+        result.exclude_type = exclude.iter().map(|str| str.to_string()).collect();
+        // Stop circle reference self
+        result.visited.insert(type_name.to_string());
 
         match target_type {
             DeclRef::Interface(decl) => {

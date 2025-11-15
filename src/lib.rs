@@ -20,14 +20,32 @@ impl Flatten {
         &self,
         content: String,
         #[napi(ts_arg_type = "string | string[]")] type_name: Unknown,
+        #[napi(ts_arg_type = "string | string[]")] exclude_type: Unknown,
     ) -> Result<String> {
+        // exclude flatten type names
+        let mut exclude_type_names = Vec::new();
+
+        if let Ok(obj) = exclude_type.coerce_to_object() {
+            if obj.is_array()? {
+                let len = obj.get_array_length()?;
+
+                for i in 0..len {
+                    let item = obj.get_element::<Unknown>(i)?;
+
+                    let str = item.coerce_to_string()?.into_utf8()?.into_owned()?;
+                    exclude_type_names.push(str);
+                }
+            }
+        };
+        // single type name
         if let Ok(js_str) = type_name.coerce_to_string() {
             let str = js_str.into_utf8()?.into_owned().unwrap();
 
-            return flatten::Flatten::flatten_ts(&content, &str)
+            return flatten::Flatten::flatten_ts(&content, &str, &exclude_type_names)
                 .map_err(|err| Error::from_reason(err.to_string()));
         }
 
+        // multi type name
         if let Ok(obj) = type_name.coerce_to_object() {
             if obj.is_array()? {
                 let len = obj.get_array_length()?;
@@ -37,7 +55,7 @@ impl Flatten {
                     let item = obj.get_element::<Unknown>(i)?;
 
                     let str = item.coerce_to_string()?.into_utf8()?.into_owned()?;
-                    let res = flatten::Flatten::flatten_ts(&content, &str);
+                    let res = flatten::Flatten::flatten_ts(&content, &str, &exclude_type_names);
 
                     if let Err(err) = res {
                         return Err(Error::from_reason(err.to_string()));

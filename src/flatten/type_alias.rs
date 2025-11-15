@@ -86,6 +86,10 @@ pub fn flatten_ts_type<'a>(
                 _ => "".to_string(),
             };
 
+            // if the type don't need flatten
+            if result_program.exclude_type.contains(&reference_name) {
+                return DeclRef::TypeAlias(allocator.alloc(new_type));
+            }
             // Keyword type flatten
             if let Some(keyword) = Keyword::is_keyword(tr) {
                 let result_type: TSType<'_> =

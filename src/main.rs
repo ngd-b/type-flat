@@ -22,6 +22,9 @@ struct Cli {
     // need output log
     #[arg(long, short)]
     quiet: bool,
+    // exclude type
+    #[arg(long, short)]
+    exclude: Vec<String>,
 }
 
 fn main() -> Result<()> {
@@ -39,7 +42,7 @@ fn main() -> Result<()> {
     let content = fs::read_to_string(&file_path)?;
 
     info!("Init finish. Start flattening...");
-    let flat_result = Flatten::flatten_ts(&content, &cli.type_name)?;
+    let flat_result = Flatten::flatten_ts(&content, &cli.type_name, &cli.exclude)?;
 
     info!("Flatten finish. Start output...");
     // output to file

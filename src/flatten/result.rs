@@ -12,6 +12,7 @@ use crate::flatten::declare::DeclRef;
 pub struct ResultProgram<'a> {
     pub program: Program<'a>,
     allocator: &'a Allocator,
+    pub exclude_type: HashSet<String>,
     pub visited: HashSet<String>,
     pub cached: AstHashMap<'a, &'a str, DeclRef<'a>>,
     pub circle_type: HashSet<String>,
@@ -31,6 +32,7 @@ impl<'a> ResultProgram<'a> {
                 source_type: original.source_type.clone_in(allocator),
             },
             allocator,
+            exclude_type: Default::default(),
             visited: Default::default(),
             cached: AstHashMap::new_in(allocator),
             circle_type: Default::default(),
