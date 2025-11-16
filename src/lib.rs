@@ -44,12 +44,6 @@ impl Flatten {
         let flatten = flatten::Flatten::new(content, &allocator);
 
         let mut type_names = vec![];
-        // single type name
-        if let Ok(js_str) = type_name.coerce_to_string() {
-            let str = js_str.into_utf8()?.into_owned().unwrap();
-
-            type_names.push(str);
-        }
 
         // multi type name
         if let Ok(obj) = type_name.coerce_to_object() {
@@ -62,7 +56,18 @@ impl Flatten {
                     let str = item.coerce_to_string()?.into_utf8()?.into_owned()?;
                     type_names.push(str);
                 }
+
+                return flatten
+                    .flatten(&type_names, &exclude_type_names)
+                    .map_err(|err| Error::from_reason(err.to_string()));
             }
+        }
+
+        // single type name
+        if let Ok(js_str) = type_name.coerce_to_string() {
+            let str = js_str.into_utf8()?.into_owned().unwrap();
+
+            type_names.push(str);
         }
 
         // flatten
