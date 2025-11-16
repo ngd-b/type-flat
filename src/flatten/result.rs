@@ -19,7 +19,7 @@ pub struct ResultProgram<'a> {
 }
 
 impl<'a> ResultProgram<'a> {
-    pub fn new(original: &Program<'a>, allocator: &'a Allocator) -> Self {
+    pub fn new(original: &'a Program<'a>, allocator: &'a Allocator) -> Self {
         Self {
             program: Program {
                 span: Default::default(),
@@ -43,10 +43,17 @@ impl<'a> ResultProgram<'a> {
             Statement::TSInterfaceDeclaration(decl) => decl.id.name == name,
             Statement::TSTypeAliasDeclaration(decl) => decl.id.name == name,
             Statement::VariableDeclaration(vd) => {
-                vd.declarations.iter().any(|decl| match decl.id.kind {
-                    BindingPatternKind::BindingIdentifier(ref id) => id.name.as_str() == name,
+                vd.declarations.iter().any(|decl| match &decl.id.kind {
+                    BindingPatternKind::BindingIdentifier(id) => id.name.as_str() == name,
                     _ => false,
                 })
+            }
+            Statement::ClassDeclaration(scd) => {
+                if let Some(id) = &scd.id {
+                    id.name.as_str() == name
+                } else {
+                    false
+                }
             }
             _ => false,
         })
@@ -96,8 +103,7 @@ impl<'a> ResultProgram<'a> {
             )));
     }
 
-    #[instrument(skip(self, decl))]
-    pub fn add_statement(&mut self, decl: VariableDeclaration<'a>) {
+    pub fn add_variable(&mut self, decl: VariableDeclaration<'a>) {
         let name = if let Some(decl) = decl.declarations.first() {
             if let BindingPatternKind::BindingIdentifier(bi) = &decl.id.kind {
                 bi.name.as_str()
@@ -116,6 +122,34 @@ impl<'a> ResultProgram<'a> {
                 decl,
                 self.allocator,
             )));
+    }
+    pub fn add_statement(&mut self, statement: Statement<'a>) {
+        let name = match &statement {
+            Statement::TSInterfaceDeclaration(decl) => decl.id.name.as_str(),
+            Statement::TSTypeAliasDeclaration(decl) => decl.id.name.as_str(),
+            Statement::ClassDeclaration(decl) => {
+                if let Some(id) = &decl.id {
+                    id.name.as_str()
+                } else {
+                    ""
+                }
+            }
+            Statement::VariableDeclaration(svd) => {
+                if let Some(decl) = svd.declarations.first() {
+                    match &decl.id.kind {
+                        BindingPatternKind::BindingIdentifier(id) => id.name.as_str(),
+                        _ => "",
+                    }
+                } else {
+                    ""
+                }
+            }
+            _ => "",
+        };
+        if name.is_empty() || self.has_decl(name) {
+            return;
+        }
+        self.program.body.push(statement);
     }
     pub fn push(&mut self, decl: DeclRef<'a>) {
         match decl {

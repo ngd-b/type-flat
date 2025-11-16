@@ -66,7 +66,7 @@ pub fn get_reference_type<'a>(
             AstKind::VariableDeclarator(vd) => {
                 if let Some(name) = vd.id.get_identifier_name() {
                     if name.as_str() == reference_name {
-                        result_program.add_statement(VariableDeclaration {
+                        result_program.add_variable(VariableDeclaration {
                             span: Default::default(),
                             declarations: AstVec::from_array_in(
                                 [vd.clone_in(allocator)],

@@ -1,5 +1,6 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
+use oxc_allocator::Allocator;
 use std::{env, fs, path::Path};
 use tracing::info;
 
@@ -15,7 +16,7 @@ struct Cli {
     file_or_dir_path: String,
     /// A type name
     #[arg(short, long)]
-    type_name: String,
+    type_name: Vec<String>,
     /// Output path
     #[arg(long, short,num_args=0..=1, default_missing_value="true")]
     output: Option<String>,
@@ -42,7 +43,9 @@ fn main() -> Result<()> {
     let content = fs::read_to_string(&file_path)?;
 
     info!("Init finish. Start flattening...");
-    let flat_result = Flatten::flatten_ts(&content, &cli.type_name, &cli.exclude)?;
+    let allocator = Allocator::new();
+    let flatten = Flatten::new(content, &allocator);
+    let flat_result = flatten.flatten(&cli.type_name, &cli.exclude)?;
 
     info!("Flatten finish. Start output...");
     // output to file
