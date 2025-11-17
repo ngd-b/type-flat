@@ -46,21 +46,21 @@ impl Flatten {
         let mut type_names = vec![];
 
         // multi type name
-        if let Ok(obj) = type_name.coerce_to_object() {
-            if obj.is_array()? {
-                let len = obj.get_array_length()?;
+        if let Ok(obj) = type_name.coerce_to_object()
+            && obj.is_array()?
+        {
+            let len = obj.get_array_length()?;
 
-                for i in 0..len {
-                    let item = obj.get_element::<Unknown>(i)?;
+            for i in 0..len {
+                let item = obj.get_element::<Unknown>(i)?;
 
-                    let str = item.coerce_to_string()?.into_utf8()?.into_owned()?;
-                    type_names.push(str);
-                }
-
-                return flatten
-                    .flatten(&type_names, &exclude_type_names)
-                    .map_err(|err| Error::from_reason(err.to_string()));
+                let str = item.coerce_to_string()?.into_utf8()?.into_owned()?;
+                type_names.push(str);
             }
+
+            return flatten
+                .flatten(&type_names, &exclude_type_names)
+                .map_err(|err| Error::from_reason(err.to_string()));
         }
 
         // single type name

@@ -15,7 +15,7 @@ struct Cli {
     #[arg(short, long)]
     file_or_dir_path: String,
     /// A type name
-    #[arg(short, long)]
+    #[arg(short, long,num_args=1..,value_delimiter = ',',required = true)]
     type_name: Vec<String>,
     /// Output path
     #[arg(long, short,num_args=0..=1, default_missing_value="true")]
@@ -24,7 +24,7 @@ struct Cli {
     #[arg(long, short)]
     quiet: bool,
     /// Exclude type
-    #[arg(long, short)]
+    #[arg(long, short,num_args=1..,value_delimiter = ',',required = false)]
     exclude: Vec<String>,
 }
 
