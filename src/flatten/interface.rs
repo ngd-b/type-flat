@@ -174,6 +174,7 @@ pub fn flatten_type<'a>(
                         }
                         _ => {}
                     },
+                    _ => {}
                 }
             }
         }

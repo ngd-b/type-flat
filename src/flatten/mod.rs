@@ -18,6 +18,7 @@ pub mod keyword;
 pub mod result;
 pub mod type_alias;
 pub mod utils;
+pub mod variable;
 
 ///
 /// Flatten TypeScript type

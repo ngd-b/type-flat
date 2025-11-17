@@ -139,6 +139,7 @@ pub fn flatten_ts_type<'a>(
 
                         return decl;
                     }
+                    _ => {}
                 }
             }
         }

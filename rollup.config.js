@@ -3,13 +3,16 @@ import PluginNodeResolve from "@rollup/plugin-node-resolve";
 import PluginCommonjs from "@rollup/plugin-commonjs";
 import PluginTypescript from "@rollup/plugin-typescript";
 // import PluginWasm from "@rollup/plugin-wasm";
-import PluginCopy from "rollup-plugin-copy";
+// import PluginCopy from "rollup-plugin-copy";
 // import PluginReplace from "@rollup/plugin-replace";
 import PluginDTS from "rollup-plugin-dts";
 
 export default defineConfig([
   {
-    input: { index: "web/index.ts", cli: "web/cli.ts" },
+    input: {
+      index: "web/index.ts",
+      cli: "web/cli.ts",
+    },
     output: {
       dir: "dist",
       format: "es",
@@ -20,7 +23,7 @@ export default defineConfig([
       PluginCommonjs(),
       // PluginWasm({ inline: true }),
       // PluginCopy({
-      //   targets: [{ src: "pkg/type-flat.node", dest: "dist" }],
+      //   targets: [{ src: "pkg/index.js", dest: "dist" }],
       // }),
       // PluginReplace({
       //   preventAssignment: true,

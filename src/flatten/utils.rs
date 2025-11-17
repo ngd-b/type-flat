@@ -7,7 +7,7 @@ use oxc_ast::{
         MethodDefinition, MethodDefinitionKind, MethodDefinitionType, PropertyDefinition,
         PropertyDefinitionType, PropertyKey, StringLiteral, TSFunctionType, TSLiteral,
         TSLiteralType, TSMappedTypeModifierOperator, TSMethodSignatureKind, TSPropertySignature,
-        TSSignature, TSType, TSTypeAnnotation, TSUnionType, TSVoidKeyword, VariableDeclaration,
+        TSSignature, TSType, TSTypeAnnotation, TSUnionType, TSVoidKeyword,
     },
 };
 use oxc_semantic::Semantic;
@@ -63,18 +63,24 @@ pub fn get_reference_type<'a>(
                     }
                 }
             }
-            AstKind::VariableDeclarator(vd) => {
-                if let Some(name) = vd.id.get_identifier_name() {
-                    if name.as_str() == reference_name {
-                        result_program.add_variable(VariableDeclaration {
-                            span: Default::default(),
-                            declarations: AstVec::from_array_in(
-                                [vd.clone_in(allocator)],
-                                allocator,
-                            ),
-                            kind: vd.kind.clone_in(allocator),
-                            declare: true,
-                        });
+
+            AstKind::VariableDeclaration(vd) => {
+                for decl in &vd.declarations {
+                    if let Some(name) = decl.id.get_identifier_name() {
+                        if name.as_str() == reference_name {
+                            // add declare to exclude
+                            result_program
+                                .exclude_type
+                                .insert(reference_name.to_string());
+
+                            // flatten declare variable type
+                            let mut new_vd = vd.clone_in(allocator);
+                            new_vd.declarations = AstVec::new_in(allocator);
+
+                            new_vd.declarations.push(decl.clone_in(allocator));
+
+                            decls.push(DeclRef::Variable(allocator.alloc(new_vd)));
+                        }
                     }
                 }
             }
@@ -86,15 +92,13 @@ pub fn get_reference_type<'a>(
         return Ok(decls[0]);
     };
     if decls.len() > 1 {
-        let result = merge_type_to_class(
+        return merge_type_to_class(
             allocator.alloc(decls),
             semantic,
             env,
             allocator,
             result_program,
         );
-
-        return Ok(result);
     }
 
     bail!("Unsupported Referenc Type")
@@ -110,7 +114,7 @@ pub fn merge_type_to_class<'a>(
     _env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     _result_program: &mut ResultProgram<'a>,
-) -> DeclRef<'a> {
+) -> Result<DeclRef<'a>> {
     let decl = decls.last().unwrap().clone();
 
     let mut members: AstVec<'_, TSSignature<'a>> = AstVec::new_in(allocator);
@@ -157,7 +161,7 @@ pub fn merge_type_to_class<'a>(
             }
 
             new_type.body.body.extend(new_members);
-            DeclRef::Interface(allocator.alloc(new_type))
+            Ok(DeclRef::Interface(allocator.alloc(new_type)))
         }
         DeclRef::TypeAlias(tad) => {
             let mut new_type = tad.clone_in(allocator);
@@ -184,7 +188,7 @@ pub fn merge_type_to_class<'a>(
                 }
                 _ => {}
             }
-            DeclRef::TypeAlias(allocator.alloc(new_type))
+            Ok(DeclRef::TypeAlias(allocator.alloc(new_type)))
         }
         DeclRef::Class(tcd) => {
             let mut new_type = tcd.clone_in(allocator);
@@ -208,7 +212,10 @@ pub fn merge_type_to_class<'a>(
 
             new_type.body.body.extend(new_members);
 
-            DeclRef::Class(allocator.alloc(new_type))
+            Ok(DeclRef::Class(allocator.alloc(new_type)))
+        }
+        _ => {
+            bail!("Invalid class type")
         }
     }
 }

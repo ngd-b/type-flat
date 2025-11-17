@@ -4,7 +4,7 @@ use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::ast::{
     BindingIdentifier, Class, ClassElement, TSInterfaceDeclaration, TSMethodSignature,
     TSPropertySignature, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
-    TSTypeParameterInstantiation,
+    TSTypeParameterInstantiation, VariableDeclaration,
 };
 use oxc_semantic::Semantic;
 
@@ -13,7 +13,7 @@ use crate::flatten::{
     generic::{self, GenericEnv},
     interface,
     result::ResultProgram,
-    type_alias, utils,
+    type_alias, utils, variable,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -21,6 +21,7 @@ pub enum DeclRef<'a> {
     Interface(&'a TSInterfaceDeclaration<'a>),
     TypeAlias(&'a TSTypeAliasDeclaration<'a>),
     Class(&'a Class<'a>),
+    Variable(&'a VariableDeclaration<'a>),
 }
 
 impl<'a> DeclRef<'a> {
@@ -28,18 +29,14 @@ impl<'a> DeclRef<'a> {
     /// Get type alias declaration
     ///
     pub fn type_decl(&self, allocator: &'a Allocator) -> TSType<'a> {
+        let mut new_type = TSTypeLiteral {
+            span: Default::default(),
+            members: AstVec::new_in(allocator),
+        };
         match self {
-            DeclRef::TypeAlias(decl) => decl.type_annotation.clone_in(allocator),
+            DeclRef::TypeAlias(decl) => return decl.type_annotation.clone_in(allocator),
             DeclRef::Interface(decl) => {
-                let new_literal_type = TSType::TSTypeLiteral(AstBox::new_in(
-                    TSTypeLiteral {
-                        span: Default::default(),
-                        members: decl.body.body.clone_in(allocator),
-                    },
-                    allocator,
-                ));
-
-                new_literal_type
+                new_type.members = decl.body.body.clone_in(allocator);
             }
             DeclRef::Class(dc) => {
                 let mut members = AstVec::new_in(allocator);
@@ -86,17 +83,15 @@ impl<'a> DeclRef<'a> {
                         _ => {}
                     }
                 }
-                let new_literal_type = TSType::TSTypeLiteral(AstBox::new_in(
-                    TSTypeLiteral {
-                        span: Default::default(),
-                        members: members,
-                    },
-                    allocator,
-                ));
 
-                new_literal_type
+                new_type.members = members;
             }
-        }
+            DeclRef::Variable(_drv) => {}
+        };
+
+        let new_literal_type = TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator));
+
+        new_literal_type
     }
     ///
     /// return type alias declaration
@@ -147,6 +142,7 @@ impl<'a> DeclRef<'a> {
 
                 Some(allocator.alloc(type_alias))
             }
+            _ => None,
         }
     }
 
@@ -202,6 +198,13 @@ impl<'a> DeclRef<'a> {
                 let decl = class::flatten_type(tcd, semantic, &new_env, allocator, result_program);
 
                 return DeclRef::Class(allocator.alloc(decl));
+            }
+            DeclRef::Variable(drv) => {
+                let decl = variable::flatten_type(drv, semantic, env, allocator, result_program);
+
+                // Add const tot result_program
+                result_program.add_variable(decl.clone_in(allocator));
+                return DeclRef::Variable(allocator.alloc(decl));
             }
         }
     }
