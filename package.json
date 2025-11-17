@@ -17,11 +17,14 @@
   },
   "napi": {
     "binaryName": "type-flat",
-    "triples": {
-      "x86_64-unknown-linux-gnu": {},
-      "aarch64-apple-darwin": {},
-      "x86_64-pc-windows-msvc": {}
-    }
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-musl"
+    ]
   },
   "files": [
     "dist",
@@ -37,7 +40,7 @@
   ],
   "scripts": {
     "build": "tsx scripts/build.ts",
-    "build:napi": "npx napi build --release -o pkg",
+    "build:napi": "npx napi build --platform --release -o pkg",
     "build:es": "rollup -c ",
     "release": "npx bumpp",
     "commitlint": "commitlint --edit",
@@ -54,13 +57,12 @@
   "browser": false,
   "sideEffects": false,
   "engines": {
-    "node": ">=20"
+    "node": ">=16"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@napi-rs/cli": "^3.4.1",
-    "@node-rs/helper": "^1.6.0",
     "@rollup/plugin-commonjs": "^28.0.8",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-replace": "^6.0.2",

@@ -1,5 +1,4 @@
 import type { Flatten as TSFlatten } from "../pkg/index.d.ts";
-// import { loadBinding } from "@node-rs/helper";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
