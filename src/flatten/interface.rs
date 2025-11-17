@@ -9,6 +9,7 @@ use oxc_semantic::Semantic;
 use tracing::instrument;
 
 use crate::flatten::{
+    class,
     declare::DeclRef,
     generic::GenericEnv,
     keyword::Keyword,
@@ -98,7 +99,7 @@ pub fn flatten_type<'a>(
             let result = utils::get_reference_type(
                 &reference_name,
                 semantic,
-                env,
+                &new_env,
                 allocator,
                 result_program,
             );
@@ -110,7 +111,7 @@ pub fn flatten_type<'a>(
                 let decl: DeclRef<'_> = decl.flatten_type(
                     &extend.type_arguments,
                     semantic,
-                    env,
+                    &new_env,
                     allocator,
                     result_program,
                 );
@@ -192,7 +193,7 @@ pub fn flatten_type<'a>(
                 let result = type_alias::flatten_ts_type(
                     allocator.alloc(tis.type_annotation.type_annotation.clone_in(allocator)),
                     semantic,
-                    env,
+                    &new_env,
                     allocator,
                     result_program,
                 );
@@ -205,7 +206,7 @@ pub fn flatten_type<'a>(
                     let new_type = type_alias::flatten_ts_type(
                         &param_clone.type_annotation.type_annotation,
                         semantic,
-                        env,
+                        &new_env,
                         allocator,
                         result_program,
                     )
@@ -242,6 +243,61 @@ pub fn flatten_type<'a>(
                 new_members.push(TSSignature::TSPropertySignature(AstBox::new_in(
                     prop, &allocator,
                 )))
+            }
+            TSSignature::TSMethodSignature(tms) => {
+                let mut new_prop = tms.clone_in(allocator);
+
+                // params flatten
+                let new_params = class::flatten_method_params_type(
+                    allocator.alloc(tms.params.clone_in(allocator)),
+                    semantic,
+                    &new_env,
+                    allocator,
+                    result_program,
+                );
+                new_prop.params = AstBox::new_in(new_params, allocator);
+
+                // return type flatten
+                if let Some(rt) = &tms.return_type {
+                    let ts_type = type_alias::flatten_ts_type(
+                        allocator.alloc(rt.type_annotation.clone_in(allocator)),
+                        semantic,
+                        &new_env,
+                        allocator,
+                        result_program,
+                    )
+                    .type_decl(allocator);
+
+                    let mut new_return_type = rt.clone_in(allocator);
+                    new_return_type.type_annotation = ts_type;
+
+                    new_prop.return_type = Some(new_return_type)
+                }
+
+                // this params flatten
+                if let Some(this_param) = &tms.this_param {
+                    let mut new_this_param = this_param.clone_in(allocator);
+
+                    if let Some(ts) = &this_param.type_annotation {
+                        let ts_type = type_alias::flatten_ts_type(
+                            allocator.alloc(ts.type_annotation.clone_in(allocator)),
+                            semantic,
+                            &new_env,
+                            allocator,
+                            result_program,
+                        )
+                        .type_decl(allocator);
+
+                        let mut new_ts_type = ts.clone_in(allocator);
+                        new_ts_type.type_annotation = ts_type;
+
+                        new_this_param.type_annotation = Some(new_ts_type)
+                    }
+
+                    new_prop.this_param = Some(new_this_param);
+                }
+
+                new_members.push(TSSignature::TSMethodSignature(new_prop))
             }
             _ => {
                 new_members.push(member.clone_in(allocator));

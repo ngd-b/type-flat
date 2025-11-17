@@ -12,6 +12,7 @@ use std::cell::Cell;
 use tracing::instrument;
 
 use crate::flatten::{
+    class,
     declare::DeclRef,
     generic::GenericEnv,
     keyword::Keyword,
@@ -547,56 +548,39 @@ pub fn flatten_ts_type<'a>(
 
             new_fn_type.return_type.type_annotation = return_type;
 
-            let mut new_params = tft.params.clone_in(allocator);
-            // param types flatten
-            let mut items = AstVec::new_in(allocator);
+            let new_params = class::flatten_method_params_type(
+                allocator.alloc(tft.params.clone_in(allocator)),
+                semantic,
+                env,
+                allocator,
+                result_program,
+            );
 
-            for item in tft.params.items.iter() {
-                let mut new_item = item.clone_in(allocator);
+            new_fn_type.params = AstBox::new_in(new_params, allocator);
 
-                if let Some(item_type) = &item.pattern.type_annotation {
+            // this params flatten
+            if let Some(this_param) = &tft.this_param {
+                let mut new_this_param = this_param.clone_in(allocator);
+
+                if let Some(ts) = &this_param.type_annotation {
                     let ts_type = flatten_ts_type(
-                        &item_type.type_annotation,
+                        allocator.alloc(ts.type_annotation.clone_in(allocator)),
                         semantic,
-                        env,
+                        &env,
                         allocator,
                         result_program,
                     )
                     .type_decl(allocator);
 
-                    let mut new_item_type = item_type.clone_in(allocator);
-                    new_item_type.type_annotation = ts_type;
+                    let mut new_ts_type = ts.clone_in(allocator);
+                    new_ts_type.type_annotation = ts_type;
 
-                    new_item.pattern.type_annotation = Some(new_item_type);
-                }
-                items.push(new_item);
-            }
-
-            // If exist rest params.
-            if let Some(rest) = &tft.params.rest {
-                let mut new_rest = rest.clone_in(allocator);
-
-                if let Some(rest_type) = &rest.argument.type_annotation {
-                    let ts_type = flatten_ts_type(
-                        &rest_type.type_annotation,
-                        semantic,
-                        env,
-                        allocator,
-                        result_program,
-                    )
-                    .type_decl(allocator);
-
-                    let mut new_rest_type = rest_type.clone_in(allocator);
-                    new_rest_type.type_annotation = ts_type;
-
-                    new_rest.argument.type_annotation = Some(new_rest_type);
+                    new_this_param.type_annotation = Some(new_ts_type)
                 }
 
-                new_params.rest = Some(new_rest);
+                new_fn_type.this_param = Some(new_this_param);
             }
-            new_params.items = items;
 
-            new_fn_type.params = new_params;
             new_type.type_annotation = TSType::TSFunctionType(new_fn_type);
         }
         _ => {}
