@@ -4,19 +4,16 @@ use oxc_ast::ast::{
     TSType,
 };
 use oxc_semantic::Semantic;
-use tracing::instrument;
+use tracing::info;
 
 use crate::flatten::{
-    declare::DeclRef,
-    generic::{self, GenericEnv},
-    result::ResultProgram,
-    type_alias, utils,
+    declare::DeclRef, generic::GenericEnv, result::ResultProgram, type_alias, utils,
 };
 
 ///
 /// Flatten the class type
 ///
-#[instrument(skip(class_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(class_type, semantic, env, allocator, result_program))]
 pub fn flatten_type<'a>(
     class_type: &'a Class<'a>,
     semantic: &Semantic<'a>,
@@ -24,17 +21,23 @@ pub fn flatten_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Class<'a> {
+    let class_name = if let Some(name) = class_type.name() {
+        name.as_str()
+    } else {
+        "[DoNotGetName]"
+    };
+    info!("Flatten class type {}", class_name);
     let mut elements = class_type.body.body.clone_in(allocator);
 
     // flatten generic
-    let new_env = generic::flatten_generic(
-        &class_type.type_parameters,
-        &None,
-        semantic,
-        env,
-        allocator,
-        result_program,
-    );
+    // let new_env = generic::flatten_generic(
+    //     &class_type.type_parameters,
+    //     &None,
+    //     semantic,
+    //     env,
+    //     allocator,
+    //     result_program,
+    // );
 
     // Flatten class extends
     if let Some(extend) = &class_type.super_class {
@@ -44,7 +47,7 @@ pub fn flatten_type<'a>(
             let result = utils::get_reference_type(
                 &reference_name,
                 semantic,
-                &new_env,
+                env,
                 allocator,
                 result_program,
             );
@@ -56,7 +59,7 @@ pub fn flatten_type<'a>(
                 let decl: DeclRef<'_> = decl.flatten_type(
                     &class_type.super_type_arguments,
                     semantic,
-                    &new_env,
+                    env,
                     allocator,
                     result_program,
                 );
@@ -115,7 +118,7 @@ pub fn flatten_type<'a>(
         if let Some(new_element) = flatten_class_elements_type(
             allocator.alloc(element.clone_in(allocator)),
             semantic,
-            &new_env,
+            env,
             allocator,
             result_program,
         ) {
@@ -131,13 +134,18 @@ pub fn flatten_type<'a>(
 
     new_class.body.body = new_elements;
 
+    info!(
+        "Flatten class type {}, Success!, The class body elements len {}",
+        class_name,
+        new_class.body.body.len()
+    );
     new_class
 }
 
 ///
 /// Flatten the class elements type
 ///
-#[instrument(skip(element, semantic, env, allocator, result_program))]
+/// #[instrument(skip(element, semantic, env, allocator, result_program))]
 pub fn flatten_class_elements_type<'a>(
     element: &'a ClassElement<'a>,
     semantic: &Semantic<'a>,
@@ -167,8 +175,8 @@ pub fn flatten_class_elements_type<'a>(
         }
         ClassElement::PropertyDefinition(tpd) => {
             if tpd.r#static
-                || tpd.accessibility.is_none()
-                || tpd.accessibility != Some(TSAccessibility::Public)
+                || (!tpd.accessibility.is_none()
+                    && tpd.accessibility != Some(TSAccessibility::Public))
             {
                 return None;
             }
@@ -196,8 +204,8 @@ pub fn flatten_class_elements_type<'a>(
         }
         ClassElement::MethodDefinition(tmd) => {
             if tmd.r#static
-                || tmd.accessibility.is_none()
-                || tmd.accessibility != Some(TSAccessibility::Public)
+                || (!tmd.accessibility.is_none()
+                    && tmd.accessibility != Some(TSAccessibility::Public))
             {
                 return None;
             }

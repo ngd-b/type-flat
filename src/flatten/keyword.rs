@@ -3,7 +3,6 @@ use oxc_ast::ast::{
     PropertyKey, TSLiteral, TSSignature, TSType, TSTypeLiteral, TSTypeName, TSTypeReference,
 };
 use oxc_semantic::Semantic;
-use tracing::instrument;
 
 use crate::flatten::{
     generic::GenericEnv,
@@ -89,7 +88,7 @@ impl<'a> Keyword<'a> {
     ///
     /// Flatten keyword type
     ///
-    #[instrument(skip(self, semantic, env, allocator, result_program),fields(name=self.name()))]
+    /// #[instrument(skip(self, semantic, env, allocator, result_program),fields(name=self.name()))]
     pub fn flatten(
         &self,
         semantic: &Semantic<'a>,
@@ -246,7 +245,7 @@ impl<'a> Keyword<'a> {
 ///
 /// Get type members from type
 ///
-#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn get_type_members<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
@@ -269,7 +268,7 @@ pub fn get_type_members<'a>(
 ///
 /// Set type required/optional
 ///
-#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn set_type_required_or_optional<'a>(
     is_required: bool,
     ts_type: &'a TSType<'a>,
@@ -310,7 +309,7 @@ pub fn set_type_required_or_optional<'a>(
 ///
 /// Set type readonly
 ///
-#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn set_type_readonly<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
@@ -351,7 +350,7 @@ pub fn set_type_readonly<'a>(
 ///
 /// Flatten Pick/Omit keyword type
 ///
-#[instrument(skip(kind, refer, semantic, env, allocator, result_program))]
+/// #[instrument(skip(kind, refer, semantic, env, allocator, result_program))]
 pub fn flatten_pick_omit<'a>(
     kind: &str,
     refer: &'a TSTypeReference<'a>,

@@ -4,12 +4,12 @@ use oxc_ast::ast::{
     TSTypeReference,
 };
 use oxc_semantic::Semantic;
-use tracing::instrument;
+use tracing::info;
 
 use crate::flatten::{
     class,
     declare::DeclRef,
-    generic::{self, GenericEnv},
+    generic::GenericEnv,
     keyword::Keyword,
     result::ResultProgram,
     type_alias,
@@ -25,7 +25,7 @@ use crate::flatten::{
 /// - env - The generic environment
 /// - allocator - The allocator
 ///
-#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn flatten_type<'a>(
     ts_type: &'a TSInterfaceDeclaration<'a>,
     semantic: &Semantic<'a>,
@@ -33,18 +33,21 @@ pub fn flatten_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSInterfaceDeclaration<'a> {
+    let ts_name = ts_type.id.name.as_str();
+
+    info!("Flatten interface type {}", ts_name);
     // all extend type. include self
     let mut members = ts_type.body.body.clone_in(allocator);
 
     // flatten generic
-    let new_env = generic::flatten_generic(
-        &ts_type.type_parameters,
-        &None,
-        semantic,
-        env,
-        allocator,
-        result_program,
-    );
+    // let new_env = generic::flatten_generic(
+    //     &ts_type.type_parameters,
+    //     &None,
+    //     semantic,
+    //     env,
+    //     allocator,
+    //     result_program,
+    // );
 
     // the extends type
     for extend in ts_type.extends.iter() {
@@ -81,7 +84,7 @@ pub fn flatten_type<'a>(
             let result = utils::get_reference_type(
                 &reference_name,
                 semantic,
-                &new_env,
+                env,
                 allocator,
                 result_program,
             );
@@ -93,7 +96,7 @@ pub fn flatten_type<'a>(
                 let decl: DeclRef<'_> = decl.flatten_type(
                     &extend.type_arguments,
                     semantic,
-                    &new_env,
+                    env,
                     allocator,
                     result_program,
                 );
@@ -175,7 +178,7 @@ pub fn flatten_type<'a>(
                 let result = type_alias::flatten_ts_type(
                     allocator.alloc(tis.type_annotation.type_annotation.clone_in(allocator)),
                     semantic,
-                    &new_env,
+                    env,
                     allocator,
                     result_program,
                 );
@@ -188,7 +191,7 @@ pub fn flatten_type<'a>(
                     let new_type = type_alias::flatten_ts_type(
                         &param_clone.type_annotation.type_annotation,
                         semantic,
-                        &new_env,
+                        env,
                         allocator,
                         result_program,
                     )
@@ -208,7 +211,7 @@ pub fn flatten_type<'a>(
                     let decl = type_alias::flatten_ts_type(
                         allocator.alloc(ta.type_annotation.clone_in(allocator)),
                         semantic,
-                        &new_env,
+                        env,
                         allocator,
                         result_program,
                     )
@@ -233,7 +236,7 @@ pub fn flatten_type<'a>(
                 let new_params = class::flatten_method_params_type(
                     allocator.alloc(tms.params.clone_in(allocator)),
                     semantic,
-                    &new_env,
+                    env,
                     allocator,
                     result_program,
                 );
@@ -244,7 +247,7 @@ pub fn flatten_type<'a>(
                     let ts_type = type_alias::flatten_ts_type(
                         allocator.alloc(rt.type_annotation.clone_in(allocator)),
                         semantic,
-                        &new_env,
+                        env,
                         allocator,
                         result_program,
                     )
@@ -264,7 +267,7 @@ pub fn flatten_type<'a>(
                         let ts_type = type_alias::flatten_ts_type(
                             allocator.alloc(ts.type_annotation.clone_in(allocator)),
                             semantic,
-                            &new_env,
+                            env,
                             allocator,
                             result_program,
                         )
@@ -293,6 +296,12 @@ pub fn flatten_type<'a>(
     new_type.type_parameters = None;
 
     new_type.body.body = new_members;
+
+    info!(
+        "Flatten interface type {}, Success!, The inteface body members len {}",
+        ts_name,
+        new_type.body.body.len()
+    );
 
     new_type
 }

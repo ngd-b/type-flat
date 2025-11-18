@@ -3,7 +3,6 @@ use std::{collections::HashMap, rc::Rc};
 use oxc_allocator::{Allocator, Box, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{TSTypeParameterDeclaration, TSTypeParameterInstantiation};
 use oxc_semantic::Semantic;
-use tracing::instrument;
 
 use crate::flatten::{declare::DeclRef, result::ResultProgram, type_alias};
 
@@ -29,7 +28,7 @@ impl<'a> GenericEnv<'a> {
     }
 }
 
-#[instrument(skip(args, extend_args, semantic, env, allocator, result_program))]
+/// #[instrument(skip(args, extend_args, semantic, env, allocator, result_program))]
 pub fn flatten_generic<'a>(
     args: &'a Option<Box<'a, TSTypeParameterDeclaration<'a>>>,
     extend_args: &'a Option<Box<'a, TSTypeParameterInstantiation<'a>>>,

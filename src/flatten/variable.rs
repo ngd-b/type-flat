@@ -1,14 +1,13 @@
 use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::VariableDeclaration;
 use oxc_semantic::Semantic;
-use tracing::instrument;
 
 use crate::flatten::{generic::GenericEnv, result::ResultProgram, type_alias};
 
 ///
 /// Flatten the class type
 ///
-#[instrument(skip(var_const, semantic, env, allocator, result_program))]
+/// #[instrument(skip(var_const, semantic, env, allocator, result_program))]
 pub fn flatten_type<'a>(
     var_const: &'a VariableDeclaration<'a>,
     semantic: &Semantic<'a>,

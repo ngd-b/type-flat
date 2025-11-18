@@ -9,12 +9,12 @@ use oxc_ast::ast::{
 use oxc_semantic::Semantic;
 use oxc_span::Atom;
 use std::cell::Cell;
-use tracing::instrument;
+use tracing::info;
 
 use crate::flatten::{
     class,
     declare::DeclRef,
-    generic::{self, GenericEnv},
+    generic::GenericEnv,
     keyword::Keyword,
     result::ResultProgram,
     utils::{self},
@@ -25,7 +25,7 @@ use crate::flatten::{
 ///
 /// Returns a new type alias declaration
 ///
-#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn flatten_type<'a>(
     ts_type: &'a TSTypeAliasDeclaration<'a>,
     semantic: &Semantic<'a>,
@@ -33,20 +33,22 @@ pub fn flatten_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSTypeAliasDeclaration<'a> {
+    let ts_name = ts_type.id.name.as_str();
+    info!("Flatten type {}", ts_name);
     // flatten generic
-    let new_env = generic::flatten_generic(
-        &ts_type.type_parameters,
-        &None,
-        semantic,
-        env,
-        allocator,
-        result_program,
-    );
+    // let new_env = generic::flatten_generic(
+    //     &ts_type.type_parameters,
+    //     &None,
+    //     semantic,
+    //     env,
+    //     allocator,
+    //     result_program,
+    // );
     //
     let result = flatten_ts_type(
         &ts_type.type_annotation,
         semantic,
-        &new_env,
+        env,
         allocator,
         result_program,
     );
@@ -56,6 +58,7 @@ pub fn flatten_type<'a>(
 
     new_type.type_annotation = result.type_decl(allocator);
 
+    info!("Flatten type {}, Success!", ts_name);
     new_type
 }
 
@@ -63,7 +66,7 @@ pub fn flatten_type<'a>(
 /// Flattens a type
 ///
 ///
-#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn flatten_ts_type<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
@@ -92,10 +95,6 @@ pub fn flatten_ts_type<'a>(
                 _ => "".to_string(),
             };
 
-            // if the type don't need flatten
-            if result_program.exclude_type.contains(&reference_name) {
-                return DeclRef::TypeAlias(allocator.alloc(new_type));
-            }
             // Keyword type flatten
             if let Some(keyword) = Keyword::is_keyword(tr) {
                 let result_type: TSType<'_> =
@@ -166,8 +165,6 @@ pub fn flatten_ts_type<'a>(
             let decl = flatten_ts_type(&at.element_type, semantic, env, allocator, result_program)
                 .type_decl(allocator);
 
-            // 存储输出该类型
-            // result_program.push(result);
             let mut new_array_type = at.clone_in(allocator);
             new_array_type.element_type = decl;
 
@@ -201,15 +198,11 @@ pub fn flatten_ts_type<'a>(
                         new_element.type_annotation = ts_type;
                         elements.push(TSTupleElement::TSRestType(new_element))
                     }
-                    _ => {
-                        // result_program.push(decl);
-                        // elements.push(element.clone_in(allocator));
-                        elements.push(ts_type.into())
-                    }
+                    _ => elements.push(ts_type.into()),
                 }
 
                 // save the type in result output code
-                // result_program.push(result);
+
                 let mut new_tuple_type = tut.clone_in(allocator);
                 new_tuple_type.element_types = elements.clone_in(allocator);
 
@@ -597,7 +590,7 @@ pub fn flatten_ts_type<'a>(
 ///
 /// merge union or intersection type
 ///
-#[instrument(skip(types, semantic, env, allocator, result_program),fields(len=types.len()))]
+/// #[instrument(skip(types, semantic, env, allocator, result_program),fields(len=types.len()))]
 pub fn merge_ts_type<'a>(
     types: &'a [TSType<'a>],
     semantic: &Semantic<'a>,
@@ -649,7 +642,7 @@ pub fn merge_ts_type<'a>(
 ///
 /// Flatten the index access type
 ///
-#[instrument(skip(object_type, index_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(object_type, index_type, semantic, env, allocator, result_program))]
 pub fn flatten_index_access_type<'a>(
     object_type: &'a TSType<'a>,
     index_type: &'a TSType<'a>,
@@ -743,7 +736,7 @@ pub fn flatten_index_access_type<'a>(
 ///
 /// Rescurive the ts type QueryQualified
 ///
-#[instrument(skip(qq, extend_args, semantic, env, allocator, result_program))]
+/// #[instrument(skip(qq, extend_args, semantic, env, allocator, result_program))]
 pub fn flatten_ts_query_qualified<'a>(
     qq: &'a TSQualifiedName<'a>,
     extend_args: &'a Option<AstBox<'a, TSTypeParameterInstantiation<'a>>>,

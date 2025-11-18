@@ -11,7 +11,7 @@ use oxc_ast::{
     },
 };
 use oxc_semantic::Semantic;
-use tracing::{info, instrument};
+use tracing::info;
 
 use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram};
 
@@ -19,7 +19,7 @@ use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgra
 ///
 /// Get reference type from semantic
 ///
-#[instrument(skip(semantic, env, allocator, result_program))]
+/// #[instrument(skip(semantic, env, allocator, result_program))]
 pub fn get_reference_type<'a>(
     reference_name: &str,
     semantic: &Semantic<'a>,
@@ -27,13 +27,23 @@ pub fn get_reference_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
+    // if the type don't need flatten
+    if result_program.exclude_type.contains(reference_name) {
+        info!("Don't need flatten: {}", reference_name);
+        bail!("Don't need flatten: {}", reference_name);
+    }
     // has visited
     if result_program.visited.contains(reference_name) {
         result_program
             .circle_type
             .insert(reference_name.to_string());
 
-        bail!("Circular reference: {}", reference_name);
+        info!("Self Circular loop reference: {}", reference_name);
+        bail!("Self Circular loop reference: {}", reference_name);
+    }
+    if result_program.circle_type.contains(reference_name) {
+        info!("Is Circular loop reference: {}", reference_name);
+        bail!("Is Circular loop reference: {}", reference_name);
     }
     // cached
     if let Some(value) = result_program.get_reference_type(reference_name) {
@@ -42,6 +52,7 @@ pub fn get_reference_type<'a>(
         return Ok(value.clone());
     }
 
+    info!("Get reference_name:{}", reference_name);
     let mut decls = AstVec::new_in(allocator);
 
     for ast_node in semantic.nodes().iter() {
@@ -92,6 +103,7 @@ pub fn get_reference_type<'a>(
         return Ok(decls[0]);
     };
     if decls.len() > 1 {
+        info!("Merge multi type {}, len {}", reference_name, decls.len());
         return merge_type_to_class(
             allocator.alloc(decls),
             semantic,
@@ -101,26 +113,29 @@ pub fn get_reference_type<'a>(
         );
     }
 
+    info!("Not found reference_name:{}", reference_name);
     bail!("Unsupported Referenc Type")
 }
 
 ///
 /// Merge type to class declare
 ///
-#[instrument(skip(decls, _semantic, _env, allocator, _result_program),fields(len=decls.len()))]
+/// #[instrument(skip(decls, semantic, env, allocator, result_program),fields(len=decls.len()))]
 pub fn merge_type_to_class<'a>(
     decls: &'a [DeclRef<'a>],
-    _semantic: &Semantic<'a>,
-    _env: &GenericEnv<'a>,
+    semantic: &Semantic<'a>,
+    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
-    _result_program: &mut ResultProgram<'a>,
+    result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
     let decl = decls.last().unwrap().clone();
 
     let mut members: AstVec<'_, TSSignature<'a>> = AstVec::new_in(allocator);
 
     for decl in decls.iter().take(decls.len().saturating_sub(1)) {
-        let new_type = decl.type_decl(allocator);
+        let new_type = decl
+            .flatten_type(&None, semantic, env, allocator, result_program)
+            .type_decl(allocator);
 
         match new_type {
             TSType::TSTypeLiteral(tl) => {
@@ -223,7 +238,7 @@ pub fn merge_type_to_class<'a>(
 ///
 /// Get keyof union type from DeclRef
 ///
-#[instrument(skip(decl, _semantic, _env, allocator, _result_program))]
+/// #[instrument(skip(decl, _semantic, _env, allocator, _result_program))]
 pub fn get_keyof_union_type<'a>(
     decl: DeclRef<'a>,
     _semantic: &Semantic<'a>,
@@ -291,7 +306,7 @@ pub fn get_keyof_union_type<'a>(
 ///
 /// Get field tyep from type
 ///
-#[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn get_field_type<'a>(
     field_name: &str,
     ts_type: &'a TSType<'a>,
@@ -484,7 +499,7 @@ pub fn class_method_to_map_type_method(md: &MethodDefinitionKind) -> TSMethodSig
 ///
 /// Type members transform to Class elements
 ///
-#[instrument(skip(members, allocator),fields(len=members.len()))]
+/// #[instrument(skip(members, allocator),fields(len=members.len()))]
 pub fn type_members_to_class_elements<'a>(
     members: &'a [TSSignature<'a>],
     allocator: &'a Allocator,

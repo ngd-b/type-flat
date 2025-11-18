@@ -30,11 +30,9 @@ struct Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-
-    let _guard = if cli.quiet {
-        None
-    } else {
-        Some(logger::init())
+    let _guard;
+    if !cli.quiet {
+        _guard = logger::init();
     };
 
     info!("Start flattening...");
@@ -62,12 +60,13 @@ fn main() -> Result<()> {
             fs::write(default_output_path.join("flatten.ts"), &flat_result)?;
         }
         Some(output_path) => {
-            info!("Output to {:?}", output_path);
             let output_path = if Path::new(output_path).is_dir() {
                 format!("{}/flatten.ts", output_path)
             } else {
                 output_path.to_owned()
             };
+
+            info!("Output to {:?}", output_path);
             fs::write(output_path, &flat_result)?;
         }
     }

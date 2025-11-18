@@ -5,7 +5,6 @@ use oxc_ast::ast::{
     BindingPatternKind, Class, Program, Statement, TSInterfaceDeclaration, TSTypeAliasDeclaration,
     VariableDeclaration,
 };
-use tracing::instrument;
 
 use crate::flatten::declare::DeclRef;
 
@@ -58,7 +57,7 @@ impl<'a> ResultProgram<'a> {
             _ => false,
         })
     }
-    #[instrument(skip(self, decl))]
+    /// #[instrument(skip(self, decl))]
     pub fn add_interface(&mut self, decl: TSInterfaceDeclaration<'a>) {
         // if already exists . ignore
         if self.has_decl(&decl.id.name) {
@@ -72,7 +71,7 @@ impl<'a> ResultProgram<'a> {
             )));
     }
 
-    #[instrument(skip(self, decl))]
+    /// #[instrument(skip(self, decl))]
     pub fn add_type_alias(&mut self, decl: TSTypeAliasDeclaration<'a>) {
         if self.has_decl(&decl.id.name) {
             return;
@@ -85,7 +84,7 @@ impl<'a> ResultProgram<'a> {
             )));
     }
 
-    #[instrument(skip(self, decl))]
+    /// #[instrument(skip(self, decl))]
     pub fn add_class(&mut self, decl: Class<'a>) {
         let name = if let Some(id) = &decl.id {
             id.name.as_str()

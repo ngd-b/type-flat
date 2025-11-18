@@ -9,6 +9,7 @@ use oxc_codegen::Codegen;
 use oxc_parser::Parser as OxcParser;
 use oxc_semantic::{Semantic, SemanticBuilder};
 use oxc_span::SourceType;
+use tracing::info;
 
 pub mod class;
 pub mod declare;
@@ -132,6 +133,7 @@ impl<'a> Flatten<'a> {
 
         for name in result.circle_type.iter() {
             if let Some(decl) = result.get_reference_type(name) {
+                info!("Add circle type {} ", name);
                 output_class.push(decl);
             }
         }
