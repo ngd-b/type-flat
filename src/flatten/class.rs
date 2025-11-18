@@ -7,7 +7,10 @@ use oxc_semantic::Semantic;
 use tracing::instrument;
 
 use crate::flatten::{
-    declare::DeclRef, generic::GenericEnv, result::ResultProgram, type_alias, utils,
+    declare::DeclRef,
+    generic::{self, GenericEnv},
+    result::ResultProgram,
+    type_alias, utils,
 };
 
 ///
@@ -23,6 +26,16 @@ pub fn flatten_type<'a>(
 ) -> Class<'a> {
     let mut elements = class_type.body.body.clone_in(allocator);
 
+    // flatten generic
+    let new_env = generic::flatten_generic(
+        &class_type.type_parameters,
+        &None,
+        semantic,
+        env,
+        allocator,
+        result_program,
+    );
+
     // Flatten class extends
     if let Some(extend) = &class_type.super_class {
         if let Expression::Identifier(ei) = extend {
@@ -31,7 +44,7 @@ pub fn flatten_type<'a>(
             let result = utils::get_reference_type(
                 &reference_name,
                 semantic,
-                env,
+                &new_env,
                 allocator,
                 result_program,
             );
@@ -43,7 +56,7 @@ pub fn flatten_type<'a>(
                 let decl: DeclRef<'_> = decl.flatten_type(
                     &class_type.super_type_arguments,
                     semantic,
-                    env,
+                    &new_env,
                     allocator,
                     result_program,
                 );
@@ -102,7 +115,7 @@ pub fn flatten_type<'a>(
         if let Some(new_element) = flatten_class_elements_type(
             allocator.alloc(element.clone_in(allocator)),
             semantic,
-            env,
+            &new_env,
             allocator,
             result_program,
         ) {
@@ -111,6 +124,11 @@ pub fn flatten_type<'a>(
     }
 
     let mut new_class = class_type.clone_in(allocator);
+    new_class.super_class = None;
+    new_class.super_type_arguments = None;
+    new_class.implements = AstVec::new_in(allocator);
+    new_class.type_parameters = None;
+
     new_class.body.body = new_elements;
 
     new_class

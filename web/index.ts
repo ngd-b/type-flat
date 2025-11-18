@@ -8,16 +8,26 @@ const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 
 // Node version
-const nodeABI = process.versions.modules;
+// const nodeABI = process.versions.modules;
 // Platform
 const platform = process.platform;
 const arch = process.arch;
 
+let suffix: string[] = [platform, arch];
+
+switch (platform) {
+  case "win32":
+    suffix.push("msvc");
+    break;
+  case "linux":
+    suffix.push("gnu");
+    break;
+}
+
 const binding_path = path.join(
   __dirname,
   "node",
-  nodeABI,
-  `type-flat.${platform}-${arch}.node`
+  `type-flat.${suffix.join("-")}.node`
 );
 
 const binding = require(binding_path);

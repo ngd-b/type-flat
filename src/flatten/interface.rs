@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
     Expression, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAnnotation, TSTypeName,
@@ -11,7 +9,7 @@ use tracing::instrument;
 use crate::flatten::{
     class,
     declare::DeclRef,
-    generic::GenericEnv,
+    generic::{self, GenericEnv},
     keyword::Keyword,
     result::ResultProgram,
     type_alias,
@@ -38,31 +36,15 @@ pub fn flatten_type<'a>(
     // all extend type. include self
     let mut members = ts_type.body.body.clone_in(allocator);
 
-    let mut new_env = env.clone();
-    // generic params
-    if let Some(args) = &ts_type.type_parameters {
-        let mut arg_names = vec![];
-        let mut arg_types = vec![];
-
-        for arg in args.params.iter() {
-            let arg_name = arg.name.to_string();
-
-            // already exist generic type
-            if env.get(&arg_name).is_some() {
-                continue;
-            }
-            arg_names.push(arg_name);
-            // exist default value
-            if let Some(dt) = &arg.default {
-                let result =
-                    type_alias::flatten_ts_type(dt, semantic, env, allocator, result_program);
-
-                arg_types.push(Rc::new(result));
-            }
-        }
-
-        new_env = new_env.update(&arg_names, &arg_types);
-    };
+    // flatten generic
+    let new_env = generic::flatten_generic(
+        &ts_type.type_parameters,
+        &None,
+        semantic,
+        env,
+        allocator,
+        result_program,
+    );
 
     // the extends type
     for extend in ts_type.extends.iter() {

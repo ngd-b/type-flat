@@ -3,7 +3,7 @@ use std::process;
 use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram};
 use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
-use oxc_ast::ast::{Program, Statement};
+use oxc_ast::ast::Program;
 
 use oxc_codegen::Codegen;
 use oxc_parser::Parser as OxcParser;
@@ -78,27 +78,6 @@ impl<'a> Flatten<'a> {
         Ok(code_gen.code)
     }
     pub fn flatten_ts(&'a self, type_name: &str, exclude: &[String]) -> Result<ResultProgram<'a>> {
-        let mut target_decl = None;
-
-        for statement in self.program.body.iter() {
-            if let Statement::TSTypeAliasDeclaration(decl) = &statement {
-                if decl.id.name.as_str() == type_name {
-                    target_decl = Some(DeclRef::TypeAlias(decl));
-                    break;
-                }
-            }
-            if let Statement::TSInterfaceDeclaration(decl) = &statement {
-                if decl.id.name.as_str() == type_name {
-                    target_decl = Some(DeclRef::Interface(decl));
-                    break;
-                }
-            }
-        }
-
-        let Some(target_type) = target_decl else {
-            bail!("type {} is not found in AST", &type_name);
-        };
-
         let env = GenericEnv::new();
 
         let mut result = self.result_program();
@@ -106,30 +85,48 @@ impl<'a> Flatten<'a> {
 
         // need to exclude type
         result.exclude_type = exclude.iter().map(|str| str.to_string()).collect();
-        // Stop circle reference self
-        result.visited.insert(type_name.to_string());
 
-        match target_type {
-            DeclRef::Interface(decl) => {
-                let mut target_result =
-                    interface::flatten_type(&decl, &semantic, &env, &self.allocator, &mut result);
-                // self generic params saved
-                target_result.type_parameters = decl.type_parameters.clone_in(&self.allocator);
+        if let Ok(decl) =
+            utils::get_reference_type(type_name, &semantic, &env, &self.allocator, &mut result)
+        {
+            let type_params = match decl {
+                DeclRef::Class(drc) => drc.type_parameters.clone_in(&self.allocator),
+                DeclRef::Interface(dri) => dri.type_parameters.clone_in(&self.allocator),
+                DeclRef::TypeAlias(drt) => drt.type_parameters.clone_in(&self.allocator),
+                _ => None,
+            };
 
-                result.add_interface(target_result);
-            }
-            DeclRef::TypeAlias(decl) => {
-                let mut target_result =
-                    type_alias::flatten_type(&decl, &semantic, &env, &self.allocator, &mut result);
-                // self generic params saved
-                target_result.type_parameters = decl.type_parameters.clone_in(&self.allocator);
+            // Stop circle reference self
+            result.visited.insert(type_name.to_string());
 
-                result.add_type_alias(target_result);
+            let target_result =
+                decl.flatten_type(&None, &semantic, &env, &self.allocator, &mut result);
+
+            match target_result {
+                DeclRef::Class(drc) => {
+                    let mut new_class = drc.clone_in(&self.allocator);
+                    new_class.type_parameters = type_params;
+
+                    result.add_class(new_class);
+                }
+                DeclRef::Interface(dri) => {
+                    let mut new_interface = dri.clone_in(&self.allocator);
+                    new_interface.type_parameters = type_params;
+
+                    result.add_interface(new_interface);
+                }
+                DeclRef::TypeAlias(drt) => {
+                    let mut new_type_alias = drt.clone_in(&self.allocator);
+                    new_type_alias.type_parameters = type_params;
+
+                    result.add_type_alias(new_type_alias);
+                }
+                _ => {}
             }
-            _ => {
-                bail!("only interface and type alias are supported");
-            }
-        };
+        } else {
+            bail!("type {} is not found in AST", &type_name);
+        }
+
         // add circle Class
         let mut output_class = AstVec::new_in(&self.allocator);
 
@@ -142,8 +139,6 @@ impl<'a> Flatten<'a> {
         for decl in output_class.iter() {
             result.push(*decl);
         }
-
-        // let code_gen = Codegen::new().build(&result.program);
 
         Ok(result)
     }

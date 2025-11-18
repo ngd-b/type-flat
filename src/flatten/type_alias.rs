@@ -14,7 +14,7 @@ use tracing::instrument;
 use crate::flatten::{
     class,
     declare::DeclRef,
-    generic::GenericEnv,
+    generic::{self, GenericEnv},
     keyword::Keyword,
     result::ResultProgram,
     utils::{self},
@@ -33,23 +33,28 @@ pub fn flatten_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSTypeAliasDeclaration<'a> {
-    //
-    let result = flatten_ts_type(
-        &ts_type.type_annotation,
+    // flatten generic
+    let new_env = generic::flatten_generic(
+        &ts_type.type_parameters,
+        &None,
         semantic,
         env,
         allocator,
         result_program,
     );
+    //
+    let result = flatten_ts_type(
+        &ts_type.type_annotation,
+        semantic,
+        &new_env,
+        allocator,
+        result_program,
+    );
 
-    let new_type = TSTypeAliasDeclaration {
-        span: Default::default(),
-        id: ts_type.id.clone_in(&allocator),
-        type_parameters: None,
-        type_annotation: result.type_decl(allocator),
-        scope_id: ts_type.scope_id.clone_in(&allocator),
-        declare: ts_type.declare,
-    };
+    let mut new_type = ts_type.clone_in(allocator);
+    new_type.type_parameters = None;
+
+    new_type.type_annotation = result.type_decl(allocator);
 
     new_type
 }
