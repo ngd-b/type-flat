@@ -116,32 +116,32 @@ impl<'a> DeclRef<'a> {
 
                 Some(allocator.alloc(type_alias))
             }
-            DeclRef::Class(decl) => {
-                if decl.super_class.is_some() {
-                    return None;
-                }
-                let new_literal_type = self.type_decl(allocator);
+            // DeclRef::Class(decl) => {
+            //     if decl.super_class.is_some() {
+            //         return None;
+            //     }
+            //     let new_literal_type = self.type_decl(allocator);
 
-                let id_clone = if let Some(id) = &decl.id {
-                    id.clone_in(allocator)
-                } else {
-                    BindingIdentifier {
-                        span: Default::default(),
-                        name: "TmpClassToType".into_in(allocator),
-                        symbol_id: Cell::new(None),
-                    }
-                };
-                let type_alias = TSTypeAliasDeclaration {
-                    span: decl.span.clone_in(allocator),
-                    id: id_clone,
-                    type_parameters: decl.type_parameters.clone_in(allocator),
-                    type_annotation: new_literal_type,
-                    scope_id: decl.scope_id.clone_in(allocator),
-                    declare: decl.declare,
-                };
+            //     let id_clone = if let Some(id) = &decl.id {
+            //         id.clone_in(allocator)
+            //     } else {
+            //         BindingIdentifier {
+            //             span: Default::default(),
+            //             name: "TmpClassToType".into_in(allocator),
+            //             symbol_id: Cell::new(None),
+            //         }
+            //     };
+            //     let type_alias = TSTypeAliasDeclaration {
+            //         span: decl.span.clone_in(allocator),
+            //         id: id_clone,
+            //         type_parameters: decl.type_parameters.clone_in(allocator),
+            //         type_annotation: new_literal_type,
+            //         scope_id: decl.scope_id.clone_in(allocator),
+            //         declare: decl.declare,
+            //     };
 
-                Some(allocator.alloc(type_alias))
-            }
+            //     Some(allocator.alloc(type_alias))
+            // }
             _ => None,
         }
     }
@@ -197,12 +197,14 @@ impl<'a> DeclRef<'a> {
 
                 let decl = class::flatten_type(tcd, semantic, &new_env, allocator, result_program);
 
+                // Add class to result_program
+                result_program.add_class(decl.clone_in(allocator));
                 return DeclRef::Class(allocator.alloc(decl));
             }
             DeclRef::Variable(drv) => {
                 let decl = variable::flatten_type(drv, semantic, env, allocator, result_program);
 
-                // Add const tot result_program
+                // Add const to result_program
                 result_program.add_variable(decl.clone_in(allocator));
                 return DeclRef::Variable(allocator.alloc(decl));
             }

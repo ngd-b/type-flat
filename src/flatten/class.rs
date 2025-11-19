@@ -1,7 +1,6 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, ClassElement, Expression, FormalParameters, MethodDefinitionKind, TSAccessibility,
-    TSType,
+    Class, ClassElement, Expression, FormalParameters, PropertyKey, TSAccessibility, TSType,
 };
 use oxc_semantic::Semantic;
 use tracing::info;
@@ -71,21 +70,21 @@ pub fn flatten_type<'a>(
                     .insert(allocator.alloc_str(&reference_name), decl);
 
                 match decl {
-                    DeclRef::Class(tcd) => {
-                        let mut new_elements = AstVec::new_in(allocator);
+                    // DeclRef::Class(tcd) => {
+                    //     let mut new_elements = AstVec::new_in(allocator);
 
-                        for element in tcd.body.body.iter() {
-                            if elements
-                                .iter()
-                                .any(|el| utils::eq_class_element(el, element, allocator))
-                            {
-                                continue;
-                            }
-                            new_elements.push(element.clone_in(allocator));
-                        }
+                    //     for element in tcd.body.body.iter() {
+                    //         if elements
+                    //             .iter()
+                    //             .any(|el| utils::eq_class_element(el, element, allocator))
+                    //         {
+                    //             continue;
+                    //         }
+                    //         new_elements.push(element.clone_in(allocator));
+                    //     }
 
-                        elements.extend(new_elements);
-                    }
+                    //     elements.extend(new_elements);
+                    // }
                     other => match other.type_decl(allocator) {
                         TSType::TSTypeLiteral(ttl) => {
                             let members =
@@ -130,7 +129,7 @@ pub fn flatten_type<'a>(
     new_class.super_class = None;
     new_class.super_type_arguments = None;
     new_class.implements = AstVec::new_in(allocator);
-    new_class.type_parameters = None;
+    // new_class.type_parameters = None;
 
     new_class.body.body = new_elements;
 
@@ -155,9 +154,6 @@ pub fn flatten_class_elements_type<'a>(
 ) -> Option<ClassElement<'a>> {
     match element {
         ClassElement::TSIndexSignature(tis) => {
-            if tis.r#static {
-                return None;
-            }
             let mut new_element = tis.clone_in(allocator);
 
             let ts_type = type_alias::flatten_ts_type(
@@ -174,9 +170,11 @@ pub fn flatten_class_elements_type<'a>(
             Some(ClassElement::TSIndexSignature(new_element))
         }
         ClassElement::PropertyDefinition(tpd) => {
-            if tpd.r#static
-                || (!tpd.accessibility.is_none()
-                    && tpd.accessibility != Some(TSAccessibility::Public))
+            if !tpd.accessibility.is_none() && tpd.accessibility != Some(TSAccessibility::Public) {
+                return None;
+            }
+            if let Some(name) = tpd.key.name()
+                && name.starts_with("_")
             {
                 return None;
             }
@@ -203,14 +201,13 @@ pub fn flatten_class_elements_type<'a>(
             }
         }
         ClassElement::MethodDefinition(tmd) => {
-            if tmd.r#static
-                || (!tmd.accessibility.is_none()
-                    && tmd.accessibility != Some(TSAccessibility::Public))
-            {
+            if !tmd.accessibility.is_none() && tmd.accessibility != Some(TSAccessibility::Public) {
                 return None;
             }
-            // Not a method. Skip Constructor or Getter/Setter
-            if tmd.kind != MethodDefinitionKind::Method {
+
+            if let PropertyKey::StaticIdentifier(psi) = &tmd.key
+                && psi.name.starts_with("_")
+            {
                 return None;
             }
 

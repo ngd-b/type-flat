@@ -128,6 +128,11 @@ pub fn flatten_ts_type<'a>(
                     .cached
                     .insert(allocator.alloc_str(&reference_name), decl);
 
+                // If the type is a circle type, return the original type
+                if result_program.circle_type.contains(&reference_name) {
+                    return DeclRef::TypeAlias(allocator.alloc(new_type));
+                }
+
                 match decl {
                     DeclRef::Interface(tid) => {
                         let decl = DeclRef::Interface(allocator.alloc(tid));
@@ -139,11 +144,11 @@ pub fn flatten_ts_type<'a>(
 
                         return decl;
                     }
-                    DeclRef::Class(tcd) => {
-                        let decl = DeclRef::Class(allocator.alloc(tcd));
+                    // DeclRef::Class(tcd) => {
+                    //     let decl = DeclRef::Class(allocator.alloc(tcd));
 
-                        return decl;
-                    }
+                    //     return decl;
+                    // }
                     _ => {}
                 }
             }
@@ -238,15 +243,25 @@ pub fn flatten_ts_type<'a>(
                     },
                     allocator,
                 ));
+
+                // IF extends type is empty, use false_type
                 match &extends.type_annotation {
                     TSType::TSUnionType(ttl) => {
                         if ttl.types.is_empty() {
                             new_conditional_type = false_type.type_annotation.clone_in(allocator);
                         }
                     }
-                    // TSType::TSLiteralType(tlt)=> {
+                    _ => {}
+                }
 
-                    // }
+                // Something condition can be computed.
+                match (&check.type_annotation, &extends.type_annotation) {
+                    (TSType::TSUnknownKeyword(_), TSType::TSUnknownKeyword(_))
+                    | (TSType::TSAnyKeyword(_), TSType::TSAnyKeyword(_))
+                    | (TSType::TSUndefinedKeyword(_), TSType::TSUndefinedKeyword(_))
+                    | (TSType::TSNullKeyword(_), TSType::TSNullKeyword(_)) => {
+                        new_conditional_type = true_type.type_annotation.clone_in(allocator);
+                    }
                     _ => {}
                 }
 
@@ -444,6 +459,11 @@ pub fn flatten_ts_type<'a>(
                     result_program
                         .cached
                         .insert(allocator.alloc_str(&reference_name), decl);
+
+                    // If the type is a circle type, return the original type
+                    // if result_program.circle_type.contains(reference_name) {
+                    //     return DeclRef::TypeAlias(allocator.alloc(new_type));
+                    // }
 
                     return decl;
                 }

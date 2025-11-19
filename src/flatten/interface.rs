@@ -101,6 +101,7 @@ pub fn flatten_type<'a>(
                     result_program,
                 );
                 result_program.visited.remove(&reference_name);
+
                 result_program
                     .cached
                     .insert(allocator.alloc_str(&reference_name), decl);
@@ -142,24 +143,24 @@ pub fn flatten_type<'a>(
                             _ => {}
                         }
                     }
-                    DeclRef::Class(tcd) => match DeclRef::Class(tcd).type_decl(allocator) {
-                        TSType::TSTypeLiteral(tl) => {
-                            let mut new_members = AstVec::new_in(allocator);
+                    // DeclRef::Class(tcd) => match DeclRef::Class(tcd).type_decl(allocator) {
+                    //     TSType::TSTypeLiteral(tl) => {
+                    //         let mut new_members = AstVec::new_in(allocator);
 
-                            for member in tl.members.iter() {
-                                if members
-                                    .iter()
-                                    .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                                {
-                                    continue;
-                                }
-                                new_members.push(member.clone_in(allocator));
-                            }
+                    //         for member in tl.members.iter() {
+                    //             if members
+                    //                 .iter()
+                    //                 .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                    //             {
+                    //                 continue;
+                    //             }
+                    //             new_members.push(member.clone_in(allocator));
+                    //         }
 
-                            members.extend(new_members);
-                        }
-                        _ => {}
-                    },
+                    //         members.extend(new_members);
+                    //     }
+                    //     _ => {}
+                    // },
                     _ => {}
                 }
             }
