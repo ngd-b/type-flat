@@ -136,11 +136,12 @@ pub fn flatten_ts_type<'a>(
 
                         return decl;
                     }
-                    // DeclRef::Class(tcd) => {
-                    //     let decl = DeclRef::Class(allocator.alloc(tcd));
+                    DeclRef::Class(tcd) => {
+                        // Add reference Class type. output class type
+                        result_program.add_class(tcd.clone_in(allocator));
 
-                    //     return decl;
-                    // }
+                        return DeclRef::TypeAlias(allocator.alloc(new_type));
+                    }
                     _ => {}
                 }
             }
@@ -457,7 +458,17 @@ pub fn flatten_ts_type<'a>(
                     //     return DeclRef::TypeAlias(allocator.alloc(new_type));
                     // }
 
-                    return decl;
+                    match decl {
+                        DeclRef::Class(drc) => {
+                            // Add reference Class type. output class type
+                            result_program.add_class(drc.clone_in(allocator));
+
+                            return DeclRef::TypeAlias(allocator.alloc(new_type));
+                        }
+                        other => {
+                            return other;
+                        }
+                    }
                 }
             }
             TSTypeQueryExprName::QualifiedName(qn) => {

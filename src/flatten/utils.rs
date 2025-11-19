@@ -6,8 +6,8 @@ use oxc_ast::{
         BindingPatternKind, ClassElement, FormalParameters, Function, FunctionType, IdentifierName,
         MethodDefinition, MethodDefinitionKind, MethodDefinitionType, PropertyDefinition,
         PropertyDefinitionType, PropertyKey, StringLiteral, TSFunctionType, TSLiteral,
-        TSLiteralType, TSMappedTypeModifierOperator, TSMethodSignatureKind, TSPropertySignature,
-        TSSignature, TSType, TSTypeAnnotation, TSUnionType, TSVoidKeyword,
+        TSLiteralType, TSMappedTypeModifierOperator, TSMethodSignature, TSMethodSignatureKind,
+        TSPropertySignature, TSSignature, TSType, TSTypeAnnotation, TSUnionType, TSVoidKeyword,
     },
 };
 use oxc_semantic::Semantic;
@@ -582,6 +582,70 @@ pub fn type_members_to_class_elements<'a>(
     }
 
     elements
+}
+
+///
+/// Transfrom Class Elements to type members
+///
+pub fn class_elements_to_type_members<'a>(
+    elements: &'a [ClassElement<'a>],
+    allocator: &'a Allocator,
+) -> AstVec<'a, TSSignature<'a>> {
+    let mut new_members = AstVec::new_in(allocator);
+
+    for member in elements.iter() {
+        match member {
+            ClassElement::TSIndexSignature(tsi) => {
+                if tsi.r#static {
+                    continue;
+                }
+                new_members.push(TSSignature::TSIndexSignature(tsi.clone_in(allocator)));
+            }
+            ClassElement::PropertyDefinition(pd) => {
+                if pd.r#static {
+                    continue;
+                }
+                let new_signature = TSSignature::TSPropertySignature(AstBox::new_in(
+                    TSPropertySignature {
+                        span: pd.span.clone_in(allocator),
+                        key: pd.key.clone_in(allocator),
+                        type_annotation: pd.type_annotation.clone_in(allocator),
+                        computed: pd.computed,
+                        optional: pd.optional,
+                        readonly: pd.readonly,
+                    },
+                    allocator,
+                ));
+
+                new_members.push(new_signature);
+            }
+            ClassElement::MethodDefinition(md) => {
+                if md.r#static || md.kind == MethodDefinitionKind::Constructor {
+                    continue;
+                }
+                let new_signature = TSSignature::TSMethodSignature(AstBox::new_in(
+                    TSMethodSignature {
+                        span: md.span.clone_in(allocator),
+                        key: md.key.clone_in(allocator),
+                        type_parameters: None,
+                        this_param: None,
+                        params: md.value.params.clone_in(allocator),
+                        return_type: md.value.return_type.clone_in(allocator),
+                        scope_id: md.value.scope_id.clone_in(allocator),
+                        computed: md.computed,
+                        optional: md.optional,
+                        kind: class_method_to_map_type_method(&md.kind),
+                    },
+                    allocator,
+                ));
+
+                new_members.push(new_signature);
+            }
+            _ => {}
+        }
+    }
+
+    new_members
 }
 
 ///

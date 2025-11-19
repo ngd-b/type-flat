@@ -1,8 +1,7 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, ClassElement, TSInterfaceDeclaration, TSMethodSignature, TSPropertySignature,
-    TSSignature, TSType, TSTypeAliasDeclaration, TSTypeLiteral, TSTypeParameterInstantiation,
-    VariableDeclaration,
+    Class, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
+    TSTypeParameterInstantiation, VariableDeclaration,
 };
 use oxc_semantic::Semantic;
 
@@ -24,7 +23,7 @@ pub enum DeclRef<'a> {
 
 impl<'a> DeclRef<'a> {
     ///
-    /// Get type alias declaration
+    /// Get type alias declaration TSType
     ///
     pub fn type_decl(&self, allocator: &'a Allocator) -> TSType<'a> {
         let mut new_type = TSTypeLiteral {
@@ -37,52 +36,9 @@ impl<'a> DeclRef<'a> {
                 new_type.members = decl.body.body.clone_in(allocator);
             }
             DeclRef::Class(dc) => {
-                let mut members = AstVec::new_in(allocator);
+                let new_members = utils::class_elements_to_type_members(&dc.body.body, allocator);
 
-                for member in dc.body.body.iter() {
-                    match member {
-                        ClassElement::TSIndexSignature(tsi) => {
-                            members.push(TSSignature::TSIndexSignature(tsi.clone_in(allocator)));
-                        }
-                        ClassElement::PropertyDefinition(pd) => {
-                            let new_signature = TSSignature::TSPropertySignature(AstBox::new_in(
-                                TSPropertySignature {
-                                    span: pd.span.clone_in(allocator),
-                                    key: pd.key.clone_in(allocator),
-                                    type_annotation: pd.type_annotation.clone_in(allocator),
-                                    computed: pd.computed,
-                                    optional: pd.optional,
-                                    readonly: pd.readonly,
-                                },
-                                allocator,
-                            ));
-
-                            members.push(new_signature);
-                        }
-                        ClassElement::MethodDefinition(md) => {
-                            let new_signature = TSSignature::TSMethodSignature(AstBox::new_in(
-                                TSMethodSignature {
-                                    span: md.span.clone_in(allocator),
-                                    key: md.key.clone_in(allocator),
-                                    type_parameters: None,
-                                    this_param: None,
-                                    params: md.value.params.clone_in(allocator),
-                                    return_type: md.value.return_type.clone_in(allocator),
-                                    scope_id: md.value.scope_id.clone_in(allocator),
-                                    computed: md.computed,
-                                    optional: md.optional,
-                                    kind: utils::class_method_to_map_type_method(&md.kind),
-                                },
-                                allocator,
-                            ));
-
-                            members.push(new_signature);
-                        }
-                        _ => {}
-                    }
-                }
-
-                new_type.members = members;
+                new_type.members = new_members;
             }
             DeclRef::Variable(_drv) => {}
         };

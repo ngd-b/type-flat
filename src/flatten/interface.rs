@@ -133,24 +133,13 @@ pub fn flatten_type<'a>(
                             _ => {}
                         }
                     }
-                    DeclRef::Class(tcd) => match DeclRef::Class(tcd).type_decl(allocator) {
-                        TSType::TSTypeLiteral(tl) => {
-                            let mut new_members = AstVec::new_in(allocator);
+                    DeclRef::Class(tcd) => {
+                        let new_members =
+                            utils::class_elements_to_type_members(&tcd.body.body, allocator);
 
-                            for member in tl.members.iter() {
-                                if members
-                                    .iter()
-                                    .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                                {
-                                    continue;
-                                }
-                                new_members.push(member.clone_in(allocator));
-                            }
+                        members.extend(new_members);
+                    }
 
-                            members.extend(new_members);
-                        }
-                        _ => {}
-                    },
                     _ => {}
                 }
             }
