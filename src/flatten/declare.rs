@@ -34,6 +34,9 @@ impl<'a> DeclRef<'a> {
         match self {
             DeclRef::TypeAlias(decl) => return Some(decl.type_annotation.clone_in(allocator)),
             DeclRef::Interface(decl) => {
+                if !decl.extends.is_empty() {
+                    return None;
+                }
                 new_type.members = decl.body.body.clone_in(allocator);
 
                 // IF member params has `this`, DO NOT
@@ -91,7 +94,7 @@ impl<'a> DeclRef<'a> {
         allocator: &'a Allocator,
         result_program: &mut ResultProgram<'a>,
     ) -> DeclRef<'a> {
-        match self {
+        let decl = match self {
             DeclRef::Interface(tid) => {
                 let new_env = generic::flatten_generic(
                     &tid.type_parameters,
@@ -105,7 +108,7 @@ impl<'a> DeclRef<'a> {
                 let decl =
                     interface::flatten_type(tid, semantic, &new_env, allocator, result_program);
 
-                return DeclRef::Interface(allocator.alloc(decl));
+                DeclRef::Interface(allocator.alloc(decl))
             }
             DeclRef::TypeAlias(tad) => {
                 let new_env = generic::flatten_generic(
@@ -120,7 +123,7 @@ impl<'a> DeclRef<'a> {
                 let decl =
                     type_alias::flatten_type(tad, semantic, &new_env, allocator, result_program);
 
-                return DeclRef::TypeAlias(allocator.alloc(decl));
+                DeclRef::TypeAlias(allocator.alloc(decl))
             }
             DeclRef::Class(tcd) => {
                 let new_env = generic::flatten_generic(
@@ -134,18 +137,18 @@ impl<'a> DeclRef<'a> {
 
                 let decl = class::flatten_type(tcd, semantic, &new_env, allocator, result_program);
 
-                // Add class to result_program
-                // result_program.add_class(decl.clone_in(allocator));
-
-                return DeclRef::Class(allocator.alloc(decl));
+                DeclRef::Class(allocator.alloc(decl))
             }
             DeclRef::Variable(drv) => {
                 let decl = variable::flatten_type(drv, semantic, env, allocator, result_program);
 
-                // Add const to result_program
-                result_program.add_variable(decl.clone_in(allocator));
-                return DeclRef::Variable(allocator.alloc(decl));
+                DeclRef::Variable(allocator.alloc(decl))
             }
+        };
+
+        if decl.type_decl(allocator).is_none() {
+            result_program.push(decl);
         }
+        decl
     }
 }
