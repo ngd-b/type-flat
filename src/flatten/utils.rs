@@ -137,27 +137,27 @@ pub fn merge_type_to_class<'a>(
     let mut members: AstVec<'_, TSSignature<'a>> = AstVec::new_in(allocator);
 
     for decl in decls.iter().take(decls.len().saturating_sub(1)) {
-        let new_type = decl
-            .flatten_type(&None, semantic, env, allocator, result_program)
-            .type_decl(allocator);
+        let decl = decl.flatten_type(&None, semantic, env, allocator, result_program);
 
-        match new_type {
-            TSType::TSTypeLiteral(tl) => {
-                let mut new_members = AstVec::new_in(allocator);
+        if let Some(ts_type) = decl.type_decl(allocator) {
+            match ts_type {
+                TSType::TSTypeLiteral(tl) => {
+                    let mut new_members = AstVec::new_in(allocator);
 
-                for member in tl.members.iter() {
-                    if members
-                        .iter()
-                        .any(|tsig| eq_ts_signature(tsig, member, allocator))
-                    {
-                        continue;
+                    for member in tl.members.iter() {
+                        if members
+                            .iter()
+                            .any(|tsig| eq_ts_signature(tsig, member, allocator))
+                        {
+                            continue;
+                        }
+                        new_members.push(member.clone_in(allocator));
                     }
-                    new_members.push(member.clone_in(allocator));
-                }
 
-                members.extend(new_members);
+                    members.extend(new_members);
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
 
@@ -308,7 +308,7 @@ pub fn get_keyof_union_type<'a>(
 }
 
 ///
-/// Get field tyep from type
+/// Get field type from type
 ///
 /// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn get_field_type<'a>(
@@ -656,7 +656,7 @@ pub fn class_elements_to_type_members<'a>(
 pub fn eq_ts_signature<'a>(
     ts_signature: &'a TSSignature<'a>,
     other: &'a TSSignature<'a>,
-    allocator: &'a Allocator,
+    _allocator: &'a Allocator,
 ) -> bool {
     match (ts_signature, other) {
         (TSSignature::TSIndexSignature(a), TSSignature::TSIndexSignature(b)) => {
@@ -668,10 +668,7 @@ pub fn eq_ts_signature<'a>(
             return true;
         }
         (TSSignature::TSPropertySignature(a), TSSignature::TSPropertySignature(b)) => {
-            if let (Some(a_name), Some(b_name)) = (
-                get_property_key_name(&a.key, allocator),
-                get_property_key_name(&b.key, allocator),
-            ) {
+            if let (Some(a_name), Some(b_name)) = (a.key.name(), b.key.name()) {
                 if a_name == b_name {
                     return true;
                 }
@@ -747,7 +744,7 @@ pub fn eq_function<'a>(fun: &'a FormalParameters<'a>, other: &'a FormalParameter
 pub fn eq_class_element<'a>(
     class_element: &'a ClassElement<'a>,
     other: &'a ClassElement<'a>,
-    allocator: &'a Allocator,
+    _allocator: &'a Allocator,
 ) -> bool {
     match (class_element, other) {
         (ClassElement::MethodDefinition(a), ClassElement::MethodDefinition(b)) => {
@@ -770,10 +767,7 @@ pub fn eq_class_element<'a>(
             }
         }
         (ClassElement::PropertyDefinition(a), ClassElement::PropertyDefinition(b)) => {
-            if let (Some(a_name), Some(b_name)) = (
-                get_property_key_name(&a.key, allocator),
-                get_property_key_name(&b.key, allocator),
-            ) {
+            if let (Some(a_name), Some(b_name)) = (a.key.name(), b.key.name()) {
                 if a_name == b_name {
                     return true;
                 }
@@ -794,23 +788,57 @@ pub fn eq_class_element<'a>(
 }
 
 ///
-/// Get PropertyKey name
+/// TSType members exist TSThisType param
 ///
-pub fn get_property_key_name<'a>(
-    property_key: &'a PropertyKey<'a>,
-    allocator: &'a Allocator,
-) -> Option<&'a str> {
-    let name = match property_key {
-        PropertyKey::Identifier(pi) => pi.name.as_str(),
-        PropertyKey::StringLiteral(psl) => psl.value.as_str(),
-        PropertyKey::StaticIdentifier(psi) => psi.name.as_str(),
-        PropertyKey::PrivateIdentifier(ppi) => ppi.name.as_str(),
-        _ => "",
-    };
+pub fn has_this_type_param<'a>(member: &'a TSSignature<'a>) -> bool {
+    match member {
+        TSSignature::TSIndexSignature(tis) => {
+            if tis.parameters.iter().any(|tp| {
+                if let TSType::TSThisType(_) = tp.type_annotation.type_annotation {
+                    true
+                } else {
+                    false
+                }
+            }) {
+                return true;
+            }
 
-    if name.is_empty() {
-        None
-    } else {
-        Some(name.into_in(allocator))
+            if let TSType::TSThisType(_) = tis.type_annotation.type_annotation {
+                return true;
+            }
+        }
+        TSSignature::TSPropertySignature(tps) => {
+            if let Some(ta) = &tps.type_annotation {
+                if let TSType::TSThisType(_) = ta.type_annotation {
+                    return true;
+                }
+            }
+        }
+
+        TSSignature::TSMethodSignature(tms) => {
+            if let Some(_) = tms.this_param {
+                return true;
+            }
+
+            // params
+            if tms.params.items.iter().any(|pt| {
+                if let Some(ta) = &pt.pattern.type_annotation {
+                    if let TSType::TSThisType(_) = ta.type_annotation {
+                        return true;
+                    }
+                }
+                return false;
+            }) {
+                return true;
+            }
+            // return type
+            if let Some(ta) = &tms.return_type {
+                if let TSType::TSThisType(_) = ta.type_annotation {
+                    return true;
+                }
+            }
+        }
+        _ => {}
     }
+    false
 }

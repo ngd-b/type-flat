@@ -21,7 +21,7 @@ pub fn flatten_type<'a>(
         let mut vd = decl.clone_in(allocator);
 
         if let Some(ta) = &decl.id.type_annotation {
-            let ts_type = type_alias::flatten_ts_type(
+            let decl = type_alias::flatten_ts_type(
                 &ta.type_annotation,
                 semantic,
                 env,
@@ -30,7 +30,10 @@ pub fn flatten_type<'a>(
             );
 
             let mut new_ta = ta.clone_in(allocator);
-            new_ta.type_annotation = ts_type.type_decl(allocator);
+
+            if let Some(ts_type) = decl.type_decl(allocator) {
+                new_ta.type_annotation = ts_type;
+            }
 
             vd.id.type_annotation = Some(new_ta)
         }

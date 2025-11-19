@@ -25,79 +25,62 @@ impl<'a> DeclRef<'a> {
     ///
     /// Get type alias declaration TSType
     ///
-    pub fn type_decl(&self, allocator: &'a Allocator) -> TSType<'a> {
+    pub fn type_decl(&self, allocator: &'a Allocator) -> Option<TSType<'a>> {
         let mut new_type = TSTypeLiteral {
             span: Default::default(),
             members: AstVec::new_in(allocator),
         };
+
         match self {
-            DeclRef::TypeAlias(decl) => return decl.type_annotation.clone_in(allocator),
+            DeclRef::TypeAlias(decl) => return Some(decl.type_annotation.clone_in(allocator)),
             DeclRef::Interface(decl) => {
                 new_type.members = decl.body.body.clone_in(allocator);
-            }
-            DeclRef::Class(dc) => {
-                let new_members = utils::class_elements_to_type_members(&dc.body.body, allocator);
 
-                new_type.members = new_members;
+                // IF member params has `this`, DO NOT
+                if new_type
+                    .members
+                    .iter()
+                    .any(|mb| utils::has_this_type_param(mb))
+                {
+                    return None;
+                }
+
+                return Some(TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator)));
             }
-            DeclRef::Variable(_drv) => {}
+            _ => {}
         };
 
-        let new_literal_type = TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator));
-
-        new_literal_type
+        None
     }
     ///
     /// return type alias declaration
     ///
     pub fn type_alias(&self, allocator: &'a Allocator) -> Option<&TSTypeAliasDeclaration<'a>> {
         match self {
-            DeclRef::TypeAlias(decl) => Some(decl),
+            DeclRef::TypeAlias(decl) => return Some(decl),
             DeclRef::Interface(decl) => {
                 if !decl.extends.is_empty() {
                     return None;
                 }
-                let new_literal_type = self.type_decl(allocator);
 
-                let type_alias = TSTypeAliasDeclaration {
-                    span: decl.span.clone_in(allocator),
-                    id: decl.id.clone_in(allocator),
-                    type_parameters: decl.type_parameters.clone_in(allocator),
-                    type_annotation: new_literal_type,
-                    scope_id: decl.scope_id.clone_in(allocator),
-                    declare: decl.declare,
-                };
+                if let Some(new_literal_type) = self.type_decl(allocator) {
+                    let type_alias = TSTypeAliasDeclaration {
+                        span: decl.span.clone_in(allocator),
+                        id: decl.id.clone_in(allocator),
+                        type_parameters: decl.type_parameters.clone_in(allocator),
+                        type_annotation: new_literal_type,
+                        scope_id: decl.scope_id.clone_in(allocator),
+                        declare: decl.declare,
+                    };
 
-                Some(allocator.alloc(type_alias))
+                    return Some(allocator.alloc(type_alias));
+                }
             }
-            // DeclRef::Class(decl) => {
-            //     if decl.super_class.is_some() {
-            //         return None;
-            //     }
-            //     let new_literal_type = self.type_decl(allocator);
 
-            //     let id_clone = if let Some(id) = &decl.id {
-            //         id.clone_in(allocator)
-            //     } else {
-            //         BindingIdentifier {
-            //             span: Default::default(),
-            //             name: "TmpClassToType".into_in(allocator),
-            //             symbol_id: Cell::new(None),
-            //         }
-            //     };
-            //     let type_alias = TSTypeAliasDeclaration {
-            //         span: decl.span.clone_in(allocator),
-            //         id: id_clone,
-            //         type_parameters: decl.type_parameters.clone_in(allocator),
-            //         type_annotation: new_literal_type,
-            //         scope_id: decl.scope_id.clone_in(allocator),
-            //         declare: decl.declare,
-            //     };
-
-            //     Some(allocator.alloc(type_alias))
-            // }
-            _ => None,
+            _ => {}
         }
+
+        None
     }
 
     pub fn flatten_type(
