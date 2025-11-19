@@ -35,15 +35,7 @@ pub fn flatten_type<'a>(
 ) -> TSTypeAliasDeclaration<'a> {
     let ts_name = ts_type.id.name.as_str();
     info!("Flatten type {}", ts_name);
-    // flatten generic
-    // let new_env = generic::flatten_generic(
-    //     &ts_type.type_parameters,
-    //     &None,
-    //     semantic,
-    //     env,
-    //     allocator,
-    //     result_program,
-    // );
+
     //
     let result = flatten_ts_type(
         &ts_type.type_annotation,

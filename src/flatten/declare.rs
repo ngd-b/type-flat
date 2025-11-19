@@ -1,10 +1,8 @@
-use std::cell::Cell;
-
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    BindingIdentifier, Class, ClassElement, TSInterfaceDeclaration, TSMethodSignature,
-    TSPropertySignature, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
-    TSTypeParameterInstantiation, VariableDeclaration,
+    Class, ClassElement, TSInterfaceDeclaration, TSMethodSignature, TSPropertySignature,
+    TSSignature, TSType, TSTypeAliasDeclaration, TSTypeLiteral, TSTypeParameterInstantiation,
+    VariableDeclaration,
 };
 use oxc_semantic::Semantic;
 
@@ -198,7 +196,8 @@ impl<'a> DeclRef<'a> {
                 let decl = class::flatten_type(tcd, semantic, &new_env, allocator, result_program);
 
                 // Add class to result_program
-                result_program.add_class(decl.clone_in(allocator));
+                // result_program.add_class(decl.clone_in(allocator));
+
                 return DeclRef::Class(allocator.alloc(decl));
             }
             DeclRef::Variable(drv) => {

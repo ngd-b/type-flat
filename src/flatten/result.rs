@@ -15,6 +15,7 @@ pub struct ResultProgram<'a> {
     pub visited: HashSet<String>,
     pub cached: AstHashMap<'a, &'a str, DeclRef<'a>>,
     pub circle_type: HashSet<String>,
+    pub original_refer: AstHashMap<'a, &'a str, DeclRef<'a>>,
 }
 
 impl<'a> ResultProgram<'a> {
@@ -35,6 +36,7 @@ impl<'a> ResultProgram<'a> {
             visited: Default::default(),
             cached: AstHashMap::new_in(allocator),
             circle_type: Default::default(),
+            original_refer: AstHashMap::new_in(allocator),
         }
     }
     pub fn has_decl(&self, name: &str) -> bool {
@@ -63,10 +65,16 @@ impl<'a> ResultProgram<'a> {
         if self.has_decl(&decl.id.name) {
             return;
         }
+        let mut output_decl = decl.clone_in(self.allocator);
+        if let Some(decl) = self.original_refer.get(&decl.id.name.as_str()) {
+            if let DeclRef::Interface(dri) = decl {
+                output_decl.type_parameters = dri.type_parameters.clone_in(self.allocator);
+            }
+        }
         self.program
             .body
             .push(Statement::TSInterfaceDeclaration(AstBox::new_in(
-                decl,
+                output_decl,
                 self.allocator,
             )));
     }
@@ -76,10 +84,17 @@ impl<'a> ResultProgram<'a> {
         if self.has_decl(&decl.id.name) {
             return;
         }
+        let mut output_decl = decl.clone_in(self.allocator);
+        if let Some(decl) = self.original_refer.get(&decl.id.name.as_str()) {
+            if let DeclRef::TypeAlias(drt) = decl {
+                output_decl.type_parameters = drt.type_parameters.clone_in(self.allocator);
+            }
+        }
+
         self.program
             .body
             .push(Statement::TSTypeAliasDeclaration(AstBox::new_in(
-                decl,
+                output_decl,
                 self.allocator,
             )));
     }
@@ -94,10 +109,17 @@ impl<'a> ResultProgram<'a> {
         if self.has_decl(name) {
             return;
         }
+
+        let mut output_decl = decl.clone_in(self.allocator);
+        if let Some(decl) = self.original_refer.get(&name) {
+            if let DeclRef::Class(drc) = decl {
+                output_decl.type_parameters = drc.type_parameters.clone_in(self.allocator);
+            }
+        }
         self.program
             .body
             .push(Statement::ClassDeclaration(AstBox::new_in(
-                decl,
+                output_decl,
                 self.allocator,
             )));
     }

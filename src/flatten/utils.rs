@@ -100,6 +100,10 @@ pub fn get_reference_type<'a>(
     }
 
     if decls.len() == 1 {
+        result_program
+            .original_refer
+            .insert(allocator.alloc_str(reference_name), decls[0]);
+
         return Ok(decls[0]);
     };
     if decls.len() > 1 {

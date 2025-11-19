@@ -39,16 +39,6 @@ pub fn flatten_type<'a>(
     // all extend type. include self
     let mut members = ts_type.body.body.clone_in(allocator);
 
-    // flatten generic
-    // let new_env = generic::flatten_generic(
-    //     &ts_type.type_parameters,
-    //     &None,
-    //     semantic,
-    //     env,
-    //     allocator,
-    //     result_program,
-    // );
-
     // the extends type
     for extend in ts_type.extends.iter() {
         if let Expression::Identifier(ei) = &extend.expression {
@@ -143,24 +133,24 @@ pub fn flatten_type<'a>(
                             _ => {}
                         }
                     }
-                    // DeclRef::Class(tcd) => match DeclRef::Class(tcd).type_decl(allocator) {
-                    //     TSType::TSTypeLiteral(tl) => {
-                    //         let mut new_members = AstVec::new_in(allocator);
+                    DeclRef::Class(tcd) => match DeclRef::Class(tcd).type_decl(allocator) {
+                        TSType::TSTypeLiteral(tl) => {
+                            let mut new_members = AstVec::new_in(allocator);
 
-                    //         for member in tl.members.iter() {
-                    //             if members
-                    //                 .iter()
-                    //                 .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                    //             {
-                    //                 continue;
-                    //             }
-                    //             new_members.push(member.clone_in(allocator));
-                    //         }
+                            for member in tl.members.iter() {
+                                if members
+                                    .iter()
+                                    .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                                {
+                                    continue;
+                                }
+                                new_members.push(member.clone_in(allocator));
+                            }
 
-                    //         members.extend(new_members);
-                    //     }
-                    //     _ => {}
-                    // },
+                            members.extend(new_members);
+                        }
+                        _ => {}
+                    },
                     _ => {}
                 }
             }

@@ -1,6 +1,6 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, ClassElement, Expression, FormalParameters, PropertyKey, TSAccessibility, TSType,
+    Class, ClassElement, Expression, FormalParameters, PropertyKey, TSAccessibility,
 };
 use oxc_semantic::Semantic;
 use tracing::info;
@@ -27,16 +27,6 @@ pub fn flatten_type<'a>(
     };
     info!("Flatten class type {}", class_name);
     let mut elements = class_type.body.body.clone_in(allocator);
-
-    // flatten generic
-    // let new_env = generic::flatten_generic(
-    //     &class_type.type_parameters,
-    //     &None,
-    //     semantic,
-    //     env,
-    //     allocator,
-    //     result_program,
-    // );
 
     // Flatten class extends
     if let Some(extend) = &class_type.super_class {
@@ -70,42 +60,23 @@ pub fn flatten_type<'a>(
                     .insert(allocator.alloc_str(&reference_name), decl);
 
                 match decl {
-                    // DeclRef::Class(tcd) => {
-                    //     let mut new_elements = AstVec::new_in(allocator);
+                    DeclRef::Class(tcd) => {
+                        let mut new_elements = AstVec::new_in(allocator);
 
-                    //     for element in tcd.body.body.iter() {
-                    //         if elements
-                    //             .iter()
-                    //             .any(|el| utils::eq_class_element(el, element, allocator))
-                    //         {
-                    //             continue;
-                    //         }
-                    //         new_elements.push(element.clone_in(allocator));
-                    //     }
-
-                    //     elements.extend(new_elements);
-                    // }
-                    other => match other.type_decl(allocator) {
-                        TSType::TSTypeLiteral(ttl) => {
-                            let members =
-                                utils::type_members_to_class_elements(&ttl.members, allocator);
-
-                            let mut new_elements = AstVec::new_in(allocator);
-
-                            for member in members.iter() {
-                                if elements
-                                    .iter()
-                                    .any(|el| utils::eq_class_element(el, member, allocator))
-                                {
-                                    continue;
-                                }
-                                new_elements.push(member.clone_in(allocator));
+                        for element in tcd.body.body.iter() {
+                            if elements
+                                .iter()
+                                .any(|el| utils::eq_class_element(el, element, allocator))
+                            {
+                                continue;
                             }
-
-                            elements.extend(new_elements);
+                            new_elements.push(element.clone_in(allocator));
                         }
-                        _ => {}
-                    },
+
+                        elements.extend(new_elements);
+                    }
+
+                    _ => {}
                 }
             }
         }
@@ -170,7 +141,7 @@ pub fn flatten_class_elements_type<'a>(
             Some(ClassElement::TSIndexSignature(new_element))
         }
         ClassElement::PropertyDefinition(tpd) => {
-            if !tpd.accessibility.is_none() && tpd.accessibility != Some(TSAccessibility::Public) {
+            if !tpd.accessibility.is_none() && tpd.accessibility == Some(TSAccessibility::Private) {
                 return None;
             }
             if let Some(name) = tpd.key.name()
@@ -201,7 +172,7 @@ pub fn flatten_class_elements_type<'a>(
             }
         }
         ClassElement::MethodDefinition(tmd) => {
-            if !tmd.accessibility.is_none() && tmd.accessibility != Some(TSAccessibility::Public) {
+            if !tmd.accessibility.is_none() && tmd.accessibility == Some(TSAccessibility::Private) {
                 return None;
             }
 
