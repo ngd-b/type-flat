@@ -246,31 +246,6 @@ pub fn flatten_type<'a>(
                     new_prop.return_type = Some(new_return_type)
                 }
 
-                // this params flatten
-                if let Some(this_param) = &tms.this_param {
-                    let mut new_this_param = this_param.clone_in(allocator);
-
-                    if let Some(ts) = &this_param.type_annotation {
-                        let decl = type_alias::flatten_ts_type(
-                            allocator.alloc(ts.type_annotation.clone_in(allocator)),
-                            semantic,
-                            env,
-                            allocator,
-                            result_program,
-                        );
-
-                        let mut new_ts_type = ts.clone_in(allocator);
-
-                        if let Some(ts_type) = decl.type_decl(allocator) {
-                            new_ts_type.type_annotation = ts_type;
-                        }
-
-                        new_this_param.type_annotation = Some(new_ts_type)
-                    }
-
-                    new_prop.this_param = Some(new_this_param);
-                }
-
                 new_members.push(TSSignature::TSMethodSignature(new_prop))
             }
             _ => {

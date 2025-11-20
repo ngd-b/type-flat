@@ -100,7 +100,7 @@ pub fn flatten_type<'a>(
     new_class.super_class = None;
     new_class.super_type_arguments = None;
     new_class.implements = AstVec::new_in(allocator);
-    // new_class.type_parameters = None;
+    new_class.type_parameters = None;
 
     new_class.body.body = new_elements;
 
