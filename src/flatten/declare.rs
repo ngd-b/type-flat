@@ -1,6 +1,6 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
+    Class, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
     TSTypeParameterInstantiation, VariableDeclaration,
 };
 use oxc_semantic::Semantic;
@@ -34,38 +34,17 @@ impl<'a> DeclRef<'a> {
         match self {
             DeclRef::TypeAlias(decl) => return Some(decl.type_annotation.clone_in(allocator)),
             DeclRef::Interface(decl) => {
-                let filter_members = decl
-                    .body
-                    .body
-                    .iter()
-                    .filter_map(|mb| {
-                        if utils::has_this_type_param(mb) {
-                            Some(mb.clone_in(allocator))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<TSSignature<'a>>>();
-
-                new_type.members.extend(filter_members);
+                new_type.members.extend(decl.body.body.clone_in(allocator));
 
                 return Some(TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator)));
             }
             DeclRef::Class(drc) => {
                 let new_members = utils::class_elements_to_type_members(&drc.body.body, allocator);
 
-                let filter_members = new_members
-                    .iter()
-                    .filter_map(|mb| {
-                        if utils::has_this_type_param(mb) {
-                            Some(mb.clone_in(allocator))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<TSSignature<'a>>>();
-
-                new_type.members.extend(filter_members);
+                if new_members.is_empty() {
+                    return None;
+                }
+                new_type.members.extend(new_members);
 
                 return Some(TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator)));
             }

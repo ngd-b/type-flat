@@ -79,11 +79,6 @@ pub fn get_reference_type<'a>(
                 for decl in &vd.declarations {
                     if let Some(name) = decl.id.get_identifier_name() {
                         if name.as_str() == reference_name {
-                            // add declare to exclude
-                            result_program
-                                .exclude_type
-                                .insert(reference_name.to_string());
-
                             // flatten declare variable type
                             let mut new_vd = vd.clone_in(allocator);
                             new_vd.declarations = AstVec::new_in(allocator);
@@ -586,6 +581,9 @@ pub fn type_members_to_class_elements<'a>(
 
 ///
 /// Transfrom Class Elements to type members
+/// 1. No static
+/// 2. No constructor
+/// 3. No This type param
 ///
 pub fn class_elements_to_type_members<'a>(
     elements: &'a [ClassElement<'a>],
@@ -599,13 +597,18 @@ pub fn class_elements_to_type_members<'a>(
                 if tsi.r#static {
                     continue;
                 }
-                new_members.push(TSSignature::TSIndexSignature(tsi.clone_in(allocator)));
+                let new_member = TSSignature::TSIndexSignature(tsi.clone_in(allocator));
+
+                // Not include this type param
+                if !has_this_type_param(&new_member) {
+                    new_members.push(new_member);
+                }
             }
             ClassElement::PropertyDefinition(pd) => {
                 if pd.r#static {
                     continue;
                 }
-                let new_signature = TSSignature::TSPropertySignature(AstBox::new_in(
+                let new_member = TSSignature::TSPropertySignature(AstBox::new_in(
                     TSPropertySignature {
                         span: pd.span.clone_in(allocator),
                         key: pd.key.clone_in(allocator),
@@ -617,13 +620,15 @@ pub fn class_elements_to_type_members<'a>(
                     allocator,
                 ));
 
-                new_members.push(new_signature);
+                if !has_this_type_param(&new_member) {
+                    new_members.push(new_member);
+                }
             }
             ClassElement::MethodDefinition(md) => {
                 if md.r#static || md.kind == MethodDefinitionKind::Constructor {
                     continue;
                 }
-                let new_signature = TSSignature::TSMethodSignature(AstBox::new_in(
+                let new_member = TSSignature::TSMethodSignature(AstBox::new_in(
                     TSMethodSignature {
                         span: md.span.clone_in(allocator),
                         key: md.key.clone_in(allocator),
@@ -639,7 +644,9 @@ pub fn class_elements_to_type_members<'a>(
                     allocator,
                 ));
 
-                new_members.push(new_signature);
+                if !has_this_type_param(&new_member) {
+                    new_members.push(new_member);
+                }
             }
             _ => {}
         }
