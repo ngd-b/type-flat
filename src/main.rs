@@ -1,6 +1,8 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
+use once_cell::sync::Lazy;
 use oxc_allocator::Allocator;
+use serde::{Deserialize, Serialize};
 use std::{env, fs, path::Path};
 use tracing::info;
 
@@ -8,8 +10,26 @@ use flatten::Flatten;
 
 mod flatten;
 mod logger;
+
+/// Get version from package.json
+const PKG_JSON: &str = include_str!("../package.json");
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct Pkg {
+    version: String,
+    author: String,
+}
+
+static PKG: Lazy<Pkg> = Lazy::new(|| serde_json::from_str(PKG_JSON).unwrap());
+
+impl Pkg {
+    fn version(&self) -> &str {
+        &self.version
+    }
+}
+
 #[derive(Parser, Debug)]
-#[command(author,version,about,long_about = None)]
+#[command(author,version=PKG.version(),about,long_about = None)]
 struct Cli {
     /// A path to a file or directory
     #[arg(short, long)]
