@@ -4,6 +4,7 @@ use clap::{
     builder::styling::{AnsiColor, Effects, Styles},
 };
 use colored::*;
+use indicatif::{ProgressBar, ProgressStyle};
 use indoc::indoc;
 use once_cell::sync::Lazy;
 use oxc_allocator::Allocator;
@@ -34,17 +35,23 @@ impl Pkg {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "TypeFlat")]
+#[command(name = "type-flat")]
+#[command(override_usage = r#"
+    type-flat --file-or-dir-path <FILE_OR_DIR_PATH> --type-name <TYPE_NAMES>
+    type-flat -f <FILE_OR_DIR_PATH> -t <TYPE_NAMES>
+    type-flat -f <FILE_OR_DIR_PATH> -t <TYPE_NAMES> -o <OUTPUT_PATH>
+    type-flat -f <FILE_OR_DIR_PATH> -t <TYPE_NAMES> -e <EXCLUDE_TYPE_NAMES>
+"#)]
 #[command(version = PKG.version())]
 #[command(about = "Flatten your TypeScript types with style!")]
 #[command(after_help = "✨ Made with ❤️ for TypeScript developers")]
 #[command(help_template = r#"{before-help}{name} v{version}
 {about-with-newline}
+
 {usage-heading}
     {usage}
 
 {all-args}
-
 {after-help}"#,styles = styles())]
 struct Cli {
     /// A path to a file or directory
@@ -76,14 +83,15 @@ fn styles() -> Styles {
 
 fn main() -> Result<()> {
     let logon_str = indoc! {"
-        
-    ████████╗██╗   ██╗██████╗ ███████╗    ███████╗ █████╗ ██╗  ████████╗
-   ╚ ══██╔══╝╚██╗ ██╔╝██╔══██╗██╔════╝    ██╔════╝██╔══██╗██║  ╚══██╔══╝
-       ██║    ╚████╔╝ ██████╔╝█████╗      █████╗  ███████║██║     ██║   
-       ██║     ╚██╔╝  ██╔═══╝ ██╔══╝      ██╔══╝  ██╔══██║██║     ██║   
-       ██║      ██║   ██║     ███████╗    ██║     ██║  ██║███████╗██║   
-       ╚═╝      ╚═╝   ╚═╝     ╚══════╝    ╚═╝     ╚═╝  ╚═╝╚══════╝╚═╝   
-                
+
+    ████████╗██╗   ██╗██████╗ ███████╗    ███████╗██╗      █████╗ ████████╗
+    ╚══██╔══╝╚██╗ ██╔╝██╔══██╗██╔════╝    ██╔════╝██║     ██╔══██╗╚══██╔══╝
+       ██║    ╚████╔╝ ██████╔╝█████╗      █████╗  ██║     ███████║   ██║   
+       ██║     ╚██╔╝  ██╔═══╝ ██╔══╝      ██╔══╝  ██║     ██╔══██║   ██║   
+       ██║      ██║   ██║     ███████╗    ██║     ███████╗██║  ██║   ██║   
+       ╚═╝      ╚═╝   ╚═╝     ╚══════╝    ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   
+
+    Flatten your TypeScript types with style!                                                                       
     "};
     println!("{}", logon_str.truecolor(0, 220, 255));
     let cli = Cli::parse();
@@ -99,6 +107,14 @@ fn main() -> Result<()> {
     let content = fs::read_to_string(&file_path)?;
 
     info!("Init finish. Start flattening...");
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_message("Flattening...");
+    spinner.set_style(
+        ProgressStyle::with_template("{spinner:.green} {msg}")
+            .unwrap()
+            .tick_strings(&["⠋", "⠙", "⠸", "⠴", "⠦", "⠇"]),
+    );
+
     let allocator = Allocator::new();
     let flatten = Flatten::new(content, &allocator);
     let flat_result = flatten.flatten(&cli.type_name, &cli.exclude)?;
@@ -131,6 +147,7 @@ fn main() -> Result<()> {
 
     info!("Finish.");
 
+    spinner.finish_with_message("Flatten Finish.");
     println!("✨ Made with ❤️ for TypeScript developers");
     Ok(())
 }
