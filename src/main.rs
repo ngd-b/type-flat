@@ -1,5 +1,10 @@
 use anyhow::{Ok, Result};
-use clap::Parser;
+use clap::{
+    Parser,
+    builder::styling::{AnsiColor, Effects, Styles},
+};
+use colored::*;
+use indoc::indoc;
 use once_cell::sync::Lazy;
 use oxc_allocator::Allocator;
 use serde::{Deserialize, Serialize};
@@ -29,7 +34,18 @@ impl Pkg {
 }
 
 #[derive(Parser, Debug)]
-#[command(author,version=PKG.version(),about,long_about = None)]
+#[command(name = "TypeFlat")]
+#[command(version = PKG.version())]
+#[command(about = "Flatten your TypeScript types with style!")]
+#[command(after_help = "✨ Made with ❤️ for TypeScript developers")]
+#[command(help_template = r#"{before-help}{name} v{version}
+{about-with-newline}
+{usage-heading}
+    {usage}
+
+{all-args}
+
+{after-help}"#,styles = styles())]
 struct Cli {
     /// A path to a file or directory
     #[arg(short, long)]
@@ -48,8 +64,30 @@ struct Cli {
     exclude: Vec<String>,
 }
 
+fn styles() -> Styles {
+    Styles::styled()
+        .header(AnsiColor::Green.on_default() | Effects::BOLD)
+        .usage(AnsiColor::Yellow.on_default() | Effects::BOLD)
+        .literal(AnsiColor::Cyan.on_default() | Effects::BOLD)
+        .placeholder(AnsiColor::Magenta.on_default())
+        .valid(AnsiColor::Green.on_default())
+        .invalid(AnsiColor::Red.on_default() | Effects::BOLD)
+}
+
 fn main() -> Result<()> {
+    let logon_str = indoc! {"
+        
+    ████████╗██╗   ██╗██████╗ ███████╗    ███████╗ █████╗ ██╗  ████████╗
+   ╚ ══██╔══╝╚██╗ ██╔╝██╔══██╗██╔════╝    ██╔════╝██╔══██╗██║  ╚══██╔══╝
+       ██║    ╚████╔╝ ██████╔╝█████╗      █████╗  ███████║██║     ██║   
+       ██║     ╚██╔╝  ██╔═══╝ ██╔══╝      ██╔══╝  ██╔══██║██║     ██║   
+       ██║      ██║   ██║     ███████╗    ██║     ██║  ██║███████╗██║   
+       ╚═╝      ╚═╝   ╚═╝     ╚══════╝    ╚═╝     ╚═╝  ╚═╝╚══════╝╚═╝   
+                
+    "};
+    println!("{}", logon_str.truecolor(0, 220, 255));
     let cli = Cli::parse();
+
     let _guard;
     if !cli.quiet {
         _guard = logger::init();
@@ -92,5 +130,7 @@ fn main() -> Result<()> {
     }
 
     info!("Finish.");
+
+    println!("✨ Made with ❤️ for TypeScript developers");
     Ok(())
 }
