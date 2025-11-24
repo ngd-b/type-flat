@@ -53,36 +53,6 @@ impl<'a> DeclRef<'a> {
 
         None
     }
-    ///
-    /// return type alias declaration
-    ///
-    pub fn type_alias(&self, allocator: &'a Allocator) -> Option<&TSTypeAliasDeclaration<'a>> {
-        match self {
-            DeclRef::TypeAlias(decl) => return Some(decl),
-            DeclRef::Interface(decl) => {
-                if !decl.extends.is_empty() {
-                    return None;
-                }
-
-                if let Some(new_literal_type) = self.type_decl(allocator) {
-                    let type_alias = TSTypeAliasDeclaration {
-                        span: decl.span.clone_in(allocator),
-                        id: decl.id.clone_in(allocator),
-                        type_parameters: decl.type_parameters.clone_in(allocator),
-                        type_annotation: new_literal_type,
-                        scope_id: decl.scope_id.clone_in(allocator),
-                        declare: decl.declare,
-                    };
-
-                    return Some(allocator.alloc(type_alias));
-                }
-            }
-
-            _ => {}
-        }
-
-        None
-    }
 
     pub fn flatten_type(
         &self,

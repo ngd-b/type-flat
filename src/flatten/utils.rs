@@ -245,8 +245,8 @@ pub fn get_keyof_union_type<'a>(
     allocator: &'a Allocator,
     _result_program: &mut ResultProgram<'a>,
 ) -> Option<TSType<'a>> {
-    if let Some(tad) = decl.type_alias(allocator) {
-        match &tad.type_annotation {
+    if let Some(tad) = decl.type_decl(allocator) {
+        match tad {
             TSType::TSTypeLiteral(tl) => {
                 let mut keys = AstVec::new_in(allocator);
 
