@@ -90,13 +90,6 @@ impl<'a> Flatten<'a> {
         if let Ok(decl) =
             utils::get_reference_type(type_name, &semantic, &env, &self.allocator, &mut result)
         {
-            let type_params = match decl {
-                DeclRef::Class(drc) => drc.type_parameters.clone_in(&self.allocator),
-                DeclRef::Interface(dri) => dri.type_parameters.clone_in(&self.allocator),
-                DeclRef::TypeAlias(drt) => drt.type_parameters.clone_in(&self.allocator),
-                _ => None,
-            };
-
             // Stop circle reference self
             result.visited.insert(type_name.to_string());
 
@@ -105,20 +98,17 @@ impl<'a> Flatten<'a> {
 
             match target_result {
                 DeclRef::Class(drc) => {
-                    let mut new_class = drc.clone_in(&self.allocator);
-                    new_class.type_parameters = type_params;
+                    let new_class = drc.clone_in(&self.allocator);
 
                     result.add_class(new_class);
                 }
                 DeclRef::Interface(dri) => {
-                    let mut new_interface = dri.clone_in(&self.allocator);
-                    new_interface.type_parameters = type_params;
+                    let new_interface = dri.clone_in(&self.allocator);
 
                     result.add_interface(new_interface);
                 }
                 DeclRef::TypeAlias(drt) => {
-                    let mut new_type_alias = drt.clone_in(&self.allocator);
-                    new_type_alias.type_parameters = type_params;
+                    let new_type_alias = drt.clone_in(&self.allocator);
 
                     result.add_type_alias(new_type_alias);
                 }

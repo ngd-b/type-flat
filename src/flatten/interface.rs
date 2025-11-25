@@ -8,7 +8,7 @@ use tracing::info;
 
 use crate::flatten::{
     class,
-    declare::DeclRef,
+    declare::{self, DeclRef},
     generic::GenericEnv,
     keyword::Keyword,
     result::ResultProgram,
@@ -71,31 +71,14 @@ pub fn flatten_type<'a>(
                 continue;
             }
 
-            let result = utils::get_reference_type(
+            if let Ok(decl) = declare::get_reference_type(
                 &reference_name,
+                &extend.type_arguments,
                 semantic,
                 env,
                 allocator,
                 result_program,
-            );
-
-            //
-            if let Ok(decl) = result {
-                result_program.visited.insert(reference_name.clone());
-
-                let decl: DeclRef<'_> = decl.flatten_type(
-                    &extend.type_arguments,
-                    semantic,
-                    env,
-                    allocator,
-                    result_program,
-                );
-                result_program.visited.remove(&reference_name);
-
-                result_program
-                    .cached
-                    .insert(allocator.alloc_str(&reference_name), decl);
-
+            ) {
                 match decl {
                     DeclRef::Interface(tid) => {
                         let mut new_members = AstVec::new_in(allocator);

@@ -1,3 +1,4 @@
+use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
     Class, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
@@ -119,4 +120,35 @@ impl<'a> DeclRef<'a> {
         }
         decl
     }
+}
+
+///
+/// Get reference type
+///
+pub fn get_reference_type<'a>(
+    refer_name: &str,
+    extend_args: &'a Option<AstBox<'a, TSTypeParameterInstantiation<'a>>>,
+    semantic: &Semantic<'a>,
+    env: &GenericEnv<'a>,
+    allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
+) -> Result<DeclRef<'a>> {
+    let result = utils::get_reference_type(refer_name, semantic, env, allocator, result_program);
+
+    //
+    if let Ok(decl) = result {
+        result_program.visited.insert(refer_name.to_string());
+
+        let decl: DeclRef<'_> =
+            decl.flatten_type(extend_args, semantic, env, allocator, result_program);
+
+        result_program.visited.remove(refer_name);
+
+        result_program
+            .cached
+            .insert(allocator.alloc_str(refer_name), decl);
+
+        return Ok(decl);
+    }
+    bail!("Can not find reference type {}", refer_name)
 }

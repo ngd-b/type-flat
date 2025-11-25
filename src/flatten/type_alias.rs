@@ -13,7 +13,7 @@ use tracing::info;
 
 use crate::flatten::{
     class,
-    declare::DeclRef,
+    declare::{self, DeclRef},
     generic::GenericEnv,
     interface,
     keyword::Keyword,
@@ -104,30 +104,14 @@ pub fn flatten_ts_type<'a>(
                 return *decl;
             }
 
-            let result = utils::get_reference_type(
+            if let Ok(decl) = declare::get_reference_type(
                 &reference_name,
+                &tr.type_arguments,
                 semantic,
                 env,
                 allocator,
                 result_program,
-            );
-
-            if let Ok(decl) = result {
-                result_program.visited.insert(reference_name.clone());
-
-                let decl: DeclRef<'_> =
-                    decl.flatten_type(&tr.type_arguments, semantic, env, allocator, result_program);
-
-                result_program.visited.remove(&reference_name);
-                result_program
-                    .cached
-                    .insert(allocator.alloc_str(&reference_name), decl);
-
-                // If the type is a circle type, return the original type
-                if result_program.circle_type.contains(&reference_name) {
-                    return DeclRef::TypeAlias(allocator.alloc(new_type));
-                }
-
+            ) {
                 match decl {
                     DeclRef::Interface(tid) => {
                         let decl = DeclRef::Interface(allocator.alloc(tid));
@@ -271,34 +255,14 @@ pub fn flatten_ts_type<'a>(
             TSTypeQueryExprName::IdentifierReference(ir) => {
                 let reference_name = ir.name.as_str();
 
-                let result = utils::get_reference_type(
+                if let Ok(decl) = declare::get_reference_type(
                     reference_name,
+                    &tq.type_arguments,
                     semantic,
                     env,
                     allocator,
                     result_program,
-                );
-
-                if let Ok(decl) = result {
-                    result_program.visited.insert(reference_name.to_string());
-
-                    let decl: DeclRef<'_> = decl.flatten_type(
-                        &tq.type_arguments,
-                        semantic,
-                        env,
-                        allocator,
-                        result_program,
-                    );
-                    result_program.visited.remove(reference_name);
-                    result_program
-                        .cached
-                        .insert(allocator.alloc_str(&reference_name), decl);
-
-                    // If the type is a circle type, return the original type
-                    // if result_program.circle_type.contains(reference_name) {
-                    //     return DeclRef::TypeAlias(allocator.alloc(new_type));
-                    // }
-
+                ) {
                     return decl;
                 }
             }
@@ -568,21 +532,14 @@ pub fn flatten_ts_query_qualified<'a>(
         TSTypeName::IdentifierReference(ir) => {
             let reference_name = ir.name.as_str();
 
-            let result =
-                utils::get_reference_type(reference_name, semantic, env, allocator, result_program);
-
-            if let Ok(decl) = result {
-                result_program.visited.insert(reference_name.to_string());
-
-                let decl: DeclRef<'_> =
-                    decl.flatten_type(extend_args, semantic, env, allocator, result_program);
-
-                result_program.visited.remove(reference_name);
-
-                result_program
-                    .cached
-                    .insert(allocator.alloc_str(&reference_name), decl);
-
+            if let Ok(decl) = declare::get_reference_type(
+                reference_name,
+                extend_args,
+                semantic,
+                env,
+                allocator,
+                result_program,
+            ) {
                 if let Some(ts_type) = decl.type_decl(allocator) {
                     Some(ts_type)
                 } else {

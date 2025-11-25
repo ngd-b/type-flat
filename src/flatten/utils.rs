@@ -1,4 +1,4 @@
-use anyhow::{Ok, Result, bail};
+use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
@@ -103,13 +103,19 @@ pub fn get_reference_type<'a>(
     };
     if decls.len() > 1 {
         info!("Merge multi type {}, len {}", reference_name, decls.len());
-        return merge_type_to_class(
+        if let Ok(decl) = merge_type_to_class(
             allocator.alloc(decls),
             semantic,
             env,
             allocator,
             result_program,
-        );
+        ) {
+            result_program
+                .original_refer
+                .insert(allocator.alloc_str(reference_name), decl);
+
+            return Ok(decl);
+        }
     }
 
     info!("Not found reference_name:{}", reference_name);

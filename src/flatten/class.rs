@@ -6,7 +6,10 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    declare::DeclRef, generic::GenericEnv, result::ResultProgram, type_alias, utils,
+    declare::{self, DeclRef},
+    generic::GenericEnv,
+    result::ResultProgram,
+    type_alias, utils,
 };
 
 ///
@@ -33,32 +36,14 @@ pub fn flatten_type<'a>(
         if let Expression::Identifier(ei) = extend {
             let reference_name = ei.name.to_string();
 
-            let result = utils::get_reference_type(
+            if let Ok(decl) = declare::get_reference_type(
                 &reference_name,
+                &class_type.super_type_arguments,
                 semantic,
                 env,
                 allocator,
                 result_program,
-            );
-
-            //
-            if let Ok(decl) = result {
-                result_program.visited.insert(reference_name.clone());
-
-                let decl: DeclRef<'_> = decl.flatten_type(
-                    &class_type.super_type_arguments,
-                    semantic,
-                    env,
-                    allocator,
-                    result_program,
-                );
-
-                result_program.visited.remove(&reference_name);
-
-                result_program
-                    .cached
-                    .insert(allocator.alloc_str(&reference_name), decl);
-
+            ) {
                 match decl {
                     DeclRef::Class(tcd) => {
                         let mut new_elements = AstVec::new_in(allocator);
