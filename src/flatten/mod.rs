@@ -87,8 +87,7 @@ impl<'a> Flatten<'a> {
         // need to exclude type
         result.exclude_type = exclude.iter().map(|str| str.to_string()).collect();
 
-        if let Ok(decl) =
-            utils::get_reference_type(type_name, &semantic, &env, &self.allocator, &mut result)
+        if let Ok(decl) = utils::get_type(type_name, &semantic, &env, &self.allocator, &mut result)
         {
             // Stop circle reference self
             result.visited.insert(type_name.to_string());

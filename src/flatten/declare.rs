@@ -133,14 +133,44 @@ pub fn get_reference_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
-    let result = utils::get_reference_type(refer_name, semantic, env, allocator, result_program);
+    let result = utils::get_type(refer_name, semantic, env, allocator, result_program);
 
+    let mut new_extend_args = None;
+    let mut extend_arg_decl = vec![];
+
+    // IF type circle reference, Need flatten it's type parameter
+    if let Some(type_params) = extend_args
+        && result_program.circle_type.contains(refer_name)
+    {
+        let mut new_type_params = type_params.clone_in(allocator);
+        let mut new_params = AstVec::new_in(allocator);
+
+        for param in type_params.params.iter() {
+            let decl = type_alias::flatten_ts_type(param, semantic, env, allocator, result_program);
+
+            extend_arg_decl.push(decl);
+            if let Some(ts_type) = decl.type_decl(allocator) {
+                new_params.push(ts_type)
+            } else {
+                new_params.push(param.clone_in(allocator))
+            }
+        }
+
+        new_type_params.params = new_params;
+
+        new_extend_args = Some(new_type_params);
+    }
     //
     if let Ok(decl) = result {
         result_program.visited.insert(refer_name.to_string());
 
-        let decl: DeclRef<'_> =
-            decl.flatten_type(extend_args, semantic, env, allocator, result_program);
+        let decl: DeclRef<'_> = decl.flatten_type(
+            allocator.alloc(new_extend_args.clone_in(allocator)),
+            semantic,
+            env,
+            allocator,
+            result_program,
+        );
 
         result_program.visited.remove(refer_name);
 
@@ -150,5 +180,11 @@ pub fn get_reference_type<'a>(
 
         return Ok(decl);
     }
+
+    // Save type parameter's type
+    for decl in extend_arg_decl.iter() {
+        result_program.push(*decl);
+    }
+
     bail!("Can not find reference type {}", refer_name)
 }

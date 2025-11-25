@@ -47,7 +47,7 @@ pub fn flatten_type<'a>(
     );
 
     let mut new_type = ts_type.clone_in(allocator);
-    new_type.type_parameters = None;
+    // new_type.type_parameters = None;
 
     if let Some(ts_type) = result.type_decl(allocator) {
         new_type.type_annotation = ts_type;

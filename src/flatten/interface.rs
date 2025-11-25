@@ -147,7 +147,7 @@ pub fn flatten_type<'a>(
     // create new type. return new type
     let mut new_type = ts_type.clone_in(allocator);
     new_type.extends = AstVec::new_in(allocator);
-    new_type.type_parameters = None;
+    // new_type.type_parameters = None;
 
     new_type.body.body = new_members;
 
