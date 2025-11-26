@@ -1,7 +1,8 @@
-use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
+use anyhow::{Result, bail};
+use oxc_allocator::{Allocator, Vec as AstVec};
 use oxc_ast::{
     AstKind,
-    ast::{TSType, TSTypeName},
+    ast::{TSQualifiedName, TSSignature, TSType, TSTypeName, TSTypeQueryExprName},
 };
 use oxc_semantic::Semantic;
 
@@ -33,22 +34,6 @@ pub fn get_type<'a>(
                 if let Some(id) = &tc.id {
                     if id.name.as_str() == reference_name {
                         decls.push(DeclRef::Class(tc));
-                    }
-                }
-            }
-
-            AstKind::VariableDeclaration(vd) => {
-                for decl in &vd.declarations {
-                    if let Some(name) = decl.id.get_identifier_name() {
-                        if name.as_str() == reference_name {
-                            // flatten declare variable type
-                            let mut new_vd = vd.clone_in(allocator);
-                            new_vd.declarations = AstVec::new_in(allocator);
-
-                            new_vd.declarations.push(decl.clone_in(allocator));
-
-                            decls.push(DeclRef::Variable(allocator.alloc(new_vd)));
-                        }
                     }
                 }
             }
@@ -116,15 +101,166 @@ pub fn get_type_name<'a>(
             names.extend(get_type_name(&tct.true_type, semantic, allocator));
             names.extend(get_type_name(&tct.false_type, semantic, allocator));
         }
-        TSType::TSMappedType(tmt) => {}
-        TSType::TSTypeOperatorType(tot) => {}
-        TSType::TSIndexedAccessType(tiat) => {}
-        TSType::TSTypeQuery(ttq) => {}
-        TSType::TSParenthesizedType(tpt) => {}
-        TSType::TSTypeLiteral(ttl) => {}
-        TSType::TSFunctionType(tft) => {}
+        TSType::TSMappedType(tmt) => {
+            if let Some(ts_type) = &tmt.type_parameter.constraint {
+                names.extend(get_type_name(ts_type, semantic, allocator))
+            }
+            if let Some(ts_type) = &tmt.type_parameter.default {
+                names.extend(get_type_name(ts_type, semantic, allocator))
+            }
+            if let Some(ts_type) = &tmt.type_annotation {
+                names.extend(get_type_name(ts_type, semantic, allocator))
+            }
+        }
+        TSType::TSTypeOperatorType(tot) => {
+            names.extend(get_type_name(&tot.type_annotation, semantic, allocator))
+        }
+        TSType::TSIndexedAccessType(tiat) => {
+            names.extend(get_type_name(&tiat.index_type, semantic, allocator));
+            names.extend(get_type_name(&tiat.object_type, semantic, allocator));
+        }
+        TSType::TSTypeQuery(ttq) => {
+            match &ttq.expr_name {
+                TSTypeQueryExprName::IdentifierReference(ir) => {
+                    names.push(ir.name.to_string());
+                }
+                TSTypeQueryExprName::QualifiedName(qn) => {
+                    if let Ok(name) = get_qualified_type_name(qn) {
+                        names.push(name.to_string())
+                    }
+                }
+                _ => {}
+            };
+
+            if let Some(ta) = &ttq.type_arguments {
+                for ts_type in ta.params.iter() {
+                    let ta_names = get_type_name(ts_type, semantic, allocator);
+
+                    names.extend(ta_names);
+                }
+            }
+        }
+        TSType::TSParenthesizedType(tpt) => {
+            names.extend(get_type_name(&tpt.type_annotation, semantic, allocator))
+        }
+        TSType::TSTypeLiteral(ttl) => {
+            for member in ttl.members.iter() {
+                let ts_names = get_member_type_name(member, semantic, allocator);
+
+                names.extend(ts_names);
+            }
+        }
+        TSType::TSFunctionType(tft) => {
+            // return-type
+            names.extend(get_type_name(
+                &tft.return_type.type_annotation,
+                semantic,
+                allocator,
+            ));
+
+            // type-param
+            for tpd in tft.type_parameters.iter() {
+                for tp in tpd.params.iter() {
+                    if let Some(ts_type) = &tp.constraint {
+                        names.extend(get_type_name(ts_type, semantic, allocator))
+                    }
+                    if let Some(ts_type) = &tp.default {
+                        names.extend(get_type_name(ts_type, semantic, allocator))
+                    }
+                }
+            }
+
+            // params
+            for item in tft.params.items.iter() {
+                if let Some(ts_type) = &item.pattern.type_annotation {
+                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
+                }
+            }
+            if let Some(rest_type) = &tft.params.rest {
+                if let Some(ts_type) = &rest_type.argument.type_annotation {
+                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
+                }
+            }
+        }
         _ => {}
     };
 
+    names
+}
+
+///
+/// Get qualified type name
+///
+pub fn get_qualified_type_name<'a>(name: &'a TSQualifiedName<'a>) -> Result<&'a str> {
+    match &name.left {
+        TSTypeName::IdentifierReference(ir) => Ok(ir.name.as_str()),
+        TSTypeName::QualifiedName(qn) => get_qualified_type_name(qn),
+        _ => bail!("Not a valid type name"),
+    }
+}
+
+///
+/// Get member type name
+///
+pub fn get_member_type_name<'a>(
+    member: &'a TSSignature<'a>,
+    semantic: &Semantic<'a>,
+    allocator: &'a Allocator,
+) -> Vec<String> {
+    let mut names = vec![];
+
+    match member {
+        TSSignature::TSIndexSignature(tis) => {
+            let ts_names = get_type_name(&tis.type_annotation.type_annotation, semantic, allocator);
+
+            names.extend(ts_names);
+            // key flat type
+            for param in tis.parameters.iter() {
+                let ts_names =
+                    get_type_name(&param.type_annotation.type_annotation, semantic, allocator);
+
+                names.extend(ts_names);
+            }
+        }
+        TSSignature::TSPropertySignature(tps) => {
+            if let Some(ts_type) = &tps.type_annotation {
+                let ts_names = get_type_name(&ts_type.type_annotation, semantic, allocator);
+
+                names.extend(ts_names);
+            }
+        }
+        TSSignature::TSMethodSignature(tms) => {
+            // params
+            for item in tms.params.items.iter() {
+                if let Some(ts_type) = &item.pattern.type_annotation {
+                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
+                }
+            }
+            if let Some(rest_type) = &tms.params.rest {
+                if let Some(ts_type) = &rest_type.argument.type_annotation {
+                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
+                }
+            }
+
+            if let Some(tpd) = &tms.type_parameters {
+                for tp in tpd.params.iter() {
+                    if let Some(ts_type) = &tp.constraint {
+                        names.extend(get_type_name(ts_type, semantic, allocator))
+                    }
+                    if let Some(ts_type) = &tp.default {
+                        names.extend(get_type_name(ts_type, semantic, allocator))
+                    }
+                }
+            }
+
+            // return type flatten
+            if let Some(rt) = &tms.return_type {
+                let ts_names = get_type_name(&rt.type_annotation, semantic, allocator);
+
+                names.extend(ts_names);
+            }
+        }
+        _ => {}
+    }
     names
 }
