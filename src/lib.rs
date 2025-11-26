@@ -4,6 +4,7 @@ use napi_derive::napi;
 use oxc_allocator::Allocator;
 
 mod flatten;
+mod graph;
 
 #[napi]
 pub struct Flatten {}

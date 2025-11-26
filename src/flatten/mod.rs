@@ -1,6 +1,9 @@
 use std::process;
 
-use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram};
+use crate::{
+    flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram},
+    graph::{self, Graph},
+};
 use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::Program;
@@ -28,6 +31,7 @@ pub mod variable;
 pub struct Flatten<'a> {
     allocator: &'a Allocator,
     program: Program<'a>,
+    graph: Graph,
 }
 
 impl<'a> Flatten<'a> {
@@ -44,6 +48,7 @@ impl<'a> Flatten<'a> {
         Self {
             allocator,
             program: result.program,
+            graph: Graph::new("flatten".to_string()),
         }
     }
     pub fn semantic(&'a self) -> Semantic<'a> {
@@ -66,7 +71,12 @@ impl<'a> Flatten<'a> {
     pub fn flatten(&self, type_names: &[String], exclude: &[String]) -> Result<String> {
         let mut output = self.result_program();
 
+        let semantic = self.semantic();
+
         for name in type_names.iter() {
+            let graph = graph::build_graph(name, &semantic, self.allocator);
+
+            println!("{:?}", graph);
             let result = self.flatten_ts(name.as_str(), exclude)?;
 
             // Compare with previous result

@@ -15,6 +15,7 @@ use tracing::info;
 use flatten::Flatten;
 
 mod flatten;
+mod graph;
 mod logger;
 
 /// Get version from package.json
