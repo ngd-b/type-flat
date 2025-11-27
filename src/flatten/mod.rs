@@ -31,7 +31,6 @@ pub mod variable;
 pub struct Flatten<'a> {
     allocator: &'a Allocator,
     program: Program<'a>,
-    graph: Graph,
 }
 
 impl<'a> Flatten<'a> {
@@ -48,7 +47,6 @@ impl<'a> Flatten<'a> {
         Self {
             allocator,
             program: result.program,
-            graph: Graph::new("flatten".to_string()),
         }
     }
     pub fn semantic(&'a self) -> Semantic<'a> {
@@ -74,7 +72,7 @@ impl<'a> Flatten<'a> {
         let semantic = self.semantic();
 
         for name in type_names.iter() {
-            let graph = graph::build_graph(name, &semantic, self.allocator);
+            let graph = graph::build_graph(name.as_str(), &semantic, self.allocator);
 
             println!("{:?}", graph);
             let result = self.flatten_ts(name.as_str(), exclude)?;
