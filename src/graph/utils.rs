@@ -60,6 +60,11 @@ pub fn get_type_name<'a>(
                 TSTypeName::IdentifierReference(ir) => {
                     names.push(ir.name.to_string());
                 }
+                TSTypeName::QualifiedName(qn) => {
+                    if let Ok(name) = get_qualified_type_name(qn) {
+                        names.push(name.to_string())
+                    }
+                }
                 _ => {}
             };
 
