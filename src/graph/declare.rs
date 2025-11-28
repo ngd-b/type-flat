@@ -1,7 +1,7 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, Expression, StringLiteral, TSInterfaceDeclaration, TSLiteral, TSLiteralType, TSType,
-    TSTypeAliasDeclaration, TSTypeLiteral, TSTypeParameterDeclaration, TSUnionType,
+    Class, Expression, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
+    TSTypeName, TSTypeParameterDeclaration, TSTypeReference, TSUnionType,
 };
 
 use crate::flatten::utils;
@@ -126,22 +126,14 @@ pub fn type_decl_expression<'a>(
     allocator: &'a Allocator,
 ) -> Option<TSType<'a>> {
     if let Expression::Identifier(ei) = expression {
-        let literal_type = TSLiteralType {
+        let refer_type = TSTypeReference {
             span: Default::default(),
-            literal: TSLiteral::StringLiteral(AstBox::new_in(
-                StringLiteral {
-                    span: Default::default(),
-                    value: ei.name.clone_in(allocator),
-                    raw: None,
-                    lone_surrogates: false,
-                },
-                allocator,
-            )),
+            type_name: TSTypeName::IdentifierReference(ei.clone_in(allocator)),
+            type_arguments: None,
         };
 
-        Some(TSType::TSLiteralType(AstBox::new_in(
-            literal_type,
-            allocator,
+        Some(TSType::TSTypeReference(AstBox::new_in(
+            refer_type, allocator,
         )))
     } else {
         None
