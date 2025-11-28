@@ -3,6 +3,7 @@ use oxc_allocator::{HashMap, Vec as AstVec};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::Debug;
+use tracing::info;
 
 use oxc_semantic::Semantic;
 
@@ -10,9 +11,9 @@ pub mod declare;
 pub mod utils;
 
 pub struct Graph<'a> {
-    name: &'a str,
-
-    children: AstVec<'a, &'a RefCell<Graph<'a>>>,
+    pub name: &'a str,
+    pub self_loop: bool,
+    pub children: AstVec<'a, &'a RefCell<Graph<'a>>>,
 }
 
 impl<'a> Debug for Graph<'_> {
@@ -36,13 +37,31 @@ impl<'a> Graph<'a> {
     pub fn new(name: &'a str, allocator: &'a Allocator) -> Self {
         Self {
             name,
-
+            self_loop: false,
             children: AstVec::new_in(allocator),
         }
     }
 
     pub fn add_child(&mut self, child: &'a RefCell<Graph<'a>>) {
         self.children.push(child);
+    }
+
+    pub fn set_self_loop(&mut self, self_loop: bool) {
+        self.self_loop = self_loop;
+    }
+
+    ///
+    pub fn collect_order(
+        graph_ref: &'a RefCell<Graph<'a>>,
+        allocator: &'a Allocator,
+    ) -> AstVec<'a, &'a RefCell<Graph<'a>>> {
+        let mut order = AstVec::new_in(allocator);
+
+        let mut path = HashSet::new();
+        let mut resolved = HashSet::new();
+
+        traverse_collect_order(allocator, graph_ref, &mut path, &mut resolved, &mut order);
+        order
     }
 }
 
@@ -81,6 +100,12 @@ pub fn build_graph<'a>(
 
             let children_name = utils::get_type_name(&ts_type, semantic, allocator);
 
+            info!(
+                "Get the {} type children len {}",
+                &name,
+                children_name.len()
+            );
+
             for child_name in children_name {
                 let child_name_str = allocator.alloc_str(&child_name);
 
@@ -105,4 +130,48 @@ pub fn build_graph<'a>(
     }
 
     graph
+}
+
+///
+/// traverse order
+///
+pub fn traverse_collect_order<'a>(
+    allocator: &'a Allocator,
+    node: &'a RefCell<Graph<'a>>,
+    path: &mut HashSet<&'a str>,
+    resolved: &mut HashSet<&'a str>,
+    result: &mut AstVec<'a, &'a RefCell<Graph<'a>>>,
+) {
+    let name;
+    let mut children = AstVec::new_in(allocator);
+    {
+        let node_ref = node.borrow();
+        name = node_ref.name;
+
+        for child_ref in node_ref.children.iter() {
+            children.push(*child_ref);
+        }
+    }
+
+    if resolved.contains(name) {
+        return;
+    }
+
+    if path.contains(name) {
+        node.borrow_mut().set_self_loop(true);
+        info!("⚠️ Cycle Detected! Marking {} as part of a cycle.", name);
+        return;
+    }
+
+    path.insert(name);
+
+    for child_ref in children.iter() {
+        traverse_collect_order(allocator, child_ref, path, resolved, result);
+    }
+
+    resolved.insert(name);
+
+    result.push(node);
+
+    path.remove(name);
 }

@@ -86,8 +86,8 @@ pub fn flatten_ts_type<'a>(
         TSType::TSTypeReference(tr) => {
             // reference_name
             let reference_name = match &tr.type_name {
-                TSTypeName::IdentifierReference(ir) => ir.name.to_string(),
-                _ => "".to_string(),
+                TSTypeName::IdentifierReference(ir) => allocator.alloc_str(&ir.name),
+                _ => "",
             };
 
             // Keyword type flatten
@@ -113,23 +113,8 @@ pub fn flatten_ts_type<'a>(
                 result_program,
             ) {
                 match decl {
-                    DeclRef::Interface(tid) => {
-                        let decl = DeclRef::Interface(allocator.alloc(tid));
-
-                        return decl;
-                    }
-                    DeclRef::TypeAlias(tad) => {
-                        let decl = DeclRef::TypeAlias(allocator.alloc(tad));
-
-                        return decl;
-                    }
-                    DeclRef::Class(tcd) => {
-                        // Add reference Class type. output class type
-                        let decl = DeclRef::Class(allocator.alloc(tcd));
-
-                        return decl;
-                    }
-                    _ => {}
+                    DeclRef::Variable(_) => {}
+                    other => return other,
                 }
             }
         }

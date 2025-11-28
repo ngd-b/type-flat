@@ -11,10 +11,10 @@ use crate::flatten::declare::DeclRef;
 pub struct ResultProgram<'a> {
     pub program: Program<'a>,
     allocator: &'a Allocator,
-    pub exclude_type: HashSet<String>,
-    pub visited: HashSet<String>,
+    pub exclude_type: HashSet<&'a str>,
     pub cached: AstHashMap<'a, &'a str, DeclRef<'a>>,
-    pub circle_type: HashSet<String>,
+    pub circle_type: HashSet<&'a str>,
+    pub visited: HashSet<&'a str>,
 }
 
 impl<'a> ResultProgram<'a> {
@@ -32,9 +32,9 @@ impl<'a> ResultProgram<'a> {
             },
             allocator,
             exclude_type: Default::default(),
-            visited: Default::default(),
             cached: AstHashMap::new_in(allocator),
             circle_type: Default::default(),
+            visited: Default::default(),
         }
     }
     pub fn has_decl(&self, name: &str) -> bool {
@@ -63,7 +63,7 @@ impl<'a> ResultProgram<'a> {
         if self.has_decl(&decl.id.name) {
             return;
         }
-        let mut output_decl = decl.clone_in(self.allocator);
+        let output_decl = decl.clone_in(self.allocator);
 
         self.program
             .body
@@ -78,7 +78,7 @@ impl<'a> ResultProgram<'a> {
         if self.has_decl(&decl.id.name) {
             return;
         }
-        let mut output_decl = decl.clone_in(self.allocator);
+        let output_decl = decl.clone_in(self.allocator);
 
         self.program
             .body
@@ -99,7 +99,7 @@ impl<'a> ResultProgram<'a> {
             return;
         }
 
-        let mut output_decl = decl.clone_in(self.allocator);
+        let output_decl = decl.clone_in(self.allocator);
 
         self.program
             .body

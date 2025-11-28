@@ -21,29 +21,16 @@ use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgra
 ///
 /// #[instrument(skip(semantic, env, allocator, result_program))]
 pub fn get_type<'a>(
-    reference_name: &str,
+    reference_name: &'a str,
     semantic: &Semantic<'a>,
     env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
-    // if the type don't need flatten
-    if result_program.exclude_type.contains(reference_name) {
-        info!("Don't need flatten: {}", reference_name);
-        bail!("Don't need flatten: {}", reference_name);
-    }
-    // has visited
+    // self loop
     if result_program.visited.contains(reference_name) {
-        result_program
-            .circle_type
-            .insert(reference_name.to_string());
-
         info!("Self Circular loop reference: {}", reference_name);
         bail!("Self Circular loop reference: {}", reference_name);
-    }
-    if result_program.circle_type.contains(reference_name) {
-        info!("Is Circular loop reference: {}", reference_name);
-        bail!("Is Circular loop reference: {}", reference_name);
     }
     // cached
     if let Some(value) = result_program.get_reference_type(reference_name) {

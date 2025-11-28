@@ -42,7 +42,7 @@ pub fn flatten_type<'a>(
     // the extends type
     for extend in ts_type.extends.iter() {
         if let Expression::Identifier(ei) = &extend.expression {
-            let reference_name = ei.name.to_string();
+            let reference_name = allocator.alloc_str(&ei.name);
 
             let new_reference_type = TSTypeReference {
                 span: extend.span.clone_in(allocator),
@@ -72,7 +72,7 @@ pub fn flatten_type<'a>(
             }
 
             if let Ok(decl) = declare::get_reference_type(
-                &reference_name,
+                reference_name,
                 &extend.type_arguments,
                 semantic,
                 env,

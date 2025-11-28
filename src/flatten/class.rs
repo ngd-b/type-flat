@@ -34,7 +34,7 @@ pub fn flatten_type<'a>(
     // Flatten class extends
     if let Some(extend) = &class_type.super_class {
         if let Expression::Identifier(ei) = extend {
-            let reference_name = ei.name.to_string();
+            let reference_name = allocator.alloc_str(&ei.name);
 
             if let Ok(decl) = declare::get_reference_type(
                 &reference_name,

@@ -1,10 +1,10 @@
-use std::process;
+use std::{cell::RefCell, process};
 
 use crate::{
-    flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram},
+    flatten::{generic::GenericEnv, result::ResultProgram},
     graph::{self, Graph},
 };
-use anyhow::{Result, bail};
+use anyhow::Result;
 use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::Program;
 
@@ -74,8 +74,12 @@ impl<'a> Flatten<'a> {
         for name in type_names.iter() {
             let graph = graph::build_graph(name.as_str(), &semantic, self.allocator);
 
-            println!("{:?}", graph);
-            let result = self.flatten_ts(name.as_str(), exclude)?;
+            let mut result = self.flatten_ts(graph, &semantic, exclude);
+
+            // target
+            if let Some(decl) = result.get_reference_type(name) {
+                result.push(decl);
+            }
 
             // Compare with previous result
             for decl in result.program.body.iter() {
@@ -86,59 +90,60 @@ impl<'a> Flatten<'a> {
         let code_gen = Codegen::new().build(&output.program);
         Ok(code_gen.code)
     }
-    pub fn flatten_ts(&'a self, type_name: &str, exclude: &[String]) -> Result<ResultProgram<'a>> {
+    pub fn flatten_ts(
+        &'a self,
+        graph_ref: &'a RefCell<Graph<'a>>,
+        semantic: &Semantic<'a>,
+        exclude: &[String],
+    ) -> ResultProgram<'a> {
         let env = GenericEnv::new();
 
         let mut result = self.result_program();
-        let semantic = self.semantic();
-
         // need to exclude type
-        result.exclude_type = exclude.iter().map(|str| str.to_string()).collect();
+        result.exclude_type = exclude
+            .iter()
+            .map(|str| self.allocator.alloc_str(str))
+            .collect();
 
-        if let Ok(decl) = utils::get_type(type_name, &semantic, &env, &self.allocator, &mut result)
-        {
-            // Stop circle reference self
-            result.visited.insert(type_name.to_string());
+        let order = Graph::collect_order(graph_ref, &self.allocator);
 
-            let target_result =
-                decl.flatten_type(&None, &semantic, &env, &self.allocator, &mut result);
+        for node in order.iter() {
+            let name = node.borrow().name;
 
-            match target_result {
-                DeclRef::Class(drc) => {
-                    let new_class = drc.clone_in(&self.allocator);
+            info!("Flatten type {:?}", node);
 
-                    result.add_class(new_class);
-                }
-                DeclRef::Interface(dri) => {
-                    let new_interface = dri.clone_in(&self.allocator);
-
-                    result.add_interface(new_interface);
-                }
-                DeclRef::TypeAlias(drt) => {
-                    let new_type_alias = drt.clone_in(&self.allocator);
-
-                    result.add_type_alias(new_type_alias);
-                }
-                _ => {}
+            if result.exclude_type.contains(name) {
+                continue;
             }
-        } else {
-            bail!("type {} is not found in AST", &type_name);
+
+            if node.borrow().self_loop {
+                result.circle_type.insert(name);
+            }
+
+            result.visited.clear();
+            if let Ok(decl) = utils::get_type(name, &semantic, &env, &self.allocator, &mut result) {
+                result.visited.insert(name);
+
+                let decl = decl.flatten_type(&None, &semantic, &env, &self.allocator, &mut result);
+
+                result.cached.insert(name, decl);
+            }
         }
 
         // add circle Class
-        let mut output_class = AstVec::new_in(&self.allocator);
+        let mut loop_type = AstVec::new_in(&self.allocator);
 
         for name in result.circle_type.iter() {
             if let Some(decl) = result.get_reference_type(name) {
                 info!("Add circle type {} ", name);
-                output_class.push(decl);
+                loop_type.push(decl);
             }
         }
 
-        for decl in output_class.iter() {
+        for decl in loop_type.iter() {
             result.push(*decl);
         }
 
-        Ok(result)
+        result
     }
 }

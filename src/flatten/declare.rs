@@ -126,7 +126,7 @@ impl<'a> DeclRef<'a> {
 /// Get reference type
 ///
 pub fn get_reference_type<'a>(
-    refer_name: &str,
+    refer_name: &'a str,
     extend_args: &'a Option<AstBox<'a, TSTypeParameterInstantiation<'a>>>,
     semantic: &Semantic<'a>,
     env: &GenericEnv<'a>,
@@ -135,7 +135,7 @@ pub fn get_reference_type<'a>(
 ) -> Result<DeclRef<'a>> {
     let result = utils::get_type(refer_name, semantic, env, allocator, result_program);
 
-    let mut new_extend_args = None;
+    let mut new_extend_args = extend_args.clone_in(allocator);
     let mut extend_arg_decl = vec![];
 
     // IF type circle reference, Need flatten it's type parameter
@@ -162,7 +162,7 @@ pub fn get_reference_type<'a>(
     }
     //
     if let Ok(decl) = result {
-        result_program.visited.insert(refer_name.to_string());
+        result_program.visited.insert(refer_name);
 
         let decl: DeclRef<'_> = decl.flatten_type(
             allocator.alloc(new_extend_args.clone_in(allocator)),
@@ -173,10 +173,6 @@ pub fn get_reference_type<'a>(
         );
 
         result_program.visited.remove(refer_name);
-
-        result_program
-            .cached
-            .insert(allocator.alloc_str(refer_name), decl);
 
         return Ok(decl);
     }
