@@ -16,6 +16,7 @@ use flatten::Flatten;
 
 mod flatten;
 mod graph;
+mod job;
 mod logger;
 
 /// Get version from package.json

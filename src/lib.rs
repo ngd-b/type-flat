@@ -5,6 +5,7 @@ use oxc_allocator::Allocator;
 
 mod flatten;
 mod graph;
+mod job;
 
 #[napi]
 pub struct Flatten {}
