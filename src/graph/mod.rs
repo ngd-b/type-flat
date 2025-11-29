@@ -142,36 +142,53 @@ pub fn traverse_collect_order<'a>(
     resolved: &mut HashSet<&'a str>,
     result: &mut AstVec<'a, &'a RefCell<Graph<'a>>>,
 ) {
-    let name;
-    let mut children = AstVec::new_in(allocator);
-    {
-        let node_ref = node.borrow();
-        name = node_ref.name;
+    let mut stack = vec![node];
 
-        for child_ref in node_ref.children.iter() {
-            children.push(*child_ref);
+    while let Some(node_ref) = stack.pop() {
+        let name;
+
+        {
+            name = node_ref.borrow().name;
+        }
+
+        if resolved.contains(name) {
+            continue;
+        }
+
+        if path.contains(name) {
+            resolved.insert(name);
+            result.push(node_ref);
+            path.remove(name);
+
+            continue;
+        }
+
+        path.insert(name);
+        stack.push(node_ref);
+
+        let mut children = AstVec::new_in(allocator);
+
+        {
+            for child_ref in node_ref.borrow().children.iter() {
+                children.push(*child_ref);
+            }
+        }
+
+        for child_ref in children.iter() {
+            let child_name = child_ref.borrow().name;
+
+            if path.contains(child_name) {
+                child_ref.borrow_mut().set_self_loop(true);
+                info!(
+                    "⚠️ Cycle Detected! Marking {} as part of a cycle.",
+                    child_name
+                );
+                continue;
+            }
+
+            if !resolved.contains(child_name) {
+                stack.push(child_ref);
+            }
         }
     }
-
-    if resolved.contains(name) {
-        return;
-    }
-
-    if path.contains(name) {
-        node.borrow_mut().set_self_loop(true);
-        info!("⚠️ Cycle Detected! Marking {} as part of a cycle.", name);
-        return;
-    }
-
-    path.insert(name);
-
-    for child_ref in children.iter() {
-        traverse_collect_order(allocator, child_ref, path, resolved, result);
-    }
-
-    resolved.insert(name);
-
-    result.push(node);
-
-    path.remove(name);
 }
