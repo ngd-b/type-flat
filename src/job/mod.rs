@@ -18,7 +18,7 @@ impl<'a> Job<'a> {
     pub fn add_work(&mut self, work: Work<'a>) {
         self.work_list.push(work);
     }
-    pub fn run(&self) {
+    pub fn run(&mut self) {
         while let Some(work) = self.work_list.pop() {}
     }
 }
