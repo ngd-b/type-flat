@@ -9,7 +9,6 @@ use tracing::info;
 use crate::flatten::{
     class,
     declare::{self, DeclRef},
-    generic::GenericEnv,
     keyword::Keyword,
     result::ResultProgram,
     type_alias,
@@ -29,7 +28,7 @@ use crate::flatten::{
 pub fn flatten_type<'a>(
     ts_type: &'a TSInterfaceDeclaration<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSInterfaceDeclaration<'a> {
@@ -51,7 +50,7 @@ pub fn flatten_type<'a>(
             };
             // Keyword type flatten
             if let Some(keyword) = Keyword::is_keyword(allocator.alloc(new_reference_type)) {
-                let result_type = keyword.flatten(semantic, env, allocator, result_program);
+                let result_type = keyword.flatten(semantic, allocator, result_program);
 
                 if let TSType::TSTypeLiteral(tl) = result_type {
                     let mut new_members = AstVec::new_in(allocator);
@@ -71,15 +70,8 @@ pub fn flatten_type<'a>(
                 continue;
             }
 
-            if let Ok(decl) = declare::get_reference_type(
-                reference_name,
-                &extend.type_arguments,
-                semantic,
-                env,
-                allocator,
-                result_program,
-            ) {
-                match decl {
+            if let Some(decl) = result_program.get_cached(reference_name) {
+                match decl.decl {
                     DeclRef::Interface(tid) => {
                         let mut new_members = AstVec::new_in(allocator);
 
@@ -136,7 +128,6 @@ pub fn flatten_type<'a>(
         let new_member = flatten_member_type(
             allocator.alloc(member.clone_in(allocator)),
             semantic,
-            env,
             allocator,
             result_program,
         );
@@ -166,7 +157,6 @@ pub fn flatten_type<'a>(
 pub fn flatten_member_type<'a>(
     member: &'a TSSignature<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSSignature<'a> {
@@ -178,7 +168,6 @@ pub fn flatten_member_type<'a>(
             let result = type_alias::flatten_ts_type(
                 allocator.alloc(tis.type_annotation.type_annotation.clone_in(allocator)),
                 semantic,
-                env,
                 allocator,
                 result_program,
             );
@@ -194,7 +183,6 @@ pub fn flatten_member_type<'a>(
                 let decl = type_alias::flatten_ts_type(
                     &param_clone.type_annotation.type_annotation,
                     semantic,
-                    env,
                     allocator,
                     result_program,
                 );
@@ -213,7 +201,6 @@ pub fn flatten_member_type<'a>(
                 let decl = type_alias::flatten_ts_type(
                     allocator.alloc(ta.type_annotation.clone_in(allocator)),
                     semantic,
-                    env,
                     allocator,
                     result_program,
                 );
@@ -237,7 +224,6 @@ pub fn flatten_member_type<'a>(
             let new_params = class::flatten_method_params_type(
                 allocator.alloc(tms.params.clone_in(allocator)),
                 semantic,
-                env,
                 allocator,
                 result_program,
             );
@@ -248,7 +234,6 @@ pub fn flatten_member_type<'a>(
                 let decl = type_alias::flatten_ts_type(
                     allocator.alloc(rt.type_annotation.clone_in(allocator)),
                     semantic,
-                    env,
                     allocator,
                     result_program,
                 );

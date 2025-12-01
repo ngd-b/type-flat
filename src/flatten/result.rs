@@ -1,20 +1,23 @@
-use std::collections::HashSet;
-
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap as AstHashMap, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, HashSet, Vec as AstVec};
 use oxc_ast::ast::{
     BindingPatternKind, Class, Program, Statement, TSInterfaceDeclaration, TSTypeAliasDeclaration,
-    VariableDeclaration,
+    TSTypeParameterDeclaration, VariableDeclaration,
 };
 
-use crate::flatten::declare::DeclRef;
+use crate::flatten::{declare::DeclRef, generic::Generic};
+
+pub struct CacheDecl<'a> {
+    pub name: &'a str,
+    pub decl: DeclRef<'a>,
+    pub generics: HashMap<'a, &'a str, Generic<'a>>,
+}
 
 pub struct ResultProgram<'a> {
     pub program: Program<'a>,
     allocator: &'a Allocator,
-    pub exclude_type: HashSet<&'a str>,
-    pub cached: AstHashMap<'a, &'a str, DeclRef<'a>>,
-    pub circle_type: HashSet<&'a str>,
-    pub visited: HashSet<&'a str>,
+    pub exclude_type: HashSet<'a, &'a str>,
+    pub cached: HashMap<'a, &'a str, CacheDecl<'a>>,
+    pub circle_type: HashSet<'a, &'a str>,
 }
 
 impl<'a> ResultProgram<'a> {
@@ -31,10 +34,9 @@ impl<'a> ResultProgram<'a> {
                 source_type: original.source_type.clone_in(allocator),
             },
             allocator,
-            exclude_type: Default::default(),
-            cached: AstHashMap::new_in(allocator),
-            circle_type: Default::default(),
-            visited: Default::default(),
+            exclude_type: HashSet::new_in(allocator),
+            cached: HashMap::new_in(allocator),
+            circle_type: HashSet::new_in(allocator),
         }
     }
     pub fn has_decl(&self, name: &str) -> bool {
@@ -174,10 +176,58 @@ impl<'a> ResultProgram<'a> {
         };
     }
 
-    // Get reference type already flatten
-    pub fn get_reference_type(&self, name: &str) -> Option<DeclRef<'a>> {
+    // Get cached type already flatten
+    pub fn get_cached(&self, name: &'a str) -> Option<&CacheDecl<'a>> {
         if let Some(decl) = self.cached.get(name) {
-            return Some(decl.clone());
+            let decl_copy: &CacheDecl<'a> = self.allocator.alloc(decl);
+
+            return Some(decl_copy);
+        }
+
+        None
+    }
+
+    // Format the cached type to TSType
+    pub fn format_cached(&self, name: &'a str) -> Option<DeclRef<'a>> {
+        if let Some(decl) = self.cached.get(name) {
+            // Collect all generics
+            let mut params = AstVec::new_in(self.allocator);
+
+            let mut generic_vec: Vec<_> = decl.generics.values().collect();
+            generic_vec.sort_by_key(|item| item.index);
+
+            for genr in generic_vec.iter() {
+                params.push(genr.ts_type.clone_in(self.allocator));
+            }
+
+            let type_params = AstBox::new_in(
+                TSTypeParameterDeclaration {
+                    span: Default::default(),
+                    params,
+                },
+                self.allocator,
+            );
+            match decl.decl {
+                DeclRef::Interface(dri) => {
+                    let mut new_interface = dri.clone_in(self.allocator);
+                    new_interface.type_parameters = Some(type_params);
+
+                    return Some(DeclRef::Interface(self.allocator.alloc(new_interface)));
+                }
+                DeclRef::TypeAlias(drt) => {
+                    let mut new_class = drt.clone_in(self.allocator);
+                    new_class.type_parameters = Some(type_params);
+
+                    return Some(DeclRef::TypeAlias(self.allocator.alloc(new_class)));
+                }
+                DeclRef::Class(drc) => {
+                    let mut new_class = drc.clone_in(self.allocator);
+                    new_class.type_parameters = Some(type_params);
+
+                    return Some(DeclRef::Class(self.allocator.alloc(new_class)));
+                }
+                _ => {}
+            }
         }
 
         None

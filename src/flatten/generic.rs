@@ -1,84 +1,62 @@
-use std::{collections::HashMap, rc::Rc};
-
-use oxc_allocator::{Allocator, Box, CloneIn, Vec as AstVec};
-use oxc_ast::ast::{TSTypeParameterDeclaration, TSTypeParameterInstantiation};
+use oxc_allocator::{Allocator, Box, CloneIn, HashMap, Vec as AstVec};
+use oxc_ast::ast::{TSTypeParameter, TSTypeParameterDeclaration};
 use oxc_semantic::Semantic;
 
-use crate::flatten::{declare::DeclRef, result::ResultProgram, type_alias};
+use crate::flatten::{result::ResultProgram, type_alias};
 
-#[derive(Default, Clone, Debug)]
-pub struct GenericEnv<'a> {
-    map: HashMap<String, Rc<DeclRef<'a>>>,
+pub struct Generic<'a> {
+    // position
+    pub index: usize,
+    pub ts_type: TSTypeParameter<'a>,
 }
-
-impl<'a> GenericEnv<'a> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-    pub fn update(&self, names: &[String], args: &[Rc<DeclRef<'a>>]) -> Self {
-        let mut map = self.map.clone();
-
-        for (name, arg) in names.iter().zip(args.iter()) {
-            map.insert(name.clone(), arg.clone());
-        }
-        GenericEnv { map }
-    }
-    pub fn get(&self, name: &str) -> Option<Rc<DeclRef<'a>>> {
-        return self.map.get(name).cloned();
-    }
-}
-
 /// #[instrument(skip(args, extend_args, semantic, env, allocator, result_program))]
 pub fn flatten_generic<'a>(
     args: &'a Option<Box<'a, TSTypeParameterDeclaration<'a>>>,
-    extend_args: &'a Option<Box<'a, TSTypeParameterInstantiation<'a>>>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
-) -> GenericEnv<'a> {
-    let mut new_env = env.clone();
+) -> HashMap<'a, &'a str, Generic<'a>> {
+    let mut env = HashMap::new_in(allocator);
 
     let arg_params = if let Some(ta) = args {
         ta.params.clone_in(allocator)
     } else {
-        return new_env;
-    };
-
-    let type_params = if let Some(ea) = extend_args {
-        ea.params.clone_in(allocator)
-    } else {
         AstVec::new_in(allocator)
     };
 
-    let mut decl_vec = Vec::new();
-    let mut decl_names = Vec::new();
+    for (index, param) in arg_params.iter().enumerate() {
+        let mut new_param = param.clone_in(allocator);
 
-    for (index, formal) in arg_params.iter().enumerate() {
-        let ts_type = if let Some(ta) = type_params.get(index) {
-            Some(ta.clone_in(allocator))
-        } else {
-            if let Some(da) = &formal.default {
-                Some(da.clone_in(allocator))
-            } else {
-                None
-            }
-        };
-        if let Some(actual) = ts_type {
+        if let Some(constraint) = &param.constraint {
             let decl = type_alias::flatten_ts_type(
-                allocator.alloc(actual),
+                allocator.alloc(constraint.clone_in(allocator)),
                 semantic,
-                &new_env,
                 allocator,
                 result_program,
             );
 
-            decl_vec.push(Rc::new(decl));
-            decl_names.push(formal.name.to_string());
+            new_param.constraint = decl.type_decl(allocator)
         }
 
-        new_env = new_env.update(&decl_names, &decl_vec);
+        if let Some(default) = &param.default {
+            let decl = type_alias::flatten_ts_type(
+                allocator.alloc(default.clone_in(allocator)),
+                semantic,
+                allocator,
+                result_program,
+            );
+
+            new_param.default = decl.type_decl(allocator)
+        }
+
+        env.insert(
+            param.name.name.as_str(),
+            Generic {
+                index,
+                ts_type: new_param,
+            },
+        );
     }
 
-    new_env
+    env
 }

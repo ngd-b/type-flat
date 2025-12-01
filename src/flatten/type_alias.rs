@@ -14,7 +14,6 @@ use tracing::info;
 use crate::flatten::{
     class,
     declare::{self, DeclRef},
-    generic::GenericEnv,
     interface,
     keyword::Keyword,
     result::ResultProgram,
@@ -26,11 +25,11 @@ use crate::flatten::{
 ///
 /// Returns a new type alias declaration
 ///
-/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(ts_type, semantic, allocator, result_program))]
 pub fn flatten_type<'a>(
     ts_type: &'a TSTypeAliasDeclaration<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSTypeAliasDeclaration<'a> {
@@ -41,7 +40,6 @@ pub fn flatten_type<'a>(
     let result = flatten_ts_type(
         &ts_type.type_annotation,
         semantic,
-        env,
         allocator,
         result_program,
     );
@@ -61,11 +59,10 @@ pub fn flatten_type<'a>(
 /// Flattens a type
 ///
 ///
-/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(ts_type, semantic, allocator, result_program))]
 pub fn flatten_ts_type<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> DeclRef<'a> {
@@ -92,27 +89,14 @@ pub fn flatten_ts_type<'a>(
 
             // Keyword type flatten
             if let Some(keyword) = Keyword::is_keyword(tr) {
-                let result_type: TSType<'_> =
-                    keyword.flatten(semantic, env, allocator, result_program);
+                let result_type: TSType<'_> = keyword.flatten(semantic, allocator, result_program);
 
                 new_type.type_annotation = result_type;
                 return DeclRef::TypeAlias(allocator.alloc(new_type));
             }
 
-            // if it's a generic type
-            if let Some(decl) = env.get(&reference_name) {
-                return *decl;
-            }
-
-            if let Ok(decl) = declare::get_reference_type(
-                &reference_name,
-                &tr.type_arguments,
-                semantic,
-                env,
-                allocator,
-                result_program,
-            ) {
-                match decl {
+            if let Some(decl) = result_program.get_cached(reference_name) {
+                match decl.decl {
                     DeclRef::Variable(_) => {}
                     other => return other,
                 }
@@ -121,18 +105,18 @@ pub fn flatten_ts_type<'a>(
         // union type. only flat not merge
         TSType::TSUnionType(ut) => {
             let new_union_type =
-                merge_ts_type(&ut.types, semantic, env, allocator, result_program, true);
+                merge_ts_type(&ut.types, semantic, allocator, result_program, true);
 
             new_type.type_annotation = new_union_type;
         }
         TSType::TSIntersectionType(it) => {
             let new_intersection_type =
-                merge_ts_type(&it.types, semantic, env, allocator, result_program, false);
+                merge_ts_type(&it.types, semantic, allocator, result_program, false);
 
             new_type.type_annotation = new_intersection_type;
         }
         TSType::TSArrayType(at) => {
-            let decl = flatten_ts_type(&at.element_type, semantic, env, allocator, result_program);
+            let decl = flatten_ts_type(&at.element_type, semantic, allocator, result_program);
 
             let mut new_array_type = at.clone_in(allocator);
 
@@ -146,13 +130,8 @@ pub fn flatten_ts_type<'a>(
             let mut elements = AstVec::new_in(allocator);
 
             for element in tut.element_types.iter() {
-                let decl = flatten_ts_type(
-                    element.to_ts_type(),
-                    semantic,
-                    env,
-                    allocator,
-                    result_program,
-                );
+                let decl =
+                    flatten_ts_type(element.to_ts_type(), semantic, allocator, result_program);
 
                 let ts_type = if let Some(ts_type) = decl.type_decl(allocator) {
                     ts_type.clone_in(allocator)
@@ -186,27 +165,22 @@ pub fn flatten_ts_type<'a>(
             }
         }
         TSType::TSConditionalType(ct) => {
-            let ts_type = flatten_ts_conditional_type(ct, semantic, env, allocator, result_program);
+            let ts_type = flatten_ts_conditional_type(ct, semantic, allocator, result_program);
 
             new_type.type_annotation = ts_type;
         }
         TSType::TSMappedType(mt) => {
-            let ts_type = flatten_ts_mapped_type(mt, semantic, env, allocator, result_program);
+            let ts_type = flatten_ts_mapped_type(mt, semantic, allocator, result_program);
 
             new_type.type_annotation = ts_type;
         }
         TSType::TSTypeOperatorType(tot) => match tot.operator {
             TSTypeOperatorOperator::Keyof => {
-                let decl = flatten_ts_type(
-                    &tot.type_annotation,
-                    semantic,
-                    env,
-                    allocator,
-                    result_program,
-                );
+                let decl =
+                    flatten_ts_type(&tot.type_annotation, semantic, allocator, result_program);
 
                 if let Some(tad) =
-                    utils::get_keyof_union_type(decl, semantic, env, allocator, result_program)
+                    utils::get_keyof_union_type(decl, semantic, allocator, result_program)
                 {
                     new_type.type_annotation = tad;
                 }
@@ -215,9 +189,8 @@ pub fn flatten_ts_type<'a>(
         },
         TSType::TSIndexedAccessType(idt) => {
             let object_decl =
-                flatten_ts_type(&idt.object_type, semantic, env, allocator, result_program);
-            let index_decl =
-                flatten_ts_type(&idt.index_type, semantic, env, allocator, result_program);
+                flatten_ts_type(&idt.object_type, semantic, allocator, result_program);
+            let index_decl = flatten_ts_type(&idt.index_type, semantic, allocator, result_program);
 
             if let (Some(object_type), Some(index_type)) = (
                 object_decl.type_decl(allocator),
@@ -228,7 +201,6 @@ pub fn flatten_ts_type<'a>(
                     allocator.alloc(object_type),
                     allocator.alloc(index_type),
                     semantic,
-                    env,
                     allocator,
                     result_program,
                 );
@@ -240,15 +212,8 @@ pub fn flatten_ts_type<'a>(
             TSTypeQueryExprName::IdentifierReference(ir) => {
                 let reference_name = ir.name.as_str();
 
-                if let Ok(decl) = declare::get_reference_type(
-                    reference_name,
-                    &tq.type_arguments,
-                    semantic,
-                    env,
-                    allocator,
-                    result_program,
-                ) {
-                    return decl;
+                if let Some(decl) = result_program.get_cached(reference_name) {
+                    return decl.decl;
                 }
             }
             TSTypeQueryExprName::QualifiedName(qn) => {
@@ -256,7 +221,6 @@ pub fn flatten_ts_type<'a>(
                     qn,
                     &tq.type_arguments,
                     semantic,
-                    env,
                     allocator,
                     result_program,
                 );
@@ -268,13 +232,7 @@ pub fn flatten_ts_type<'a>(
             _ => {}
         },
         TSType::TSParenthesizedType(tpt) => {
-            let decl = flatten_ts_type(
-                &tpt.type_annotation,
-                semantic,
-                env,
-                allocator,
-                result_program,
-            );
+            let decl = flatten_ts_type(&tpt.type_annotation, semantic, allocator, result_program);
 
             let mut new_parenthesized_type = tpt.clone_in(allocator);
 
@@ -288,13 +246,8 @@ pub fn flatten_ts_type<'a>(
             let mut members = AstVec::new_in(allocator);
 
             for member in ttl.members.iter() {
-                let new_member = interface::flatten_member_type(
-                    member,
-                    semantic,
-                    env,
-                    allocator,
-                    result_program,
-                );
+                let new_member =
+                    interface::flatten_member_type(member, semantic, allocator, result_program);
 
                 members.push(new_member);
             }
@@ -311,7 +264,6 @@ pub fn flatten_ts_type<'a>(
             let decl = flatten_ts_type(
                 &tft.return_type.type_annotation,
                 semantic,
-                env,
                 allocator,
                 result_program,
             );
@@ -323,7 +275,6 @@ pub fn flatten_ts_type<'a>(
             let new_params = class::flatten_method_params_type(
                 allocator.alloc(tft.params.clone_in(allocator)),
                 semantic,
-                env,
                 allocator,
                 result_program,
             );
@@ -341,11 +292,11 @@ pub fn flatten_ts_type<'a>(
 ///
 /// merge union or intersection type
 ///
-/// #[instrument(skip(types, semantic, env, allocator, result_program),fields(len=types.len()))]
+/// #[instrument(skip(types, semantic, allocator, result_program),fields(len=types.len()))]
 pub fn merge_ts_type<'a>(
     types: &'a [TSType<'a>],
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
     is_union: bool,
@@ -355,7 +306,7 @@ pub fn merge_ts_type<'a>(
     let mut union_types = AstVec::new_in(allocator);
 
     for it in types.iter() {
-        let decl = flatten_ts_type(it, semantic, env, allocator, result_program);
+        let decl = flatten_ts_type(it, semantic, allocator, result_program);
 
         if let Some(ts_type) = decl.type_decl(allocator) {
             if is_union {
@@ -394,12 +345,12 @@ pub fn merge_ts_type<'a>(
 ///
 /// Flatten the index access type
 ///
-/// #[instrument(skip(object_type, index_type, semantic, env, allocator, result_program))]
+/// #[instrument(skip(object_type, index_type, semantic, allocator, result_program))]
 pub fn flatten_index_access_type<'a>(
     object_type: &'a TSType<'a>,
     index_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSType<'a> {
@@ -419,7 +370,6 @@ pub fn flatten_index_access_type<'a>(
                     sl.value.as_str(),
                     object_type,
                     semantic,
-                    env,
                     allocator,
                     result_program,
                 );
@@ -437,7 +387,6 @@ pub fn flatten_index_access_type<'a>(
                     object_type,
                     mebmer,
                     semantic,
-                    env,
                     allocator,
                     result_program,
                 ));
@@ -488,25 +437,19 @@ pub fn flatten_index_access_type<'a>(
 ///
 /// Rescurive the ts type QueryQualified
 ///
-/// #[instrument(skip(qq, extend_args, semantic, env, allocator, result_program))]
+/// #[instrument(skip(qq, extend_args, semantic, allocator, result_program))]
 pub fn flatten_ts_query_qualified<'a>(
     qq: &'a TSQualifiedName<'a>,
     extend_args: &'a Option<AstBox<'a, TSTypeParameterInstantiation<'a>>>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Result<TSType<'a>> {
     let decl_type = match &qq.left {
         TSTypeName::QualifiedName(qn) => {
-            let result = flatten_ts_query_qualified(
-                &qn,
-                extend_args,
-                semantic,
-                env,
-                allocator,
-                result_program,
-            );
+            let result =
+                flatten_ts_query_qualified(&qn, extend_args, semantic, allocator, result_program);
 
             if let Ok(ts_type) = result {
                 Some(ts_type)
@@ -517,15 +460,8 @@ pub fn flatten_ts_query_qualified<'a>(
         TSTypeName::IdentifierReference(ir) => {
             let reference_name = ir.name.as_str();
 
-            if let Ok(decl) = declare::get_reference_type(
-                reference_name,
-                extend_args,
-                semantic,
-                env,
-                allocator,
-                result_program,
-            ) {
-                if let Some(ts_type) = decl.type_decl(allocator) {
+            if let Some(decl) = result_program.get_cached(reference_name) {
+                if let Some(ts_type) = decl.decl.type_decl(allocator) {
                     Some(ts_type)
                 } else {
                     None
@@ -542,7 +478,6 @@ pub fn flatten_ts_query_qualified<'a>(
             &qq.right.name.as_str(),
             allocator.alloc(ts_type),
             semantic,
-            env,
             allocator,
             result_program,
         );
@@ -561,15 +496,15 @@ pub fn flatten_ts_query_qualified<'a>(
 pub fn flatten_ts_conditional_type<'a>(
     ct: &'a TSConditionalType<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSType<'a> {
-    let check_type = flatten_ts_type(&ct.check_type, semantic, env, allocator, result_program);
-    let extends_type = flatten_ts_type(&ct.extends_type, semantic, env, allocator, result_program);
+    let check_type = flatten_ts_type(&ct.check_type, semantic, allocator, result_program);
+    let extends_type = flatten_ts_type(&ct.extends_type, semantic, allocator, result_program);
 
-    let true_type = flatten_ts_type(&ct.true_type, semantic, env, allocator, result_program);
-    let false_type = flatten_ts_type(&ct.false_type, semantic, env, allocator, result_program);
+    let true_type = flatten_ts_type(&ct.true_type, semantic, allocator, result_program);
+    let false_type = flatten_ts_type(&ct.false_type, semantic, allocator, result_program);
 
     // IF extends type is empty, use false_type
     if let (Some(extend_type), Some(false_type)) = (
@@ -628,7 +563,7 @@ pub fn flatten_ts_conditional_type<'a>(
 pub fn flatten_ts_mapped_type<'a>(
     mt: &'a TSMappedType<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSType<'a> {
@@ -638,21 +573,9 @@ pub fn flatten_ts_mapped_type<'a>(
     let key_name = mt.type_parameter.name.to_string();
 
     let key_type = if let Some(con) = &mt.type_parameter.constraint {
-        Some(flatten_ts_type(
-            &con,
-            semantic,
-            env,
-            allocator,
-            result_program,
-        ))
+        Some(flatten_ts_type(&con, semantic, allocator, result_program))
     } else if let Some(de) = &mt.type_parameter.default {
-        Some(flatten_ts_type(
-            &de,
-            semantic,
-            env,
-            allocator,
-            result_program,
-        ))
+        Some(flatten_ts_type(&de, semantic, allocator, result_program))
     } else {
         None
     };
@@ -688,7 +611,7 @@ pub fn flatten_ts_mapped_type<'a>(
     };
 
     if let Some(ts_type) = &mt.type_annotation {
-        let decl = flatten_ts_type(ts_type, semantic, env, allocator, result_program);
+        let decl = flatten_ts_type(ts_type, semantic, allocator, result_program);
 
         if let Some(ts_type) = decl.type_decl(allocator) {
             new_mapped_type.type_annotation = Some(ts_type.clone_in(allocator));
@@ -709,7 +632,6 @@ pub fn flatten_ts_mapped_type<'a>(
                                     key.as_str(),
                                     allocator.alloc(tia.object_type.clone_in(allocator)),
                                     semantic,
-                                    env,
                                     allocator,
                                     result_program,
                                 );

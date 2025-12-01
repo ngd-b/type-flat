@@ -1,7 +1,7 @@
 use std::{cell::RefCell, process};
 
 use crate::{
-    flatten::{generic::GenericEnv, result::ResultProgram},
+    flatten::result::ResultProgram,
     graph::{self, Graph},
 };
 use anyhow::Result;
@@ -77,7 +77,7 @@ impl<'a> Flatten<'a> {
             let mut result = self.flatten_ts(graph, &semantic, exclude);
 
             // target
-            if let Some(decl) = result.get_reference_type(name) {
+            if let Some(decl) = result.format_cached(name) {
                 result.push(decl);
             }
 
@@ -96,14 +96,13 @@ impl<'a> Flatten<'a> {
         semantic: &Semantic<'a>,
         exclude: &[String],
     ) -> ResultProgram<'a> {
-        let env = GenericEnv::new();
-
         let mut result = self.result_program();
         // need to exclude type
-        result.exclude_type = exclude
-            .iter()
-            .map(|str| self.allocator.alloc_str(str))
-            .collect();
+        for exclude_str in exclude {
+            result
+                .exclude_type
+                .insert(self.allocator.alloc_str(&exclude_str));
+        }
 
         let order = Graph::collect_order(graph_ref, &self.allocator);
 
@@ -120,13 +119,8 @@ impl<'a> Flatten<'a> {
                 result.circle_type.insert(name);
             }
 
-            result.visited.clear();
-            if let Ok(decl) = utils::get_type(name, &semantic, &env, &self.allocator, &mut result) {
-                result.visited.insert(name);
-
-                let decl = decl.flatten_type(&None, &semantic, &env, &self.allocator, &mut result);
-
-                result.cached.insert(name, decl);
+            if let Ok(decl) = utils::get_type(name, &semantic, &self.allocator, &mut result) {
+                decl.flatten_type(&semantic, &self.allocator, &mut result);
             }
         }
 
@@ -134,7 +128,7 @@ impl<'a> Flatten<'a> {
         let mut loop_type = AstVec::new_in(&self.allocator);
 
         for name in result.circle_type.iter() {
-            if let Some(decl) = result.get_reference_type(name) {
+            if let Some(decl) = result.format_cached(name) {
                 info!("Add circle type {} ", name);
                 loop_type.push(decl);
             }

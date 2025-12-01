@@ -5,7 +5,6 @@ use oxc_ast::ast::{
 use oxc_semantic::Semantic;
 
 use crate::flatten::{
-    generic::GenericEnv,
     result::ResultProgram,
     type_alias,
     utils::{self},
@@ -92,7 +91,6 @@ impl<'a> Keyword<'a> {
     pub fn flatten(
         &self,
         semantic: &Semantic<'a>,
-        env: &GenericEnv<'a>,
         allocator: &'a Allocator,
         result_program: &mut ResultProgram<'a>,
     ) -> TSType<'a> {
@@ -104,7 +102,6 @@ impl<'a> Keyword<'a> {
                             true,
                             ta_type,
                             semantic,
-                            env,
                             allocator,
                             result_program,
                         );
@@ -114,13 +111,7 @@ impl<'a> Keyword<'a> {
             Keyword::Readonly(ts_type) => {
                 if let Some(ta) = &ts_type.type_arguments {
                     if let Some(ta_type) = ta.params.first() {
-                        return set_type_readonly(
-                            ta_type,
-                            semantic,
-                            env,
-                            allocator,
-                            result_program,
-                        );
+                        return set_type_readonly(ta_type, semantic, allocator, result_program);
                     }
                 };
             }
@@ -131,7 +122,6 @@ impl<'a> Keyword<'a> {
                             false,
                             ta_type,
                             semantic,
-                            env,
                             allocator,
                             result_program,
                         );
@@ -150,7 +140,6 @@ impl<'a> Keyword<'a> {
                         let value_type = if let Some(ts_type) = type_alias::flatten_ts_type(
                             allocator.alloc(value_type),
                             semantic,
-                            env,
                             allocator,
                             result_program,
                         )
@@ -165,7 +154,6 @@ impl<'a> Keyword<'a> {
                         if let Some(key_type) = type_alias::flatten_ts_type(
                             key_type,
                             semantic,
-                            env,
                             allocator,
                             result_program,
                         )
@@ -217,13 +205,13 @@ impl<'a> Keyword<'a> {
             }
             Keyword::Pick(refer) => {
                 let ts_type =
-                    flatten_pick_omit(self.name(), refer, semantic, env, allocator, result_program);
+                    flatten_pick_omit(self.name(), refer, semantic, allocator, result_program);
 
                 return TSType::TSTypeLiteral(AstBox::new_in(ts_type, allocator));
             }
             Keyword::Omit(refer) => {
                 let ts_type =
-                    flatten_pick_omit(self.name(), refer, semantic, env, allocator, result_program);
+                    flatten_pick_omit(self.name(), refer, semantic, allocator, result_program);
 
                 return TSType::TSTypeLiteral(AstBox::new_in(ts_type, allocator));
             }
@@ -233,7 +221,6 @@ impl<'a> Keyword<'a> {
                         let decl = type_alias::flatten_ts_type(
                             ta_type,
                             semantic,
-                            env,
                             allocator,
                             result_program,
                         );
@@ -258,11 +245,10 @@ impl<'a> Keyword<'a> {
 pub fn get_type_members<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> AstVec<'a, TSSignature<'a>> {
-    let decl = type_alias::flatten_ts_type(ts_type, semantic, env, allocator, result_program);
+    let decl = type_alias::flatten_ts_type(ts_type, semantic, allocator, result_program);
 
     let members = AstVec::new_in(allocator);
 
@@ -284,7 +270,6 @@ pub fn set_type_required_or_optional<'a>(
     is_required: bool,
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSType<'a> {
@@ -295,7 +280,7 @@ pub fn set_type_required_or_optional<'a>(
 
     let mut members = AstVec::new_in(allocator);
 
-    for member in get_type_members(ts_type, semantic, env, allocator, result_program).iter() {
+    for member in get_type_members(ts_type, semantic, allocator, result_program).iter() {
         match member {
             TSSignature::TSPropertySignature(tps) => {
                 let mut mb = tps.clone_in(allocator);
@@ -324,7 +309,7 @@ pub fn set_type_required_or_optional<'a>(
 pub fn set_type_readonly<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSType<'a> {
@@ -335,7 +320,7 @@ pub fn set_type_readonly<'a>(
 
     let mut members = AstVec::new_in(allocator);
 
-    for member in get_type_members(ts_type, semantic, env, allocator, result_program).iter() {
+    for member in get_type_members(ts_type, semantic, allocator, result_program).iter() {
         match member {
             TSSignature::TSIndexSignature(tis) => {
                 let mut mb = tis.clone_in(allocator);
@@ -366,7 +351,7 @@ pub fn flatten_pick_omit<'a>(
     kind: &str,
     refer: &'a TSTypeReference<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSTypeLiteral<'a> {
@@ -389,7 +374,6 @@ pub fn flatten_pick_omit<'a>(
         type_alias::flatten_ts_type(
             allocator.alloc(ts_type.clone_in(allocator)),
             semantic,
-            env,
             allocator,
             result_program,
         )

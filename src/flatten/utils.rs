@@ -13,7 +13,7 @@ use oxc_ast::{
 use oxc_semantic::Semantic;
 use tracing::info;
 
-use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgram};
+use crate::flatten::{declare::DeclRef, result::ResultProgram};
 
 ///
 ///
@@ -23,22 +23,9 @@ use crate::flatten::{declare::DeclRef, generic::GenericEnv, result::ResultProgra
 pub fn get_type<'a>(
     reference_name: &'a str,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
-    // self loop
-    if result_program.visited.contains(reference_name) {
-        info!("Self Circular loop reference: {}", reference_name);
-        bail!("Self Circular loop reference: {}", reference_name);
-    }
-    // cached
-    if let Some(value) = result_program.get_reference_type(reference_name) {
-        info!("Get cached reference_name:{} will output!", reference_name);
-
-        return Ok(value.clone());
-    }
-
     info!("Get reference_name:{}", reference_name);
     let mut decls = AstVec::new_in(allocator);
 
@@ -87,13 +74,7 @@ pub fn get_type<'a>(
     if decls.len() > 1 {
         info!("Merge multi type {}, len {}", reference_name, decls.len());
 
-        return merge_type_to_class(
-            allocator.alloc(decls),
-            semantic,
-            env,
-            allocator,
-            result_program,
-        );
+        return merge_type_to_class(allocator.alloc(decls), semantic, allocator, result_program);
     }
 
     info!("Not found reference_name:{}", reference_name);
@@ -107,7 +88,6 @@ pub fn get_type<'a>(
 pub fn merge_type_to_class<'a>(
     decls: &'a [DeclRef<'a>],
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
@@ -116,7 +96,7 @@ pub fn merge_type_to_class<'a>(
     let mut members: AstVec<'_, TSSignature<'a>> = AstVec::new_in(allocator);
 
     for decl in decls.iter().take(decls.len().saturating_sub(1)) {
-        let decl = decl.flatten_type(&None, semantic, env, allocator, result_program);
+        let decl = decl.flatten_type(semantic, allocator, result_program);
 
         if let Some(ts_type) = decl.type_decl(allocator) {
             match ts_type {
@@ -225,7 +205,6 @@ pub fn merge_type_to_class<'a>(
 pub fn get_keyof_union_type<'a>(
     decl: DeclRef<'a>,
     _semantic: &Semantic<'a>,
-    _env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     _result_program: &mut ResultProgram<'a>,
 ) -> Option<TSType<'a>> {
@@ -294,7 +273,7 @@ pub fn get_field_type<'a>(
     field_name: &str,
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Option<TSType<'a>> {
@@ -363,7 +342,7 @@ pub fn get_field_type<'a>(
 
             for member in tut.types.iter() {
                 if let Some(new_member) =
-                    get_field_type(field_name, member, semantic, env, allocator, result_program)
+                    get_field_type(field_name, member, semantic, allocator, result_program)
                 {
                     members.push(new_member);
                 }

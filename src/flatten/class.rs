@@ -5,12 +5,7 @@ use oxc_ast::ast::{
 use oxc_semantic::Semantic;
 use tracing::info;
 
-use crate::flatten::{
-    declare::{self, DeclRef},
-    generic::GenericEnv,
-    result::ResultProgram,
-    type_alias, utils,
-};
+use crate::flatten::{declare::DeclRef, result::ResultProgram, type_alias, utils};
 
 ///
 /// Flatten the class type
@@ -19,7 +14,7 @@ use crate::flatten::{
 pub fn flatten_type<'a>(
     class_type: &'a Class<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Class<'a> {
@@ -36,15 +31,8 @@ pub fn flatten_type<'a>(
         if let Expression::Identifier(ei) = extend {
             let reference_name = allocator.alloc_str(&ei.name);
 
-            if let Ok(decl) = declare::get_reference_type(
-                &reference_name,
-                &class_type.super_type_arguments,
-                semantic,
-                env,
-                allocator,
-                result_program,
-            ) {
-                match decl {
+            if let Some(decl) = result_program.get_cached(reference_name) {
+                match decl.decl {
                     DeclRef::Class(tcd) => {
                         let mut new_elements = AstVec::new_in(allocator);
 
@@ -73,7 +61,6 @@ pub fn flatten_type<'a>(
         if let Some(new_element) = flatten_class_elements_type(
             allocator.alloc(element.clone_in(allocator)),
             semantic,
-            env,
             allocator,
             result_program,
         ) {
@@ -104,7 +91,7 @@ pub fn flatten_type<'a>(
 pub fn flatten_class_elements_type<'a>(
     element: &'a ClassElement<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Option<ClassElement<'a>> {
@@ -115,7 +102,6 @@ pub fn flatten_class_elements_type<'a>(
             let decl = type_alias::flatten_ts_type(
                 &tis.type_annotation.type_annotation,
                 semantic,
-                env,
                 allocator,
                 result_program,
             );
@@ -141,7 +127,6 @@ pub fn flatten_class_elements_type<'a>(
                 let decl = type_alias::flatten_ts_type(
                     &ta.type_annotation,
                     semantic,
-                    env,
                     allocator,
                     result_program,
                 );
@@ -177,7 +162,6 @@ pub fn flatten_class_elements_type<'a>(
                 let decl = type_alias::flatten_ts_type(
                     &return_type.type_annotation,
                     semantic,
-                    env,
                     allocator,
                     result_program,
                 );
@@ -191,13 +175,8 @@ pub fn flatten_class_elements_type<'a>(
                 new_element.value.return_type = Some(new_return_type);
             }
 
-            let new_params = flatten_method_params_type(
-                &tmd.value.params,
-                semantic,
-                env,
-                allocator,
-                result_program,
-            );
+            let new_params =
+                flatten_method_params_type(&tmd.value.params, semantic, allocator, result_program);
             new_element.value.params = AstBox::new_in(new_params, allocator);
 
             Some(ClassElement::MethodDefinition(new_element))
@@ -212,7 +191,7 @@ pub fn flatten_class_elements_type<'a>(
 pub fn flatten_method_params_type<'a>(
     params: &'a FormalParameters<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
+
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> FormalParameters<'a> {
@@ -228,7 +207,6 @@ pub fn flatten_method_params_type<'a>(
             let decl = type_alias::flatten_ts_type(
                 &item_type.type_annotation,
                 semantic,
-                env,
                 allocator,
                 result_program,
             );
@@ -252,7 +230,6 @@ pub fn flatten_method_params_type<'a>(
             let decl = type_alias::flatten_ts_type(
                 &rest_type.type_annotation,
                 semantic,
-                env,
                 allocator,
                 result_program,
             );

@@ -2,16 +2,15 @@ use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::VariableDeclaration;
 use oxc_semantic::Semantic;
 
-use crate::flatten::{generic::GenericEnv, result::ResultProgram, type_alias};
+use crate::flatten::{result::ResultProgram, type_alias};
 
 ///
 /// Flatten the class type
 ///
-/// #[instrument(skip(var_const, semantic, env, allocator, result_program))]
+/// #[instrument(skip(var_const, semantic, allocator, result_program))]
 pub fn flatten_type<'a>(
     var_const: &'a VariableDeclaration<'a>,
     semantic: &Semantic<'a>,
-    env: &GenericEnv<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> VariableDeclaration<'a> {
@@ -24,7 +23,6 @@ pub fn flatten_type<'a>(
             let decl = type_alias::flatten_ts_type(
                 &ta.type_annotation,
                 semantic,
-                env,
                 allocator,
                 result_program,
             );
