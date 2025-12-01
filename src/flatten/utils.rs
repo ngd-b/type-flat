@@ -96,7 +96,7 @@ pub fn merge_type_to_class<'a>(
     let mut members: AstVec<'_, TSSignature<'a>> = AstVec::new_in(allocator);
 
     for decl in decls.iter().take(decls.len().saturating_sub(1)) {
-        let decl = decl.flatten_type(semantic, allocator, result_program);
+        decl.flatten_type(semantic, allocator, result_program);
 
         if let Some(ts_type) = decl.type_decl(allocator) {
             match ts_type {

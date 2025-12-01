@@ -200,29 +200,34 @@ impl<'a> ResultProgram<'a> {
                 params.push(genr.ts_type.clone_in(self.allocator));
             }
 
-            let type_params = AstBox::new_in(
-                TSTypeParameterDeclaration {
-                    span: Default::default(),
-                    params,
-                },
-                self.allocator,
-            );
+            let type_params = if params.is_empty() {
+                None
+            } else {
+                Some(AstBox::new_in(
+                    TSTypeParameterDeclaration {
+                        span: Default::default(),
+                        params,
+                    },
+                    self.allocator,
+                ))
+            };
+
             match decl.decl {
                 DeclRef::Interface(dri) => {
                     let mut new_interface = dri.clone_in(self.allocator);
-                    new_interface.type_parameters = Some(type_params);
+                    new_interface.type_parameters = type_params;
 
                     return Some(DeclRef::Interface(self.allocator.alloc(new_interface)));
                 }
                 DeclRef::TypeAlias(drt) => {
                     let mut new_class = drt.clone_in(self.allocator);
-                    new_class.type_parameters = Some(type_params);
+                    new_class.type_parameters = type_params;
 
                     return Some(DeclRef::TypeAlias(self.allocator.alloc(new_class)));
                 }
                 DeclRef::Class(drc) => {
                     let mut new_class = drc.clone_in(self.allocator);
-                    new_class.type_parameters = Some(type_params);
+                    new_class.type_parameters = type_params;
 
                     return Some(DeclRef::Class(self.allocator.alloc(new_class)));
                 }

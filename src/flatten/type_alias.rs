@@ -14,9 +14,9 @@ use tracing::info;
 use crate::flatten::{
     class,
     declare::{self, DeclRef},
-    interface,
+    generic, interface,
     keyword::Keyword,
-    result::ResultProgram,
+    result::{CacheDecl, ResultProgram},
     utils::{self},
 };
 
@@ -32,10 +32,16 @@ pub fn flatten_type<'a>(
 
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
-) -> TSTypeAliasDeclaration<'a> {
+) -> CacheDecl<'a> {
     let ts_name = ts_type.id.name.as_str();
     info!("Flatten type {}", ts_name);
 
+    let env = generic::flatten_generic(
+        &ts_type.type_parameters,
+        semantic,
+        allocator,
+        result_program,
+    );
     //
     let result = flatten_ts_type(
         &ts_type.type_annotation,
@@ -52,7 +58,13 @@ pub fn flatten_type<'a>(
     }
 
     info!("Flatten type {}, Success!", ts_name);
-    new_type
+
+    let decl = CacheDecl {
+        name: ts_name,
+        decl: DeclRef::TypeAlias(allocator.alloc(new_type)),
+        generics: env,
+    };
+    decl
 }
 
 ///
@@ -296,7 +308,6 @@ pub fn flatten_ts_type<'a>(
 pub fn merge_ts_type<'a>(
     types: &'a [TSType<'a>],
     semantic: &Semantic<'a>,
-
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
     is_union: bool,

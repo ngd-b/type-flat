@@ -5,13 +5,7 @@ use oxc_ast::ast::{
 };
 use oxc_semantic::Semantic;
 
-use crate::flatten::{
-    class,
-    generic::{self},
-    interface,
-    result::{CacheDecl, ResultProgram},
-    type_alias, utils, variable,
-};
+use crate::flatten::{class, interface, result::ResultProgram, type_alias, utils, variable};
 
 #[derive(Debug, Clone, Copy)]
 pub enum DeclRef<'a> {
@@ -59,90 +53,30 @@ impl<'a> DeclRef<'a> {
         semantic: &Semantic<'a>,
         allocator: &'a Allocator,
         result_program: &mut ResultProgram<'a>,
-    ) -> DeclRef<'a> {
-        let decl = match self {
+    ) {
+        match self {
             DeclRef::Interface(tid) => {
-                let env = generic::flatten_generic(
-                    &tid.type_parameters,
-                    semantic,
-                    allocator,
-                    result_program,
-                );
+                let decl = interface::flatten_type(tid, semantic, allocator, result_program);
 
-                let ts_interface =
-                    interface::flatten_type(tid, semantic, allocator, result_program);
-
-                let decl = DeclRef::Interface(allocator.alloc(ts_interface));
-
-                result_program.cached.insert(
-                    &tid.id.name,
-                    CacheDecl {
-                        name: &tid.id.name,
-                        decl: decl,
-                        generics: env,
-                    },
-                );
-
-                decl
+                result_program.cached.insert(decl.name, decl);
             }
             DeclRef::TypeAlias(tad) => {
-                let env = generic::flatten_generic(
-                    &tad.type_parameters,
-                    semantic,
-                    allocator,
-                    result_program,
-                );
+                let decl = type_alias::flatten_type(tad, semantic, allocator, result_program);
 
-                let ts_class = type_alias::flatten_type(tad, semantic, allocator, result_program);
-
-                let decl = DeclRef::TypeAlias(allocator.alloc(ts_class));
-
-                result_program.cached.insert(
-                    &tad.id.name,
-                    CacheDecl {
-                        name: &tad.id.name,
-                        decl,
-                        generics: env,
-                    },
-                );
-
-                decl
+                result_program.cached.insert(decl.name, decl);
             }
             DeclRef::Class(tcd) => {
-                let env = generic::flatten_generic(
-                    &tcd.type_parameters,
-                    semantic,
-                    allocator,
-                    result_program,
-                );
+                let decl = class::flatten_type(tcd, semantic, allocator, result_program);
 
-                let ts_class = class::flatten_type(tcd, semantic, allocator, result_program);
-
-                let decl = DeclRef::Class(allocator.alloc(ts_class));
-
-                if let Some(id) = &tcd.id {
-                    result_program.cached.insert(
-                        &id.name,
-                        CacheDecl {
-                            name: &id.name,
-                            decl,
-                            generics: env,
-                        },
-                    );
-                };
-
-                decl
+                result_program.cached.insert(decl.name, decl);
             }
             DeclRef::Variable(drv) => {
                 let decl = variable::flatten_type(drv, semantic, allocator, result_program);
 
-                DeclRef::Variable(allocator.alloc(decl))
+                let decl = DeclRef::Variable(allocator.alloc(decl));
+
+                result_program.push(decl);
             }
         };
-
-        if decl.type_decl(allocator).is_none() {
-            result_program.push(decl);
-        }
-        decl
     }
 }

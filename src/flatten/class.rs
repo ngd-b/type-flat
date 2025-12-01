@@ -5,7 +5,12 @@ use oxc_ast::ast::{
 use oxc_semantic::Semantic;
 use tracing::info;
 
-use crate::flatten::{declare::DeclRef, result::ResultProgram, type_alias, utils};
+use crate::flatten::{
+    declare::DeclRef,
+    generic,
+    result::{CacheDecl, ResultProgram},
+    type_alias, utils,
+};
 
 ///
 /// Flatten the class type
@@ -17,7 +22,7 @@ pub fn flatten_type<'a>(
 
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
-) -> Class<'a> {
+) -> CacheDecl<'a> {
     let class_name = if let Some(name) = class_type.name() {
         name.as_str()
     } else {
@@ -26,6 +31,12 @@ pub fn flatten_type<'a>(
     info!("Flatten class type {}", class_name);
     let mut elements = class_type.body.body.clone_in(allocator);
 
+    let env = generic::flatten_generic(
+        &class_type.type_parameters,
+        semantic,
+        allocator,
+        result_program,
+    );
     // Flatten class extends
     if let Some(extend) = &class_type.super_class {
         if let Expression::Identifier(ei) = extend {
@@ -81,7 +92,13 @@ pub fn flatten_type<'a>(
         class_name,
         new_class.body.body.len()
     );
-    new_class
+
+    let decl = CacheDecl {
+        name: class_name,
+        decl: DeclRef::Class(allocator.alloc(new_class)),
+        generics: env,
+    };
+    decl
 }
 
 ///

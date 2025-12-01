@@ -9,6 +9,7 @@ pub struct Generic<'a> {
     pub index: usize,
     pub ts_type: TSTypeParameter<'a>,
 }
+
 /// #[instrument(skip(args, extend_args, semantic, env, allocator, result_program))]
 pub fn flatten_generic<'a>(
     args: &'a Option<Box<'a, TSTypeParameterDeclaration<'a>>>,

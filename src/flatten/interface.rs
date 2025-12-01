@@ -8,9 +8,10 @@ use tracing::info;
 
 use crate::flatten::{
     class,
-    declare::{self, DeclRef},
+    declare::DeclRef,
+    generic,
     keyword::Keyword,
-    result::ResultProgram,
+    result::{CacheDecl, ResultProgram},
     type_alias,
     utils::{self},
 };
@@ -21,20 +22,26 @@ use crate::flatten::{
 /// Parameters:
 /// - ts_type - The type declaration to flatten
 /// - semantic - The semantic information of the program
-/// - env - The generic environment
 /// - allocator - The allocator
 ///
 /// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn flatten_type<'a>(
     ts_type: &'a TSInterfaceDeclaration<'a>,
     semantic: &Semantic<'a>,
-
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
-) -> TSInterfaceDeclaration<'a> {
+) -> CacheDecl<'a> {
     let ts_name = ts_type.id.name.as_str();
 
     info!("Flatten interface type {}", ts_name);
+
+    // Handle the type parameters
+    let env = generic::flatten_generic(
+        &ts_type.type_parameters,
+        semantic,
+        allocator,
+        result_program,
+    );
     // all extend type. include self
     let mut members = ts_type.body.body.clone_in(allocator);
 
@@ -43,10 +50,19 @@ pub fn flatten_type<'a>(
         if let Expression::Identifier(ei) = &extend.expression {
             let reference_name = allocator.alloc_str(&ei.name);
 
+            let extend_env = if let Some(ta) = &extend.type_arguments {
+                let new_params = ta.clone_in(allocator);
+
+                for param in ta.params.iter() {}
+
+                Some(new_params)
+            } else {
+                extend.type_arguments.clone_in(allocator)
+            };
             let new_reference_type = TSTypeReference {
                 span: extend.span.clone_in(allocator),
                 type_name: TSTypeName::IdentifierReference(ei.clone_in(allocator)),
-                type_arguments: extend.type_arguments.clone_in(allocator),
+                type_arguments: extend_env,
             };
             // Keyword type flatten
             if let Some(keyword) = Keyword::is_keyword(allocator.alloc(new_reference_type)) {
@@ -82,6 +98,7 @@ pub fn flatten_type<'a>(
                             {
                                 continue;
                             }
+
                             new_members.push(member.clone_in(allocator));
                         }
 
@@ -148,7 +165,13 @@ pub fn flatten_type<'a>(
         new_type.body.body.len()
     );
 
-    new_type
+    let decl = CacheDecl {
+        name: ts_name,
+        decl: DeclRef::Interface(allocator.alloc(new_type)),
+        generics: env,
+    };
+
+    decl
 }
 
 ///
