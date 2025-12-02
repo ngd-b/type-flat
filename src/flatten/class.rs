@@ -19,7 +19,6 @@ use crate::flatten::{
 pub fn flatten_type<'a>(
     class_type: &'a Class<'a>,
     semantic: &Semantic<'a>,
-
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> CacheDecl<'a> {
@@ -37,6 +36,12 @@ pub fn flatten_type<'a>(
         allocator,
         result_program,
     );
+
+    let mut env_keys = AstVec::new_in(allocator);
+
+    for (&key, _) in env.iter() {
+        env_keys.push(key);
+    }
     // Flatten class extends
     if let Some(extend) = &class_type.super_class {
         if let Expression::Identifier(ei) = extend {
@@ -74,6 +79,7 @@ pub fn flatten_type<'a>(
             semantic,
             allocator,
             result_program,
+            env_keys.clone_in(allocator),
         ) {
             new_elements.push(new_element);
         }
@@ -108,9 +114,9 @@ pub fn flatten_type<'a>(
 pub fn flatten_class_elements_type<'a>(
     element: &'a ClassElement<'a>,
     semantic: &Semantic<'a>,
-
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
+    env: AstVec<'a, &'a str>,
 ) -> Option<ClassElement<'a>> {
     match element {
         ClassElement::TSIndexSignature(tis) => {
@@ -121,6 +127,7 @@ pub fn flatten_class_elements_type<'a>(
                 semantic,
                 allocator,
                 result_program,
+                env,
             );
 
             if let Some(ts_type) = decl.type_decl(allocator) {
@@ -146,6 +153,7 @@ pub fn flatten_class_elements_type<'a>(
                     semantic,
                     allocator,
                     result_program,
+                    env,
                 );
 
                 let mut new_type = ta.clone_in(allocator);
@@ -181,6 +189,7 @@ pub fn flatten_class_elements_type<'a>(
                     semantic,
                     allocator,
                     result_program,
+                    env.clone_in(allocator),
                 );
 
                 let mut new_return_type = return_type.clone_in(allocator);
@@ -192,8 +201,13 @@ pub fn flatten_class_elements_type<'a>(
                 new_element.value.return_type = Some(new_return_type);
             }
 
-            let new_params =
-                flatten_method_params_type(&tmd.value.params, semantic, allocator, result_program);
+            let new_params = flatten_method_params_type(
+                &tmd.value.params,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
             new_element.value.params = AstBox::new_in(new_params, allocator);
 
             Some(ClassElement::MethodDefinition(new_element))
@@ -208,9 +222,9 @@ pub fn flatten_class_elements_type<'a>(
 pub fn flatten_method_params_type<'a>(
     params: &'a FormalParameters<'a>,
     semantic: &Semantic<'a>,
-
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
+    env: AstVec<'a, &'a str>,
 ) -> FormalParameters<'a> {
     let mut new_params = params.clone_in(allocator);
 
@@ -226,6 +240,7 @@ pub fn flatten_method_params_type<'a>(
                 semantic,
                 allocator,
                 result_program,
+                env.clone_in(allocator),
             );
 
             let mut new_item_type = item_type.clone_in(allocator);
@@ -249,6 +264,7 @@ pub fn flatten_method_params_type<'a>(
                 semantic,
                 allocator,
                 result_program,
+                env.clone_in(allocator),
             );
 
             let mut new_rest_type = rest_type.clone_in(allocator);

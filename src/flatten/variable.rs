@@ -16,6 +16,8 @@ pub fn flatten_type<'a>(
 ) -> VariableDeclaration<'a> {
     let mut decls = AstVec::new_in(allocator);
 
+    let empty_env: AstVec<'a, &'a str> = AstVec::new_in(allocator);
+
     for decl in var_const.declarations.iter() {
         let mut vd = decl.clone_in(allocator);
 
@@ -25,6 +27,7 @@ pub fn flatten_type<'a>(
                 semantic,
                 allocator,
                 result_program,
+                empty_env.clone_in(allocator),
             );
 
             let mut new_ta = ta.clone_in(allocator);

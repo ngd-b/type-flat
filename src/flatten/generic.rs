@@ -25,6 +25,8 @@ pub fn flatten_generic<'a>(
         AstVec::new_in(allocator)
     };
 
+    let empty_env: AstVec<'a, &'a str> = AstVec::new_in(allocator);
+
     for (index, param) in arg_params.iter().enumerate() {
         let mut new_param = param.clone_in(allocator);
 
@@ -34,6 +36,7 @@ pub fn flatten_generic<'a>(
                 semantic,
                 allocator,
                 result_program,
+                empty_env.clone_in(allocator),
             );
 
             new_param.constraint = decl.type_decl(allocator)
@@ -45,6 +48,7 @@ pub fn flatten_generic<'a>(
                 semantic,
                 allocator,
                 result_program,
+                empty_env.clone_in(allocator),
             );
 
             new_param.default = decl.type_decl(allocator)

@@ -16,15 +16,17 @@ use crate::flatten::{
     utils::{self},
 };
 
-///
-/// Flattens a type declaration into a single type
-///
-/// Parameters:
-/// - ts_type - The type declaration to flatten
-/// - semantic - The semantic information of the program
-/// - allocator - The allocator
-///
-/// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
+/**
+
+Flattens a type declaration into a single type
+
+Parameters:
+- ts_type - The type declaration to flatten
+- semantic - The semantic information of the program
+- allocator - The allocator
+
+*/
+// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn flatten_type<'a>(
     ts_type: &'a TSInterfaceDeclaration<'a>,
     semantic: &Semantic<'a>,
@@ -42,13 +44,51 @@ pub fn flatten_type<'a>(
         allocator,
         result_program,
     );
-    // all extend type. include self
-    let mut members = ts_type.body.body.clone_in(allocator);
+    let mut env_keys = AstVec::new_in(allocator);
 
+    for (&key, _) in env.iter() {
+        env_keys.push(key);
+    }
+    // all extend type. include self
+    let members = ts_type.body.body.clone_in(allocator);
+
+    let mut extend_members = AstVec::new_in(allocator);
     // the extends type
     for extend in ts_type.extends.iter() {
         if let Expression::Identifier(ei) = &extend.expression {
             let reference_name = allocator.alloc_str(&ei.name);
+
+            let new_reference_type = TSTypeReference {
+                span: extend.span.clone_in(allocator),
+                type_name: TSTypeName::IdentifierReference(ei.clone_in(allocator)),
+                type_arguments: None,
+            };
+            // Keyword type flatten
+            if let Some(keyword) = Keyword::is_keyword(allocator.alloc(new_reference_type)) {
+                let result_type = keyword.flatten(
+                    semantic,
+                    allocator,
+                    result_program,
+                    env_keys.clone_in(allocator),
+                );
+
+                if let TSType::TSTypeLiteral(tl) = result_type {
+                    for member in tl.members.iter() {
+                        if members
+                            .iter()
+                            .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                        {
+                            continue;
+                        }
+                        extend_members.push(member.clone_in(allocator));
+                    }
+                }
+
+                continue;
+            }
+
+            // Handle extend members with env type
+            let mut new_members = AstVec::new_in(allocator);
 
             let extend_env = if let Some(ta) = &extend.type_arguments {
                 let new_params = ta.clone_in(allocator);
@@ -59,38 +99,9 @@ pub fn flatten_type<'a>(
             } else {
                 extend.type_arguments.clone_in(allocator)
             };
-            let new_reference_type = TSTypeReference {
-                span: extend.span.clone_in(allocator),
-                type_name: TSTypeName::IdentifierReference(ei.clone_in(allocator)),
-                type_arguments: extend_env,
-            };
-            // Keyword type flatten
-            if let Some(keyword) = Keyword::is_keyword(allocator.alloc(new_reference_type)) {
-                let result_type = keyword.flatten(semantic, allocator, result_program);
-
-                if let TSType::TSTypeLiteral(tl) = result_type {
-                    let mut new_members = AstVec::new_in(allocator);
-
-                    for member in tl.members.iter() {
-                        if members
-                            .iter()
-                            .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                        {
-                            continue;
-                        }
-                        new_members.push(member.clone_in(allocator));
-                    }
-
-                    members.extend(new_members);
-                }
-                continue;
-            }
-
             if let Some(decl) = result_program.get_cached(reference_name) {
                 match decl.decl {
                     DeclRef::Interface(tid) => {
-                        let mut new_members = AstVec::new_in(allocator);
-
                         for member in tid.body.body.iter() {
                             if members
                                 .iter()
@@ -101,15 +112,11 @@ pub fn flatten_type<'a>(
 
                             new_members.push(member.clone_in(allocator));
                         }
-
-                        members.extend(new_members);
                     }
                     DeclRef::TypeAlias(tad) => {
                         // get literal type
                         match &tad.type_annotation {
                             TSType::TSTypeLiteral(tl) => {
-                                let mut new_members = AstVec::new_in(allocator);
-
                                 for member in tl.members.iter() {
                                     if members
                                         .iter()
@@ -119,34 +126,35 @@ pub fn flatten_type<'a>(
                                     }
                                     new_members.push(member.clone_in(allocator));
                                 }
-
-                                members.extend(new_members);
                             }
                             _ => {}
                         }
                     }
                     DeclRef::Class(tcd) => {
-                        let new_members =
+                        new_members =
                             utils::class_elements_to_type_members(&tcd.body.body, allocator);
-
-                        members.extend(new_members);
                     }
 
                     _ => {}
                 }
+
+                // TODO: Replace the member type with env
+
+                extend_members.extend(new_members);
             }
         }
     }
 
     let mut new_members = AstVec::new_in(allocator);
     // self members
-    for member in members.iter() {
+    for member in ts_type.body.body.iter() {
         // the key is normal property
         let new_member = flatten_member_type(
             allocator.alloc(member.clone_in(allocator)),
             semantic,
             allocator,
             result_program,
+            env_keys.clone_in(allocator),
         );
 
         new_members.push(new_member);
@@ -157,6 +165,7 @@ pub fn flatten_type<'a>(
     new_type.extends = AstVec::new_in(allocator);
     // new_type.type_parameters = None;
 
+    new_members.extend(extend_members);
     new_type.body.body = new_members;
 
     info!(
@@ -182,6 +191,7 @@ pub fn flatten_member_type<'a>(
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
+    env: AstVec<'a, &'a str>,
 ) -> TSSignature<'a> {
     match member {
         TSSignature::TSIndexSignature(tis) => {
@@ -193,6 +203,7 @@ pub fn flatten_member_type<'a>(
                 semantic,
                 allocator,
                 result_program,
+                env.clone_in(allocator),
             );
 
             if let Some(ts_type) = result.type_decl(allocator) {
@@ -208,6 +219,7 @@ pub fn flatten_member_type<'a>(
                     semantic,
                     allocator,
                     result_program,
+                    env.clone_in(allocator),
                 );
 
                 if let Some(ts_type) = decl.type_decl(allocator) {
@@ -226,6 +238,7 @@ pub fn flatten_member_type<'a>(
                     semantic,
                     allocator,
                     result_program,
+                    env,
                 );
 
                 if let Some(ts_type) = decl.type_decl(allocator) {
@@ -249,6 +262,7 @@ pub fn flatten_member_type<'a>(
                 semantic,
                 allocator,
                 result_program,
+                env.clone_in(allocator),
             );
             new_prop.params = AstBox::new_in(new_params, allocator);
 
@@ -259,6 +273,7 @@ pub fn flatten_member_type<'a>(
                     semantic,
                     allocator,
                     result_program,
+                    env.clone_in(allocator),
                 );
 
                 let mut new_return_type = rt.clone_in(allocator);
