@@ -1,11 +1,10 @@
-use std::{mem, vec};
-
 use oxc_allocator::{Allocator, Box, CloneIn, HashMap, Vec as AstVec};
 use oxc_ast::ast::{
     TSSignature, TSTupleElement, TSType, TSTypeName, TSTypeParameter, TSTypeParameterDeclaration,
     TSTypeParameterInstantiation,
 };
 use oxc_semantic::Semantic;
+use tracing::info;
 
 use crate::flatten::{
     result::{CacheDecl, ResultProgram},
@@ -39,7 +38,7 @@ pub fn flatten_generic<'a>(
         let mut new_param = param.clone_in(allocator);
 
         if let Some(constraint) = &param.constraint {
-            let decl = type_alias::flatten_ts_type(
+            let ts_type = type_alias::flatten_ts_type(
                 allocator.alloc(constraint.clone_in(allocator)),
                 semantic,
                 allocator,
@@ -47,11 +46,11 @@ pub fn flatten_generic<'a>(
                 empty_env.clone_in(allocator),
             );
 
-            new_param.constraint = decl.type_decl(allocator)
+            new_param.constraint = Some(ts_type)
         }
 
         if let Some(default) = &param.default {
-            let decl = type_alias::flatten_ts_type(
+            let ts_type = type_alias::flatten_ts_type(
                 allocator.alloc(default.clone_in(allocator)),
                 semantic,
                 allocator,
@@ -59,7 +58,7 @@ pub fn flatten_generic<'a>(
                 empty_env.clone_in(allocator),
             );
 
-            new_param.default = decl.type_decl(allocator)
+            new_param.default = Some(ts_type)
         }
 
         env.insert(
@@ -94,11 +93,15 @@ pub fn get_generic_keys<'a>(
 /// Merge the generic type to child type members
 ///
 pub fn merge_type_with_generic<'a>(
-    parent_envs: &AstVec<'a, &'a str>,
     current_envs: &'a Option<Box<'a, TSTypeParameterInstantiation<'a>>>,
     child_type: &CacheDecl<'a>,
     allocator: &'a Allocator,
 ) -> Option<TSType<'a>> {
+    info!(
+        "Merge the type generic {}. It has generic len {}",
+        child_type.name,
+        child_type.generics.len()
+    );
     // 1. IF the child type not has generic type. return the child type
     if child_type.generics.is_empty() {
         return child_type.decl.type_decl(allocator);
@@ -109,21 +112,62 @@ pub fn merge_type_with_generic<'a>(
     }
 
     let ts_type = ts_type.unwrap();
-    // 2. This is a generic type. all members should be merged with the default generic type
-    if current_envs.is_none() {
-        let new_type = replace_type_with_generic(
-            &child_type.generics,
-            allocator.alloc(ts_type.clone_in(allocator)),
-            allocator,
+
+    let mut generics = HashMap::new_in(allocator);
+    for (&key, gener) in child_type.generics.iter() {
+        generics.insert(
+            key,
+            Generic {
+                index: gener.index,
+                ts_type: gener.ts_type.clone_in(allocator),
+            },
         );
-        return Some(new_type);
     }
 
-    // 3. IF the current env is not include parent envs.
+    if let Some(tp) = current_envs {
+        let mut params = HashMap::new_in(allocator);
+        for (index, ts_type) in tp.params.iter().enumerate() {
+            // Replace the generic type
 
-    // 4. IF the current env exist some include parent envs.
+            let generic = generics
+                .iter()
+                .find(|(_, generic)| generic.index == index)
+                .map(|(&name, generic)| (name, generic.index, generic.ts_type.clone_in(allocator)));
 
-    Some(ts_type)
+            if let Some((name, index, type_param)) = generic {
+                let mut new_type = type_param.clone_in(allocator);
+
+                new_type.default = Some(ts_type.clone_in(allocator));
+
+                params.insert(
+                    name,
+                    Generic {
+                        index: index,
+                        ts_type: new_type,
+                    },
+                );
+            }
+        }
+
+        for (&name, generic) in params.iter() {
+            generics.insert(
+                name,
+                Generic {
+                    index: generic.index,
+                    ts_type: generic.ts_type.clone_in(allocator),
+                },
+            );
+        }
+    }
+
+    let new_type = replace_type_with_generic(
+        &generics,
+        allocator.alloc(ts_type.clone_in(allocator)),
+        allocator,
+    );
+
+    info!("Finish merge the type {} generic type ", child_type.name,);
+    Some(new_type)
 }
 
 ///
@@ -156,7 +200,7 @@ pub fn replace_type_with_generic<'a>(
 
             new_union_type.types = AstVec::new_in(allocator);
             for member in ut.types.iter() {
-                let ts_type = replace_type_with_generic(env, ts_type, allocator);
+                let ts_type = replace_type_with_generic(env, member, allocator);
 
                 new_union_type.types.push(ts_type);
             }
@@ -168,7 +212,7 @@ pub fn replace_type_with_generic<'a>(
 
             new_intersection_type.types = AstVec::new_in(allocator);
             for member in it.types.iter() {
-                let ts_type = replace_type_with_generic(env, ts_type, allocator);
+                let ts_type = replace_type_with_generic(env, member, allocator);
 
                 new_intersection_type.types.push(ts_type);
             }
@@ -246,13 +290,15 @@ pub fn replace_type_with_generic<'a>(
         TSType::TSParenthesizedType(tpt) => {
             let mut new_parenthesized_type = tpt.clone_in(allocator);
 
+            new_parenthesized_type.type_annotation =
+                replace_type_with_generic(env, &tpt.type_annotation, allocator);
             new_type = TSType::TSParenthesizedType(new_parenthesized_type);
         }
         TSType::TSTypeLiteral(ttl) => {
             let mut members = AstVec::new_in(allocator);
 
             for member in ttl.members.iter() {
-                let new_member = member.clone_in(allocator);
+                let new_member = replace_member_type_with_generic(env, member, allocator);
 
                 members.push(new_member);
             }

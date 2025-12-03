@@ -1,20 +1,19 @@
 use anyhow::{Result, bail};
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, IntoIn, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::ast::{
-    BindingIdentifier, IdentifierName, PropertyKey, TSConditionalType, TSIndexedAccessType,
-    TSLiteral, TSMappedType, TSPropertySignature, TSQualifiedName, TSSignature, TSTupleElement,
-    TSType, TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSTypeName,
-    TSTypeOperatorOperator, TSTypeParameterInstantiation, TSTypeQueryExprName, TSUnionType,
+    IdentifierName, PropertyKey, TSConditionalType, TSIndexedAccessType, TSLiteral, TSMappedType,
+    TSPropertySignature, TSQualifiedName, TSSignature, TSTupleElement, TSType,
+    TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSTypeName, TSTypeOperatorOperator,
+    TSTypeParameterInstantiation, TSTypeQueryExprName, TSUnionType,
 };
 use oxc_semantic::Semantic;
-use oxc_span::Atom;
-use std::cell::Cell;
+
 use tracing::info;
 
 use crate::flatten::{
     class,
-    declare::{self, DeclRef},
-    generic::{self, Generic},
+    declare::DeclRef,
+    generic::{self},
     interface,
     keyword::Keyword,
     result::{CacheDecl, ResultProgram},
@@ -57,9 +56,7 @@ pub fn flatten_type<'a>(
     let mut new_type = ts_type.clone_in(allocator);
     // new_type.type_parameters = None;
 
-    if let Some(ts_type) = result.type_decl(allocator) {
-        new_type.type_annotation = ts_type;
-    }
+    new_type.type_annotation = result;
 
     info!("Flatten type {}, Success!", ts_name);
 
@@ -82,19 +79,8 @@ pub fn flatten_ts_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
-) -> DeclRef<'a> {
-    let mut new_type = TSTypeAliasDeclaration {
-        span: Default::default(),
-        id: BindingIdentifier {
-            span: Default::default(),
-            name: Atom::new_const("NormalTmp"),
-            symbol_id: Cell::new(None),
-        },
-        type_parameters: None,
-        type_annotation: ts_type.clone_in(&allocator),
-        scope_id: Cell::new(None),
-        declare: false,
-    };
+) -> TSType<'a> {
+    let mut new_type = ts_type.clone_in(allocator);
 
     match ts_type {
         TSType::TSTypeReference(tr) => {
@@ -105,66 +91,75 @@ pub fn flatten_ts_type<'a>(
             };
 
             // Keyword type flatten
-            if let Some(keyword) = Keyword::is_keyword(tr) {
+            if let Some(keyword) = Keyword::is_keyword(allocator.alloc(tr.clone_in(allocator))) {
                 let result_type: TSType<'_> =
-                    keyword.flatten(semantic, allocator, result_program, env);
+                    keyword.flatten(semantic, allocator, result_program, env.clone_in(allocator));
 
-                new_type.type_annotation = result_type;
-                return DeclRef::TypeAlias(allocator.alloc(new_type));
+                return result_type;
             }
 
+            let type_params = if let Some(tp) = &tr.type_arguments {
+                let mut new_tp = tp.clone_in(allocator);
+
+                let mut params = AstVec::new_in(allocator);
+
+                for param in tp.params.iter() {
+                    let ts_type = flatten_ts_type(
+                        param,
+                        semantic,
+                        allocator,
+                        result_program,
+                        env.clone_in(allocator),
+                    );
+                    params.push(ts_type);
+                }
+
+                new_tp.params = params;
+
+                Some(new_tp)
+            } else {
+                None
+            };
             if let Some(decl) = result_program.get_cached(reference_name) {
                 // Merge the parent env with the current env. and replace the members withe the parent env type.
 
-                let ts_type =
-                    generic::merge_type_with_generic(&env, &tr.type_arguments, decl, allocator);
+                let result = generic::merge_type_with_generic(
+                    allocator.alloc(type_params.clone_in(allocator)),
+                    decl,
+                    allocator,
+                );
 
-                if let Some(ts_type) = ts_type {
-                    new_type.type_annotation = ts_type;
+                if let Some(ts_type) = result {
+                    new_type = ts_type;
                 }
             }
         }
         // union type. only flat not merge
         TSType::TSUnionType(ut) => {
-            let new_union_type =
-                merge_ts_type(&ut.types, semantic, allocator, result_program, true, env);
-
-            new_type.type_annotation = new_union_type;
+            new_type = merge_ts_type(&ut.types, semantic, allocator, result_program, true, env)
         }
         TSType::TSIntersectionType(it) => {
-            let new_intersection_type =
-                merge_ts_type(&it.types, semantic, allocator, result_program, false, env);
-
-            new_type.type_annotation = new_intersection_type;
+            new_type = merge_ts_type(&it.types, semantic, allocator, result_program, false, env);
         }
         TSType::TSArrayType(at) => {
-            let decl = flatten_ts_type(&at.element_type, semantic, allocator, result_program, env);
-
             let mut new_array_type = at.clone_in(allocator);
 
-            if let Some(ts_type) = decl.type_decl(allocator) {
-                new_array_type.element_type = ts_type;
-            }
+            new_array_type.element_type =
+                flatten_ts_type(&at.element_type, semantic, allocator, result_program, env);
 
-            new_type.type_annotation = TSType::TSArrayType(new_array_type);
+            new_type = TSType::TSArrayType(new_array_type);
         }
         TSType::TSTupleType(tut) => {
             let mut elements = AstVec::new_in(allocator);
 
             for element in tut.element_types.iter() {
-                let decl = flatten_ts_type(
+                let ts_type = flatten_ts_type(
                     element.to_ts_type(),
                     semantic,
                     allocator,
                     result_program,
                     env.clone_in(allocator),
                 );
-
-                let ts_type = if let Some(ts_type) = decl.type_decl(allocator) {
-                    ts_type.clone_in(allocator)
-                } else {
-                    element.to_ts_type().clone_in(allocator)
-                };
 
                 match element {
                     TSTupleElement::TSOptionalType(tot) => {
@@ -188,22 +183,18 @@ pub fn flatten_ts_type<'a>(
                 let mut new_tuple_type = tut.clone_in(allocator);
                 new_tuple_type.element_types = elements.clone_in(allocator);
 
-                new_type.type_annotation = TSType::TSTupleType(new_tuple_type);
+                new_type = TSType::TSTupleType(new_tuple_type);
             }
         }
         TSType::TSConditionalType(ct) => {
-            let ts_type = flatten_ts_conditional_type(ct, semantic, allocator, result_program, env);
-
-            new_type.type_annotation = ts_type;
+            new_type = flatten_ts_conditional_type(ct, semantic, allocator, result_program, env);
         }
         TSType::TSMappedType(mt) => {
-            let ts_type = flatten_ts_mapped_type(mt, semantic, allocator, result_program, env);
-
-            new_type.type_annotation = ts_type;
+            new_type = flatten_ts_mapped_type(mt, semantic, allocator, result_program, env);
         }
         TSType::TSTypeOperatorType(tot) => match tot.operator {
             TSTypeOperatorOperator::Keyof => {
-                let decl = flatten_ts_type(
+                let ts_type = flatten_ts_type(
                     &tot.type_annotation,
                     semantic,
                     allocator,
@@ -212,22 +203,22 @@ pub fn flatten_ts_type<'a>(
                 );
 
                 if let Some(tad) =
-                    utils::get_keyof_union_type(decl, semantic, allocator, result_program)
+                    utils::get_keyof_union_type(ts_type, semantic, allocator, result_program)
                 {
-                    new_type.type_annotation = tad;
+                    new_type = tad;
                 }
             }
             _ => {}
         },
         TSType::TSIndexedAccessType(idt) => {
-            let object_decl = flatten_ts_type(
+            let object_type = flatten_ts_type(
                 &idt.object_type,
                 semantic,
                 allocator,
                 result_program,
                 env.clone_in(allocator),
             );
-            let index_decl = flatten_ts_type(
+            let index_type = flatten_ts_type(
                 &idt.index_type,
                 semantic,
                 allocator,
@@ -235,21 +226,15 @@ pub fn flatten_ts_type<'a>(
                 env.clone_in(allocator),
             );
 
-            if let (Some(object_type), Some(index_type)) = (
-                object_decl.type_decl(allocator),
-                index_decl.type_decl(allocator),
-            ) {
-                // flat index access type
-                let result = flatten_index_access_type(
-                    allocator.alloc(object_type),
-                    allocator.alloc(index_type),
-                    semantic,
-                    allocator,
-                    result_program,
-                );
+            let result = flatten_index_access_type(
+                allocator.alloc(object_type),
+                allocator.alloc(index_type),
+                semantic,
+                allocator,
+                result_program,
+            );
 
-                new_type.type_annotation = result;
-            }
+            new_type = result;
         }
         TSType::TSTypeQuery(tq) => match &tq.expr_name {
             TSTypeQueryExprName::IdentifierReference(ir) => {
@@ -257,7 +242,7 @@ pub fn flatten_ts_type<'a>(
 
                 if let Some(decl) = result_program.get_cached(reference_name) {
                     if let Some(ts_type) = decl.decl.type_decl(allocator) {
-                        new_type.type_annotation = ts_type;
+                        new_type = ts_type;
                     }
                 }
             }
@@ -271,13 +256,13 @@ pub fn flatten_ts_type<'a>(
                 );
 
                 if let Ok(ts_type) = result {
-                    new_type.type_annotation = ts_type;
+                    new_type = ts_type;
                 }
             }
             _ => {}
         },
         TSType::TSParenthesizedType(tpt) => {
-            let decl = flatten_ts_type(
+            let ts_type = flatten_ts_type(
                 &tpt.type_annotation,
                 semantic,
                 allocator,
@@ -287,11 +272,9 @@ pub fn flatten_ts_type<'a>(
 
             let mut new_parenthesized_type = tpt.clone_in(allocator);
 
-            if let Some(ts_type) = decl.type_decl(allocator) {
-                new_parenthesized_type.type_annotation = ts_type;
-            }
+            new_parenthesized_type.type_annotation = ts_type;
 
-            new_type.type_annotation = TSType::TSParenthesizedType(new_parenthesized_type);
+            new_type = TSType::TSParenthesizedType(new_parenthesized_type);
         }
         TSType::TSTypeLiteral(ttl) => {
             let mut members = AstVec::new_in(allocator);
@@ -311,13 +294,13 @@ pub fn flatten_ts_type<'a>(
             let mut new_literal = ttl.clone_in(allocator);
             new_literal.members = members;
 
-            new_type.type_annotation = TSType::TSTypeLiteral(new_literal);
+            new_type = TSType::TSTypeLiteral(new_literal);
         }
         TSType::TSFunctionType(tft) => {
             let mut new_fn_type = tft.clone_in(allocator);
 
             // return-type flatten
-            let decl = flatten_ts_type(
+            let ts_type = flatten_ts_type(
                 &tft.return_type.type_annotation,
                 semantic,
                 allocator,
@@ -325,9 +308,7 @@ pub fn flatten_ts_type<'a>(
                 env.clone_in(allocator),
             );
 
-            if let Some(ts_type) = decl.type_decl(allocator) {
-                new_fn_type.return_type.type_annotation = ts_type;
-            }
+            new_fn_type.return_type.type_annotation = ts_type;
 
             let new_params = class::flatten_method_params_type(
                 allocator.alloc(tft.params.clone_in(allocator)),
@@ -339,12 +320,12 @@ pub fn flatten_ts_type<'a>(
 
             new_fn_type.params = AstBox::new_in(new_params, allocator);
 
-            new_type.type_annotation = TSType::TSFunctionType(new_fn_type);
+            new_type = TSType::TSFunctionType(new_fn_type);
         }
         _ => {}
-    }
+    };
 
-    DeclRef::TypeAlias(allocator.alloc(new_type))
+    new_type.clone_in(allocator)
 }
 
 ///
@@ -364,7 +345,7 @@ pub fn merge_ts_type<'a>(
     let mut union_types = AstVec::new_in(allocator);
 
     for it in types.iter() {
-        let decl = flatten_ts_type(
+        let ts_type = flatten_ts_type(
             it,
             semantic,
             allocator,
@@ -372,18 +353,16 @@ pub fn merge_ts_type<'a>(
             env.clone_in(allocator),
         );
 
-        if let Some(ts_type) = decl.type_decl(allocator) {
-            if is_union {
-                union_types.push(ts_type.clone_in(allocator));
-                continue;
+        if is_union {
+            union_types.push(ts_type.clone_in(allocator));
+            continue;
+        }
+        // get type literal
+        match &ts_type {
+            TSType::TSTypeLiteral(tl) => {
+                memebers.extend(tl.members.clone_in(allocator));
             }
-            // get type literal
-            match &ts_type {
-                TSType::TSTypeLiteral(tl) => {
-                    memebers.extend(tl.members.clone_in(allocator));
-                }
-                _ => {}
-            }
+            _ => {}
         }
     }
 
@@ -571,7 +550,7 @@ pub fn flatten_ts_conditional_type<'a>(
         result_program,
         env.clone_in(allocator),
     );
-    let extends_type = flatten_ts_type(
+    let extend_type = flatten_ts_type(
         &ct.extends_type,
         semantic,
         allocator,
@@ -595,52 +574,36 @@ pub fn flatten_ts_conditional_type<'a>(
     );
 
     // IF extends type is empty, use false_type
-    if let (Some(extend_type), Some(false_type)) = (
-        extends_type.type_decl(allocator),
-        false_type.type_decl(allocator),
-    ) {
-        match extend_type {
-            TSType::TSUnionType(ttl) => {
-                if ttl.types.is_empty() {
-                    return false_type.clone_in(allocator);
-                }
+    match extend_type.clone_in(allocator) {
+        TSType::TSUnionType(ttl) => {
+            if ttl.types.is_empty() {
+                return false_type.clone_in(allocator);
             }
-            _ => {}
         }
-    };
+        _ => {}
+    }
 
     // Something condition can be computed.
-    if let (Some(check_type), Some(extend_type), Some(true_type)) = (
-        check_type.type_decl(allocator),
-        extends_type.type_decl(allocator),
-        true_type.type_decl(allocator),
+    match (
+        check_type.clone_in(allocator),
+        extend_type.clone_in(allocator),
     ) {
-        match (check_type, extend_type) {
-            (TSType::TSUnknownKeyword(_), TSType::TSUnknownKeyword(_))
-            | (TSType::TSAnyKeyword(_), TSType::TSAnyKeyword(_))
-            | (TSType::TSUndefinedKeyword(_), TSType::TSUndefinedKeyword(_))
-            | (TSType::TSNullKeyword(_), TSType::TSNullKeyword(_)) => {
-                return true_type.clone_in(allocator);
-            }
-            _ => {}
+        (TSType::TSUnknownKeyword(_), TSType::TSUnknownKeyword(_))
+        | (TSType::TSAnyKeyword(_), TSType::TSAnyKeyword(_))
+        | (TSType::TSUndefinedKeyword(_), TSType::TSUndefinedKeyword(_))
+        | (TSType::TSNullKeyword(_), TSType::TSNullKeyword(_)) => {
+            return true_type.clone_in(allocator);
         }
-    };
+        _ => {}
+    }
 
     let mut new_conditioinal_type = ct.clone_in(allocator);
 
-    if let Some(check_type) = check_type.type_decl(allocator) {
-        new_conditioinal_type.check_type = check_type;
-    }
-    if let Some(extends_type) = extends_type.type_decl(allocator) {
-        new_conditioinal_type.extends_type = extends_type;
-    }
+    new_conditioinal_type.check_type = check_type;
+    new_conditioinal_type.extends_type = extend_type;
 
-    if let Some(true_type) = true_type.type_decl(allocator) {
-        new_conditioinal_type.true_type = true_type;
-    }
-    if let Some(false_type) = false_type.type_decl(allocator) {
-        new_conditioinal_type.false_type = false_type;
-    }
+    new_conditioinal_type.true_type = true_type;
+    new_conditioinal_type.false_type = false_type;
 
     TSType::TSConditionalType(AstBox::new_in(new_conditioinal_type, allocator))
 }
@@ -683,35 +646,33 @@ pub fn flatten_ts_mapped_type<'a>(
 
     // let mut new_env = env.clone();
 
-    if let Some(decl) = key_type {
+    if let Some(ts_type) = key_type {
         // save the key_type to env
         // Not need map key to value Index access type
         // new_env = env.update(&[key_name.clone()], &[Rc::new(decl)]);
 
-        if let Some(ts_type) = decl.type_decl(allocator) {
-            new_type_param.constraint = Some(ts_type.clone_in(allocator));
+        new_type_param.constraint = Some(ts_type.clone_in(allocator));
 
-            match ts_type {
-                TSType::TSUnionType(ut) => {
-                    for element in &ut.types {
-                        match element {
-                            TSType::TSLiteralType(lt) => match &lt.literal {
-                                TSLiteral::StringLiteral(sl) => {
-                                    keys.push(sl.value.to_string());
-                                }
-                                _ => {}
-                            },
+        match ts_type {
+            TSType::TSUnionType(ut) => {
+                for element in &ut.types {
+                    match element {
+                        TSType::TSLiteralType(lt) => match &lt.literal {
+                            TSLiteral::StringLiteral(sl) => {
+                                keys.push(sl.value.to_string());
+                            }
                             _ => {}
-                        }
+                        },
+                        _ => {}
                     }
                 }
-                _ => {}
             }
+            _ => {}
         }
     };
 
     if let Some(ts_type) = &mt.type_annotation {
-        let decl = flatten_ts_type(
+        let ts_type = flatten_ts_type(
             ts_type,
             semantic,
             allocator,
@@ -719,79 +680,72 @@ pub fn flatten_ts_mapped_type<'a>(
             env.clone_in(allocator),
         );
 
-        if let Some(ts_type) = decl.type_decl(allocator) {
-            new_mapped_type.type_annotation = Some(ts_type.clone_in(allocator));
+        new_mapped_type.type_annotation = Some(ts_type.clone_in(allocator));
 
-            match ts_type {
-                TSType::TSIndexedAccessType(tia) => match &tia.index_type {
-                    TSType::TSTypeReference(ttr) => {
-                        let mut members = AstVec::new_in(allocator);
+        match ts_type {
+            TSType::TSIndexedAccessType(tia) => match &tia.index_type {
+                TSType::TSTypeReference(ttr) => {
+                    let mut members = AstVec::new_in(allocator);
 
-                        let type_name = match &ttr.type_name {
-                            TSTypeName::IdentifierReference(ir) => ir.name.as_str(),
-                            _ => "",
-                        };
+                    let type_name = match &ttr.type_name {
+                        TSTypeName::IdentifierReference(ir) => ir.name.as_str(),
+                        _ => "",
+                    };
 
-                        if type_name == &key_name {
-                            for key in keys.iter() {
-                                let key_type = utils::get_field_type(
-                                    key.as_str(),
-                                    allocator.alloc(tia.object_type.clone_in(allocator)),
-                                    semantic,
+                    if type_name == &key_name {
+                        for key in keys.iter() {
+                            let key_type = utils::get_field_type(
+                                key.as_str(),
+                                allocator.alloc(tia.object_type.clone_in(allocator)),
+                                semantic,
+                                allocator,
+                                result_program,
+                            );
+
+                            let ts_type = if let Some(kt) = key_type {
+                                Some(AstBox::new_in(
+                                    TSTypeAnnotation {
+                                        span: Default::default(),
+                                        type_annotation: kt,
+                                    },
                                     allocator,
-                                    result_program,
-                                );
-
-                                let ts_type = if let Some(kt) = key_type {
-                                    Some(AstBox::new_in(
-                                        TSTypeAnnotation {
-                                            span: Default::default(),
-                                            type_annotation: kt,
-                                        },
-                                        allocator,
-                                    ))
-                                } else {
-                                    None
-                                };
-                                let element_type =
-                                    TSSignature::TSPropertySignature(AstBox::new_in(
-                                        TSPropertySignature {
-                                            span: Default::default(),
-                                            key: PropertyKey::StaticIdentifier(AstBox::new_in(
-                                                IdentifierName {
-                                                    span: Default::default(),
-                                                    name: key.into_in(allocator),
-                                                },
-                                                allocator,
-                                            )),
-                                            type_annotation: ts_type,
-                                            computed: false,
-                                            optional: utils::computed_optional_or_readonly(
-                                                mt.optional,
-                                            ),
-                                            readonly: utils::computed_optional_or_readonly(
-                                                mt.readonly,
-                                            ),
-                                        },
-                                        allocator,
-                                    ));
-
-                                members.push(element_type);
-                            }
-
-                            return TSType::TSTypeLiteral(AstBox::new_in(
-                                TSTypeLiteral {
+                                ))
+                            } else {
+                                None
+                            };
+                            let element_type = TSSignature::TSPropertySignature(AstBox::new_in(
+                                TSPropertySignature {
                                     span: Default::default(),
-                                    members,
+                                    key: PropertyKey::StaticIdentifier(AstBox::new_in(
+                                        IdentifierName {
+                                            span: Default::default(),
+                                            name: key.into_in(allocator),
+                                        },
+                                        allocator,
+                                    )),
+                                    type_annotation: ts_type,
+                                    computed: false,
+                                    optional: utils::computed_optional_or_readonly(mt.optional),
+                                    readonly: utils::computed_optional_or_readonly(mt.readonly),
                                 },
                                 allocator,
                             ));
+
+                            members.push(element_type);
                         }
+
+                        return TSType::TSTypeLiteral(AstBox::new_in(
+                            TSTypeLiteral {
+                                span: Default::default(),
+                                members,
+                            },
+                            allocator,
+                        ));
                     }
-                    _ => {}
-                },
+                }
                 _ => {}
-            }
+            },
+            _ => {}
         }
     }
 

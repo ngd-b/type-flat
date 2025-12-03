@@ -1,11 +1,10 @@
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, HashSet, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
     PropertyKey, TSLiteral, TSSignature, TSType, TSTypeLiteral, TSTypeName, TSTypeReference,
 };
 use oxc_semantic::Semantic;
 
 use crate::flatten::{
-    generic::Generic,
     result::ResultProgram,
     type_alias,
     utils::{self},
@@ -154,70 +153,60 @@ impl<'a> Keyword<'a> {
                             members: AstVec::new_in(allocator),
                         };
 
-                        let value_type = if let Some(ts_type) = type_alias::flatten_ts_type(
+                        let value_type = type_alias::flatten_ts_type(
                             allocator.alloc(value_type),
                             semantic,
                             allocator,
                             result_program,
                             env.clone_in(allocator),
-                        )
-                        .type_decl(allocator)
-                        .as_ref()
-                        {
-                            ts_type.clone_in(allocator)
-                        } else {
-                            value_type.clone_in(allocator)
-                        };
+                        );
 
-                        if let Some(key_type) = type_alias::flatten_ts_type(
+                        let key_type = type_alias::flatten_ts_type(
                             key_type,
                             semantic,
                             allocator,
                             result_program,
                             env.clone_in(allocator),
-                        )
-                        .type_decl(allocator)
-                        {
-                            match key_type {
-                                TSType::TSLiteralType(tlt) => {
-                                    if let TSLiteral::StringLiteral(_sl) = &tlt.literal {
-                                        new_type.members.push(utils::new_ts_signature(
-                                            &tlt.literal,
-                                            &value_type,
-                                            allocator,
-                                        ));
-
-                                        return TSType::TSTypeLiteral(AstBox::new_in(
-                                            new_type.clone_in(allocator),
-                                            allocator,
-                                        ));
-                                    }
-                                }
-                                TSType::TSUnionType(tut) => {
-                                    for member in tut.types.iter() {
-                                        if let TSType::TSLiteralType(tlt) = member {
-                                            match &tlt.literal {
-                                                TSLiteral::NumericLiteral(_)
-                                                | TSLiteral::StringLiteral(_) => {
-                                                    new_type.members.push(utils::new_ts_signature(
-                                                        &tlt.literal,
-                                                        &value_type,
-                                                        allocator,
-                                                    ));
-                                                }
-
-                                                _ => {}
-                                            }
-                                        }
-                                    }
+                        );
+                        match key_type {
+                            TSType::TSLiteralType(tlt) => {
+                                if let TSLiteral::StringLiteral(_sl) = &tlt.literal {
+                                    new_type.members.push(utils::new_ts_signature(
+                                        &tlt.literal,
+                                        &value_type,
+                                        allocator,
+                                    ));
 
                                     return TSType::TSTypeLiteral(AstBox::new_in(
                                         new_type.clone_in(allocator),
                                         allocator,
                                     ));
                                 }
-                                _ => {}
                             }
+                            TSType::TSUnionType(tut) => {
+                                for member in tut.types.iter() {
+                                    if let TSType::TSLiteralType(tlt) = member {
+                                        match &tlt.literal {
+                                            TSLiteral::NumericLiteral(_)
+                                            | TSLiteral::StringLiteral(_) => {
+                                                new_type.members.push(utils::new_ts_signature(
+                                                    &tlt.literal,
+                                                    &value_type,
+                                                    allocator,
+                                                ));
+                                            }
+
+                                            _ => {}
+                                        }
+                                    }
+                                }
+
+                                return TSType::TSTypeLiteral(AstBox::new_in(
+                                    new_type.clone_in(allocator),
+                                    allocator,
+                                ));
+                            }
+                            _ => {}
                         }
                     }
                 };
@@ -237,17 +226,13 @@ impl<'a> Keyword<'a> {
             Keyword::ReturnType(tr) => {
                 if let Some(ta) = &tr.type_arguments {
                     if let Some(ta_type) = ta.params.first() {
-                        let decl = type_alias::flatten_ts_type(
+                        return type_alias::flatten_ts_type(
                             ta_type,
                             semantic,
                             allocator,
                             result_program,
                             env,
                         );
-
-                        if let Some(ts_type) = decl.type_decl(allocator) {
-                            return ts_type;
-                        }
                     }
                 };
             }
@@ -269,15 +254,13 @@ pub fn get_type_members<'a>(
     result_program: &mut ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> AstVec<'a, TSSignature<'a>> {
-    let decl = type_alias::flatten_ts_type(ts_type, semantic, allocator, result_program, env);
+    let ts_type = type_alias::flatten_ts_type(ts_type, semantic, allocator, result_program, env);
 
     let members = AstVec::new_in(allocator);
 
-    if let Some(ts_type) = decl.type_decl(allocator) {
-        match ts_type {
-            TSType::TSTypeLiteral(ttl) => return ttl.members.clone_in(allocator),
-            _ => {}
-        }
+    match ts_type {
+        TSType::TSTypeLiteral(ttl) => return ttl.members.clone_in(allocator),
+        _ => {}
     }
 
     members
@@ -431,32 +414,30 @@ pub fn flatten_pick_omit<'a>(
 
     let mut members = AstVec::new_in(allocator);
 
-    if let Some(ts_type) = refer_type.type_decl(allocator) {
-        match ts_type {
-            TSType::TSTypeLiteral(tl) => {
-                for sg in tl.members.iter() {
-                    match sg {
-                        TSSignature::TSPropertySignature(ps) => match &ps.key {
-                            PropertyKey::StaticIdentifier(si) => {
-                                if kind == Keyword::Pick(refer).name()
-                                    && keys.contains(&si.name.to_string())
-                                {
-                                    members.push(sg.clone_in(allocator))
-                                }
-                                if kind == Keyword::Omit(refer).name()
-                                    && !keys.contains(&si.name.to_string())
-                                {
-                                    members.push(sg.clone_in(allocator))
-                                }
+    match refer_type {
+        TSType::TSTypeLiteral(tl) => {
+            for sg in tl.members.iter() {
+                match sg {
+                    TSSignature::TSPropertySignature(ps) => match &ps.key {
+                        PropertyKey::StaticIdentifier(si) => {
+                            if kind == Keyword::Pick(refer).name()
+                                && keys.contains(&si.name.to_string())
+                            {
+                                members.push(sg.clone_in(allocator))
                             }
-                            _ => {}
-                        },
+                            if kind == Keyword::Omit(refer).name()
+                                && !keys.contains(&si.name.to_string())
+                            {
+                                members.push(sg.clone_in(allocator))
+                            }
+                        }
                         _ => {}
-                    }
+                    },
+                    _ => {}
                 }
             }
-            _ => {}
         }
+        _ => {}
     }
 
     new_type.members = members;

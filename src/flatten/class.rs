@@ -118,17 +118,13 @@ pub fn flatten_class_elements_type<'a>(
         ClassElement::TSIndexSignature(tis) => {
             let mut new_element = tis.clone_in(allocator);
 
-            let decl = type_alias::flatten_ts_type(
+            new_element.type_annotation.type_annotation = type_alias::flatten_ts_type(
                 &tis.type_annotation.type_annotation,
                 semantic,
                 allocator,
                 result_program,
                 env,
             );
-
-            if let Some(ts_type) = decl.type_decl(allocator) {
-                new_element.type_annotation.type_annotation = ts_type;
-            }
 
             Some(ClassElement::TSIndexSignature(new_element))
         }
@@ -144,19 +140,15 @@ pub fn flatten_class_elements_type<'a>(
             let mut new_element = tpd.clone_in(allocator);
 
             if let Some(ta) = &tpd.type_annotation {
-                let decl = type_alias::flatten_ts_type(
+                let mut new_type = ta.clone_in(allocator);
+
+                new_type.type_annotation = type_alias::flatten_ts_type(
                     &ta.type_annotation,
                     semantic,
                     allocator,
                     result_program,
                     env,
                 );
-
-                let mut new_type = ta.clone_in(allocator);
-
-                if let Some(ts_type) = decl.type_decl(allocator) {
-                    new_type.type_annotation = ts_type;
-                }
 
                 new_element.type_annotation = Some(new_type);
 
@@ -180,19 +172,15 @@ pub fn flatten_class_elements_type<'a>(
 
             // flatten return type
             if let Some(return_type) = &tmd.value.return_type {
-                let decl = type_alias::flatten_ts_type(
+                let mut new_return_type = return_type.clone_in(allocator);
+
+                new_return_type.type_annotation = type_alias::flatten_ts_type(
                     &return_type.type_annotation,
                     semantic,
                     allocator,
                     result_program,
                     env.clone_in(allocator),
                 );
-
-                let mut new_return_type = return_type.clone_in(allocator);
-
-                if let Some(ts_type) = decl.type_decl(allocator) {
-                    new_return_type.type_annotation = ts_type;
-                }
 
                 new_element.value.return_type = Some(new_return_type);
             }
@@ -231,19 +219,15 @@ pub fn flatten_method_params_type<'a>(
         let mut new_item = item.clone_in(allocator);
 
         if let Some(item_type) = &item.pattern.type_annotation {
-            let decl = type_alias::flatten_ts_type(
+            let mut new_item_type = item_type.clone_in(allocator);
+
+            new_item_type.type_annotation = type_alias::flatten_ts_type(
                 &item_type.type_annotation,
                 semantic,
                 allocator,
                 result_program,
                 env.clone_in(allocator),
             );
-
-            let mut new_item_type = item_type.clone_in(allocator);
-
-            if let Some(ts_type) = decl.type_decl(allocator) {
-                new_item_type.type_annotation = ts_type;
-            }
 
             new_item.pattern.type_annotation = Some(new_item_type);
         }
@@ -255,19 +239,14 @@ pub fn flatten_method_params_type<'a>(
         let mut new_rest = rest.clone_in(allocator);
 
         if let Some(rest_type) = &rest.argument.type_annotation {
-            let decl = type_alias::flatten_ts_type(
+            let mut new_rest_type = rest_type.clone_in(allocator);
+            new_rest_type.type_annotation = type_alias::flatten_ts_type(
                 &rest_type.type_annotation,
                 semantic,
                 allocator,
                 result_program,
                 env.clone_in(allocator),
             );
-
-            let mut new_rest_type = rest_type.clone_in(allocator);
-
-            if let Some(ts_type) = decl.type_decl(allocator) {
-                new_rest_type.type_annotation = ts_type;
-            }
 
             new_rest.argument.type_annotation = Some(new_rest_type);
         }

@@ -203,63 +203,59 @@ pub fn merge_type_to_class<'a>(
 ///
 /// #[instrument(skip(decl, _semantic, _env, allocator, _result_program))]
 pub fn get_keyof_union_type<'a>(
-    decl: DeclRef<'a>,
+    ts_type: TSType<'a>,
     _semantic: &Semantic<'a>,
     allocator: &'a Allocator,
     _result_program: &mut ResultProgram<'a>,
 ) -> Option<TSType<'a>> {
-    if let Some(tad) = decl.type_decl(allocator) {
-        match tad {
-            TSType::TSTypeLiteral(tl) => {
-                let mut keys = AstVec::new_in(allocator);
+    match ts_type {
+        TSType::TSTypeLiteral(tl) => {
+            let mut keys = AstVec::new_in(allocator);
 
-                for member in tl.members.iter() {
-                    match member {
-                        TSSignature::TSIndexSignature(tis) => {
-                            for param in tis.parameters.iter() {
-                                keys.push(
-                                    param.type_annotation.type_annotation.clone_in(allocator),
-                                );
-                            }
+            for member in tl.members.iter() {
+                match member {
+                    TSSignature::TSIndexSignature(tis) => {
+                        for param in tis.parameters.iter() {
+                            keys.push(param.type_annotation.type_annotation.clone_in(allocator));
                         }
-                        TSSignature::TSPropertySignature(ps) => {
-                            let key = match &ps.key {
-                                PropertyKey::StaticIdentifier(si) => si.name.as_str(),
-                                _ => "",
-                            };
-
-                            keys.push(TSType::TSLiteralType(AstBox::new_in(
-                                TSLiteralType {
-                                    span: Default::default(),
-                                    literal: TSLiteral::StringLiteral(AstBox::new_in(
-                                        StringLiteral {
-                                            span: Default::default(),
-                                            value: key.into_in(allocator),
-                                            raw: None,
-                                            lone_surrogates: false,
-                                        },
-                                        allocator,
-                                    )),
-                                },
-                                allocator,
-                            )))
-                        }
-                        _ => {}
                     }
+                    TSSignature::TSPropertySignature(ps) => {
+                        let key = match &ps.key {
+                            PropertyKey::StaticIdentifier(si) => si.name.as_str(),
+                            _ => "",
+                        };
+
+                        keys.push(TSType::TSLiteralType(AstBox::new_in(
+                            TSLiteralType {
+                                span: Default::default(),
+                                literal: TSLiteral::StringLiteral(AstBox::new_in(
+                                    StringLiteral {
+                                        span: Default::default(),
+                                        value: key.into_in(allocator),
+                                        raw: None,
+                                        lone_surrogates: false,
+                                    },
+                                    allocator,
+                                )),
+                            },
+                            allocator,
+                        )))
+                    }
+                    _ => {}
                 }
-
-                let new_type = TSType::TSUnionType(AstBox::new_in(
-                    TSUnionType {
-                        span: Default::default(),
-                        types: keys,
-                    },
-                    allocator,
-                ));
-
-                return Some(new_type);
             }
-            _ => {}
+
+            let new_type = TSType::TSUnionType(AstBox::new_in(
+                TSUnionType {
+                    span: Default::default(),
+                    types: keys,
+                },
+                allocator,
+            ));
+
+            return Some(new_type);
         }
+        _ => {}
     }
 
     None
