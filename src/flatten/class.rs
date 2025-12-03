@@ -37,11 +37,7 @@ pub fn flatten_type<'a>(
         result_program,
     );
 
-    let mut env_keys = AstVec::new_in(allocator);
-
-    for (&key, _) in env.iter() {
-        env_keys.push(key);
-    }
+    let env_keys = generic::get_generic_keys(&env, allocator);
     // Flatten class extends
     if let Some(extend) = &class_type.super_class {
         if let Expression::Identifier(ei) = extend {

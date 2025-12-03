@@ -44,11 +44,7 @@ pub fn flatten_type<'a>(
         result_program,
     );
 
-    let mut env_keys = AstVec::new_in(allocator);
-
-    for (&key, _) in env.iter() {
-        env_keys.push(key);
-    }
+    let env_keys = generic::get_generic_keys(&env, allocator);
     //
     let result = flatten_ts_type(
         &ts_type.type_annotation,
@@ -118,13 +114,13 @@ pub fn flatten_ts_type<'a>(
             }
 
             if let Some(decl) = result_program.get_cached(reference_name) {
-                match decl.decl {
-                    DeclRef::Variable(_) => {}
-                    other => {
-                        if let Some(ts_type) = other.type_decl(allocator) {
-                            new_type.type_annotation = ts_type;
-                        }
-                    }
+                // Merge the parent env with the current env. and replace the members withe the parent env type.
+
+                let ts_type =
+                    generic::merge_type_with_generic(&env, &tr.type_arguments, decl, allocator);
+
+                if let Some(ts_type) = ts_type {
+                    new_type.type_annotation = ts_type;
                 }
             }
         }

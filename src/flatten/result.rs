@@ -178,10 +178,11 @@ impl<'a> ResultProgram<'a> {
 
     // Get cached type already flatten
     pub fn get_cached(&self, name: &'a str) -> Option<&CacheDecl<'a>> {
+        if self.circle_type.contains(name) {
+            return None;
+        }
         if let Some(decl) = self.cached.get(name) {
-            let decl_copy: &CacheDecl<'a> = self.allocator.alloc(decl);
-
-            return Some(decl_copy);
+            return Some(decl);
         }
 
         None

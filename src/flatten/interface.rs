@@ -44,11 +44,7 @@ pub fn flatten_type<'a>(
         allocator,
         result_program,
     );
-    let mut env_keys = AstVec::new_in(allocator);
-
-    for (&key, _) in env.iter() {
-        env_keys.push(key);
-    }
+    let env_keys = generic::get_generic_keys(&env, allocator);
     // all extend type. include self
     let members = ts_type.body.body.clone_in(allocator);
 

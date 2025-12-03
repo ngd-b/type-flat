@@ -1,8 +1,16 @@
+use std::{mem, vec};
+
 use oxc_allocator::{Allocator, Box, CloneIn, HashMap, Vec as AstVec};
-use oxc_ast::ast::{TSTypeParameter, TSTypeParameterDeclaration};
+use oxc_ast::ast::{
+    TSSignature, TSTupleElement, TSType, TSTypeName, TSTypeParameter, TSTypeParameterDeclaration,
+    TSTypeParameterInstantiation,
+};
 use oxc_semantic::Semantic;
 
-use crate::flatten::{result::ResultProgram, type_alias};
+use crate::flatten::{
+    result::{CacheDecl, ResultProgram},
+    type_alias,
+};
 
 pub struct Generic<'a> {
     // position
@@ -64,4 +72,283 @@ pub fn flatten_generic<'a>(
     }
 
     env
+}
+
+///
+/// Get the generic keys
+///
+pub fn get_generic_keys<'a>(
+    generics: &'a HashMap<'a, &'a str, Generic<'a>>,
+    allocator: &'a Allocator,
+) -> AstVec<'a, &'a str> {
+    let mut env_keys = AstVec::new_in(allocator);
+
+    for (&key, _) in generics.iter() {
+        env_keys.push(key);
+    }
+
+    env_keys
+}
+
+///
+/// Merge the generic type to child type members
+///
+pub fn merge_type_with_generic<'a>(
+    parent_envs: &AstVec<'a, &'a str>,
+    current_envs: &'a Option<Box<'a, TSTypeParameterInstantiation<'a>>>,
+    child_type: &CacheDecl<'a>,
+    allocator: &'a Allocator,
+) -> Option<TSType<'a>> {
+    // 1. IF the child type not has generic type. return the child type
+    if child_type.generics.is_empty() {
+        return child_type.decl.type_decl(allocator);
+    }
+    let ts_type = child_type.decl.type_decl(allocator);
+    if ts_type.is_none() {
+        return None;
+    }
+
+    let ts_type = ts_type.unwrap();
+    // 2. This is a generic type. all members should be merged with the default generic type
+    if current_envs.is_none() {
+        let new_type = replace_type_with_generic(
+            &child_type.generics,
+            allocator.alloc(ts_type.clone_in(allocator)),
+            allocator,
+        );
+        return Some(new_type);
+    }
+
+    // 3. IF the current env is not include parent envs.
+
+    // 4. IF the current env exist some include parent envs.
+
+    Some(ts_type)
+}
+
+///
+/// Replace the type with the default generic type
+///
+pub fn replace_type_with_generic<'a>(
+    env: &HashMap<'a, &'a str, Generic<'a>>,
+    ts_type: &'a TSType<'a>,
+    allocator: &'a Allocator,
+) -> TSType<'a> {
+    let mut new_type = ts_type.clone_in(allocator);
+
+    match ts_type {
+        TSType::TSTypeReference(tr) => {
+            // reference_name
+            let reference_name = match &tr.type_name {
+                TSTypeName::IdentifierReference(ir) => allocator.alloc_str(&ir.name),
+                _ => "",
+            };
+
+            if let Some(generic) = env.get(reference_name) {
+                if let Some(ts_type) = &generic.ts_type.default {
+                    new_type = ts_type.clone_in(allocator);
+                }
+            }
+        }
+        // union type. only flat not merge
+        TSType::TSUnionType(ut) => {
+            let mut new_union_type = ut.clone_in(allocator);
+
+            new_union_type.types = AstVec::new_in(allocator);
+            for member in ut.types.iter() {
+                let ts_type = replace_type_with_generic(env, ts_type, allocator);
+
+                new_union_type.types.push(ts_type);
+            }
+
+            new_type = TSType::TSUnionType(new_union_type);
+        }
+        TSType::TSIntersectionType(it) => {
+            let mut new_intersection_type = it.clone_in(allocator);
+
+            new_intersection_type.types = AstVec::new_in(allocator);
+            for member in it.types.iter() {
+                let ts_type = replace_type_with_generic(env, ts_type, allocator);
+
+                new_intersection_type.types.push(ts_type);
+            }
+
+            new_type = TSType::TSIntersectionType(new_intersection_type);
+        }
+        TSType::TSArrayType(at) => {
+            let mut new_array_type = at.clone_in(allocator);
+
+            new_array_type.element_type =
+                replace_type_with_generic(env, &at.element_type, allocator);
+
+            new_type = TSType::TSArrayType(new_array_type);
+        }
+        TSType::TSTupleType(tut) => {
+            let mut elements = AstVec::new_in(allocator);
+
+            for element in tut.element_types.iter() {
+                let ts_type = replace_type_with_generic(env, element.to_ts_type(), allocator);
+
+                match element {
+                    TSTupleElement::TSOptionalType(tot) => {
+                        let mut new_element = tot.clone_in(allocator);
+                        new_element.type_annotation = ts_type;
+
+                        elements.push(TSTupleElement::TSOptionalType(
+                            new_element.clone_in(allocator),
+                        ))
+                    }
+                    TSTupleElement::TSRestType(trt) => {
+                        let mut new_element = trt.clone_in(allocator);
+                        new_element.type_annotation = ts_type;
+                        elements.push(TSTupleElement::TSRestType(new_element))
+                    }
+                    _ => elements.push(ts_type.into()),
+                }
+
+                // save the type in result output code
+
+                let mut new_tuple_type = tut.clone_in(allocator);
+                new_tuple_type.element_types = elements.clone_in(allocator);
+
+                new_type = TSType::TSTupleType(new_tuple_type);
+            }
+        }
+        TSType::TSConditionalType(ct) => {
+            let mut new_conditioinal_type = ct.clone_in(allocator);
+
+            let check_type = replace_type_with_generic(env, &ct.check_type, allocator);
+            let extends_type = replace_type_with_generic(env, &ct.extends_type, allocator);
+
+            let true_type = replace_type_with_generic(env, &ct.true_type, allocator);
+            let false_type = replace_type_with_generic(env, &ct.false_type, allocator);
+
+            new_conditioinal_type.check_type = check_type;
+            new_conditioinal_type.extends_type = extends_type;
+            new_conditioinal_type.true_type = true_type;
+            new_conditioinal_type.false_type = false_type;
+
+            new_type = TSType::TSConditionalType(new_conditioinal_type)
+        }
+
+        TSType::TSIndexedAccessType(idt) => {
+            let mut new_indexed_access_type = idt.clone_in(allocator);
+            let object_decl = replace_type_with_generic(env, &idt.object_type, allocator);
+
+            let index_decl = replace_type_with_generic(env, &idt.index_type, allocator);
+
+            new_indexed_access_type.object_type = object_decl;
+            new_indexed_access_type.index_type = index_decl;
+
+            new_type = TSType::TSIndexedAccessType(new_indexed_access_type);
+        }
+
+        TSType::TSParenthesizedType(tpt) => {
+            let mut new_parenthesized_type = tpt.clone_in(allocator);
+
+            new_type = TSType::TSParenthesizedType(new_parenthesized_type);
+        }
+        TSType::TSTypeLiteral(ttl) => {
+            let mut members = AstVec::new_in(allocator);
+
+            for member in ttl.members.iter() {
+                let new_member = member.clone_in(allocator);
+
+                members.push(new_member);
+            }
+
+            let mut new_literal = ttl.clone_in(allocator);
+            new_literal.members = members;
+
+            new_type = TSType::TSTypeLiteral(new_literal);
+        }
+        TSType::TSFunctionType(tft) => {
+            let mut new_fn_type = tft.clone_in(allocator);
+
+            // return-type flatten
+            new_fn_type.return_type.type_annotation =
+                replace_type_with_generic(env, &tft.return_type.type_annotation, allocator);
+
+            new_type = TSType::TSFunctionType(new_fn_type);
+        }
+        _ => {}
+    };
+
+    new_type
+}
+
+///
+/// Replace the member's type with generic
+///
+pub fn replace_member_type_with_generic<'a>(
+    env: &HashMap<'a, &'a str, Generic<'a>>,
+    member: &'a TSSignature<'a>,
+    allocator: &'a Allocator,
+) -> TSSignature<'a> {
+    let mut new_member = member.clone_in(allocator);
+
+    match member {
+        TSSignature::TSIndexSignature(tis) => {
+            let mut new_index = tis.clone_in(allocator);
+
+            // value type
+            let value_type =
+                replace_type_with_generic(env, &tis.type_annotation.type_annotation, allocator);
+
+            new_index.type_annotation.type_annotation = value_type;
+
+            // key flat type
+            let mut params = AstVec::new_in(allocator);
+
+            for param in tis.parameters.iter() {
+                let mut new_param = param.clone_in(allocator);
+
+                let ts_type = replace_type_with_generic(
+                    env,
+                    &param.type_annotation.type_annotation,
+                    allocator,
+                );
+
+                new_param.type_annotation.type_annotation = ts_type;
+
+                params.push(new_param);
+            }
+
+            new_index.parameters = params;
+
+            new_member = TSSignature::TSIndexSignature(new_index)
+        }
+        TSSignature::TSPropertySignature(tps) => {
+            let mut new_property = tps.clone_in(allocator);
+
+            if let Some(ta) = &tps.type_annotation {
+                let mut new_ta = ta.clone_in(allocator);
+
+                let ts_type = replace_type_with_generic(env, &ta.type_annotation, allocator);
+                new_ta.type_annotation = ts_type;
+
+                new_property.type_annotation = Some(new_ta);
+            };
+            new_member = TSSignature::TSPropertySignature(new_property)
+        }
+        TSSignature::TSMethodSignature(tms) => {
+            let mut new_method = tms.clone_in(allocator);
+
+            // params flatten
+
+            // return type flatten
+            if let Some(rt) = &tms.return_type {
+                let mut new_return_type = rt.clone_in(allocator);
+
+                new_return_type.type_annotation =
+                    replace_type_with_generic(env, &rt.type_annotation, allocator);
+                new_method.return_type = Some(new_return_type)
+            }
+
+            new_member = TSSignature::TSMethodSignature(new_method)
+        }
+        _ => {}
+    }
+
+    new_member
 }
