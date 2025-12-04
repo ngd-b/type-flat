@@ -233,7 +233,7 @@ impl<'a> Keyword<'a> {
 
                 return Some(TSType::TSTypeLiteral(AstBox::new_in(ts_type, allocator)));
             }
-            Keyword::Omit(refer) => {
+            Keyword::Omit(_) => {
                 let ts_type = flatten_pick_omit(
                     self.name(),
                     allocator.alloc(ts_types.clone_in(allocator)),

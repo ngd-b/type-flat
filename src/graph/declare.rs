@@ -1,7 +1,7 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, Expression, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
-    TSTypeName, TSTypeParameterDeclaration, TSTypeReference, TSUnionType,
+    Class, Expression, Function, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration,
+    TSTypeLiteral, TSTypeName, TSTypeParameterDeclaration, TSTypeReference, TSUnionType,
 };
 
 use crate::flatten::utils;
@@ -11,6 +11,7 @@ pub enum DeclRef<'a> {
     Interface(&'a TSInterfaceDeclaration<'a>),
     TypeAlias(&'a TSTypeAliasDeclaration<'a>),
     Class(&'a Class<'a>),
+    Function(&'a Function<'a>),
 }
 
 impl<'a> DeclRef<'a> {
@@ -89,6 +90,35 @@ impl<'a> DeclRef<'a> {
                 }
                 if let Some(ta) = &drc.super_type_arguments {
                     new_type.types.extend(ta.params.clone_in(allocator));
+                }
+            }
+            DeclRef::Function(drf) => {
+                // type parameters
+                if let Some(ta) = &drf.type_parameters {
+                    new_type.types.extend(type_decl_params(ta, allocator));
+                }
+
+                // return type
+                if let Some(return_type) = &drf.return_type {
+                    new_type
+                        .types
+                        .push(return_type.type_annotation.clone_in(allocator));
+                }
+
+                // params
+                if let Some(rest_param) = &drf.params.rest {
+                    if let Some(rest_type) = &rest_param.argument.type_annotation {
+                        new_type
+                            .types
+                            .push(rest_type.type_annotation.clone_in(allocator));
+                    }
+                }
+                for param in drf.params.items.iter() {
+                    if let Some(param_type) = &param.pattern.type_annotation {
+                        new_type
+                            .types
+                            .push(param_type.type_annotation.clone_in(allocator));
+                    }
                 }
             }
         };

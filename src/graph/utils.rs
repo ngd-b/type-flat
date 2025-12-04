@@ -37,6 +37,13 @@ pub fn get_type<'a>(
                     }
                 }
             }
+            AstKind::Function(tf) => {
+                if let Some(id) = &tf.id {
+                    if id.name.as_str() == reference_name {
+                        decls.push(DeclRef::Function(tf));
+                    }
+                }
+            }
             _ => {}
         }
     }

@@ -16,6 +16,7 @@ use tracing::info;
 
 pub mod class;
 pub mod declare;
+pub mod function;
 pub mod generic;
 pub mod interface;
 pub mod keyword;

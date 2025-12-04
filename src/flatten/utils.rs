@@ -64,6 +64,13 @@ pub fn get_type<'a>(
                     }
                 }
             }
+            AstKind::Function(fun) => {
+                if let Some(id) = &fun.id {
+                    if id.name.as_str() == reference_name {
+                        decls.push(DeclRef::Function(fun));
+                    }
+                }
+            }
             _ => {}
         }
     }

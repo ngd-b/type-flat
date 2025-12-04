@@ -1,0 +1,70 @@
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn};
+use oxc_ast::ast::Function;
+use oxc_semantic::Semantic;
+use tracing::info;
+
+use crate::flatten::{
+    class,
+    declare::DeclRef,
+    generic,
+    result::{CacheDecl, ResultProgram},
+    type_alias,
+};
+
+///
+/// Flatten the class type
+///
+/// #[instrument(skip(var_const, semantic, allocator, result_program))]
+pub fn flatten_type<'a>(
+    fun: &'a Function<'a>,
+    semantic: &Semantic<'a>,
+    allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
+) -> CacheDecl<'a> {
+    let fun_name = if let Some(id) = &fun.id {
+        id.name.as_str()
+    } else {
+        "DoNotGetFunName"
+    };
+
+    info!("Flatten class type {}", fun_name);
+
+    let mut new_fun = fun.clone_in(allocator);
+
+    let env = generic::flatten_generic(&fun.type_parameters, semantic, allocator, result_program);
+    let env_keys = generic::get_generic_keys(&env, allocator);
+    //
+    if let Some(return_type) = &fun.return_type {
+        let mut new_return_type = return_type.clone_in(allocator);
+
+        let ts_type = type_alias::flatten_ts_type(
+            &return_type.type_annotation,
+            semantic,
+            allocator,
+            result_program,
+            env_keys.clone_in(allocator),
+        );
+
+        new_return_type.type_annotation = ts_type;
+        new_fun.return_type = Some(new_return_type)
+    }
+
+    let new_params = class::flatten_method_params_type(
+        allocator.alloc(fun.params.clone_in(allocator)),
+        semantic,
+        allocator,
+        result_program,
+        env_keys.clone_in(allocator),
+    );
+
+    new_fun.params = AstBox::new_in(new_params, allocator);
+
+    info!("Flatten function type {}, Success!", fun_name);
+
+    let decl = CacheDecl {
+        name: fun_name,
+        decl: DeclRef::Function(allocator.alloc(new_fun)),
+        generics: env,
+    };
+    decl
+}

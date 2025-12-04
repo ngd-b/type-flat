@@ -173,6 +173,7 @@ impl<'a> ResultProgram<'a> {
             DeclRef::Variable(drv) => {
                 self.add_variable(drv.clone_in(self.allocator));
             }
+            _ => {}
         };
     }
 

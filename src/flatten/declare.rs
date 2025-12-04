@@ -1,17 +1,20 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration, TSTypeLiteral,
-    VariableDeclaration,
+    Class, Function, TSFunctionType, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration,
+    TSTypeAnnotation, TSTypeLiteral, TSVoidKeyword, VariableDeclaration,
 };
 use oxc_semantic::Semantic;
 
-use crate::flatten::{class, interface, result::ResultProgram, type_alias, utils, variable};
+use crate::flatten::{
+    class, function, interface, result::ResultProgram, type_alias, utils, variable,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum DeclRef<'a> {
     Interface(&'a TSInterfaceDeclaration<'a>),
     TypeAlias(&'a TSTypeAliasDeclaration<'a>),
     Class(&'a Class<'a>),
+    Function(&'a Function<'a>),
     Variable(&'a VariableDeclaration<'a>),
 }
 
@@ -41,6 +44,37 @@ impl<'a> DeclRef<'a> {
                 new_type.members.extend(new_members);
 
                 return Some(TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator)));
+            }
+            DeclRef::Function(drf) => {
+                let return_type = if let Some(return_type) = &drf.return_type {
+                    return_type.clone_in(allocator)
+                } else {
+                    AstBox::new_in(
+                        TSTypeAnnotation {
+                            span: Default::default(),
+                            type_annotation: TSType::TSVoidKeyword(AstBox::new_in(
+                                TSVoidKeyword {
+                                    span: Default::default(),
+                                },
+                                allocator,
+                            )),
+                        },
+                        allocator,
+                    )
+                };
+                let new_fn_type = TSFunctionType {
+                    span: drf.span.clone_in(allocator),
+                    type_parameters: drf.type_parameters.clone_in(allocator),
+                    this_param: drf.this_param.clone_in(allocator),
+                    params: drf.params.clone_in(allocator),
+                    return_type: return_type,
+                    scope_id: drf.scope_id.clone_in(allocator),
+                };
+
+                return Some(TSType::TSFunctionType(AstBox::new_in(
+                    new_fn_type,
+                    allocator,
+                )));
             }
             _ => {}
         };
@@ -76,6 +110,11 @@ impl<'a> DeclRef<'a> {
                 let decl = DeclRef::Variable(allocator.alloc(decl));
 
                 result_program.push(decl);
+            }
+            DeclRef::Function(drf) => {
+                let decl = function::flatten_type(drf, semantic, allocator, result_program);
+
+                result_program.cached.insert(decl.name, decl);
             }
         };
     }
