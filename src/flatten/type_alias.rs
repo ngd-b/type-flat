@@ -136,7 +136,14 @@ pub fn flatten_ts_type<'a>(
                 );
 
                 if let Some(ts_type) = result {
-                    new_type = ts_type;
+                    let flat_type = flatten_ts_type(
+                        allocator.alloc(ts_type.clone_in(allocator)),
+                        semantic,
+                        allocator,
+                        result_program,
+                        env.clone_in(allocator),
+                    );
+                    new_type = flat_type;
                 }
             }
         }

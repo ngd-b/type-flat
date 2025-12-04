@@ -87,60 +87,58 @@ pub fn flatten_type<'a>(
                 continue;
             }
 
-            // Handle extend members with env type
-            let mut new_members = AstVec::new_in(allocator);
+            let type_params = if let Some(tp) = &extend.type_arguments {
+                let mut new_tp = tp.clone_in(allocator);
 
-            let extend_env = if let Some(ta) = &extend.type_arguments {
-                let new_params = ta.clone_in(allocator);
+                let mut params = AstVec::new_in(allocator);
 
-                for param in ta.params.iter() {}
-
-                Some(new_params)
-            } else {
-                extend.type_arguments.clone_in(allocator)
-            };
-            if let Some(decl) = result_program.get_cached(reference_name) {
-                match decl.decl {
-                    DeclRef::Interface(tid) => {
-                        for member in tid.body.body.iter() {
-                            if members
-                                .iter()
-                                .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                            {
-                                continue;
-                            }
-
-                            new_members.push(member.clone_in(allocator));
-                        }
-                    }
-                    DeclRef::TypeAlias(tad) => {
-                        // get literal type
-                        match &tad.type_annotation {
-                            TSType::TSTypeLiteral(tl) => {
-                                for member in tl.members.iter() {
-                                    if members
-                                        .iter()
-                                        .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                                    {
-                                        continue;
-                                    }
-                                    new_members.push(member.clone_in(allocator));
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    DeclRef::Class(tcd) => {
-                        new_members =
-                            utils::class_elements_to_type_members(&tcd.body.body, allocator);
-                    }
-
-                    _ => {}
+                for param in tp.params.iter() {
+                    let ts_type = type_alias::flatten_ts_type(
+                        param,
+                        semantic,
+                        allocator,
+                        result_program,
+                        env_keys.clone_in(allocator),
+                    );
+                    params.push(ts_type);
                 }
 
-                // TODO: Replace the member type with env
+                new_tp.params = params;
 
-                extend_members.extend(new_members);
+                Some(new_tp)
+            } else {
+                None
+            };
+            if let Some(decl) = result_program.get_cached(reference_name) {
+                let result = generic::merge_type_with_generic(
+                    allocator.alloc(type_params.clone_in(allocator)),
+                    decl,
+                    allocator,
+                );
+
+                if let Some(ts_type) = result {
+                    let flat_type = type_alias::flatten_ts_type(
+                        allocator.alloc(ts_type.clone_in(allocator)),
+                        semantic,
+                        allocator,
+                        result_program,
+                        env_keys.clone_in(allocator),
+                    );
+                    match flat_type {
+                        TSType::TSTypeLiteral(tl) => {
+                            for member in tl.members.iter() {
+                                if members
+                                    .iter()
+                                    .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                                {
+                                    continue;
+                                }
+                                extend_members.push(member.clone_in(allocator));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
     }

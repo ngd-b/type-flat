@@ -1,6 +1,6 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, ClassElement, Expression, FormalParameters, PropertyKey, TSAccessibility,
+    Class, ClassElement, Expression, FormalParameters, PropertyKey, TSAccessibility, TSType,
 };
 use oxc_semantic::Semantic;
 use tracing::info;
@@ -28,7 +28,7 @@ pub fn flatten_type<'a>(
         "[DoNotGetName]"
     };
     info!("Flatten class type {}", class_name);
-    let mut elements = class_type.body.body.clone_in(allocator);
+    let elements = class_type.body.body.clone_in(allocator);
 
     let env = generic::flatten_generic(
         &class_type.type_parameters,
@@ -38,30 +38,69 @@ pub fn flatten_type<'a>(
     );
 
     let env_keys = generic::get_generic_keys(&env, allocator);
+
+    let mut extend_elements = AstVec::new_in(allocator);
     // Flatten class extends
     if let Some(extend) = &class_type.super_class {
         if let Expression::Identifier(ei) = extend {
             let reference_name = allocator.alloc_str(&ei.name);
 
+            let type_params = if let Some(tp) = &class_type.super_type_arguments {
+                let mut new_tp = tp.clone_in(allocator);
+
+                let mut params = AstVec::new_in(allocator);
+
+                for param in tp.params.iter() {
+                    let ts_type = type_alias::flatten_ts_type(
+                        param,
+                        semantic,
+                        allocator,
+                        result_program,
+                        env_keys.clone_in(allocator),
+                    );
+                    params.push(ts_type);
+                }
+
+                new_tp.params = params;
+
+                Some(new_tp)
+            } else {
+                None
+            };
+
             if let Some(decl) = result_program.get_cached(reference_name) {
-                match decl.decl {
-                    DeclRef::Class(tcd) => {
-                        let mut new_elements = AstVec::new_in(allocator);
+                let result = generic::merge_type_with_generic(
+                    allocator.alloc(type_params.clone_in(allocator)),
+                    decl,
+                    allocator,
+                );
 
-                        for element in tcd.body.body.iter() {
-                            if elements
-                                .iter()
-                                .any(|el| utils::eq_class_element(el, element, allocator))
-                            {
-                                continue;
+                if let Some(ts_type) = result {
+                    let flat_type = type_alias::flatten_ts_type(
+                        allocator.alloc(ts_type.clone_in(allocator)),
+                        semantic,
+                        allocator,
+                        result_program,
+                        env_keys.clone_in(allocator),
+                    );
+
+                    match flat_type {
+                        TSType::TSTypeLiteral(tl) => {
+                            let super_elements =
+                                utils::type_members_to_class_elements(&tl.members, allocator);
+
+                            for element in super_elements.iter() {
+                                if elements
+                                    .iter()
+                                    .any(|el| utils::eq_class_element(el, element, allocator))
+                                {
+                                    continue;
+                                }
+                                extend_elements.push(element.clone_in(allocator));
                             }
-                            new_elements.push(element.clone_in(allocator));
                         }
-
-                        elements.extend(new_elements);
+                        _ => {}
                     }
-
-                    _ => {}
                 }
             }
         }
@@ -87,6 +126,7 @@ pub fn flatten_type<'a>(
     new_class.implements = AstVec::new_in(allocator);
     // new_class.type_parameters = None;
 
+    new_elements.extend(extend_elements);
     new_class.body.body = new_elements;
 
     info!(

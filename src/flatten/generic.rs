@@ -277,12 +277,12 @@ pub fn replace_type_with_generic<'a>(
 
         TSType::TSIndexedAccessType(idt) => {
             let mut new_indexed_access_type = idt.clone_in(allocator);
-            let object_decl = replace_type_with_generic(env, &idt.object_type, allocator);
+            let object_type = replace_type_with_generic(env, &idt.object_type, allocator);
 
-            let index_decl = replace_type_with_generic(env, &idt.index_type, allocator);
+            let index_type = replace_type_with_generic(env, &idt.index_type, allocator);
 
-            new_indexed_access_type.object_type = object_decl;
-            new_indexed_access_type.index_type = index_decl;
+            new_indexed_access_type.object_type = object_type;
+            new_indexed_access_type.index_type = index_type;
 
             new_type = TSType::TSIndexedAccessType(new_indexed_access_type);
         }
@@ -316,6 +316,13 @@ pub fn replace_type_with_generic<'a>(
                 replace_type_with_generic(env, &tft.return_type.type_annotation, allocator);
 
             new_type = TSType::TSFunctionType(new_fn_type);
+        }
+        TSType::TSTypeOperatorType(tot) => {
+            let mut new_type_operator_type = tot.clone_in(allocator);
+
+            new_type_operator_type.type_annotation =
+                replace_type_with_generic(env, &tot.type_annotation, allocator);
+            new_type = TSType::TSTypeOperatorType(new_type_operator_type)
         }
         _ => {}
     };
