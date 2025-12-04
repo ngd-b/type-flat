@@ -8,6 +8,7 @@ use tracing::info;
 use oxc_semantic::Semantic;
 
 pub mod declare;
+pub mod keyword;
 pub mod utils;
 
 pub struct Graph<'a> {
@@ -101,7 +102,7 @@ pub fn build_graph<'a>(
             let children_name = utils::get_type_name(&ts_type, semantic, allocator);
 
             info!(
-                "Get the {} type children len {}",
+                "【Graph】Get the {} type children len {}",
                 &name,
                 children_name.len()
             );
@@ -180,7 +181,7 @@ pub fn traverse_collect_order<'a>(
             if path.contains(child_name) {
                 child_ref.borrow_mut().set_self_loop(true);
                 info!(
-                    "⚠️ Cycle Detected! Marking {} as part of a cycle.",
+                    "【Graph】⚠️ Cycle Detected! Marking {} as part of a cycle.",
                     child_name
                 );
                 continue;

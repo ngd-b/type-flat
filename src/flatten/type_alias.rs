@@ -91,11 +91,17 @@ pub fn flatten_ts_type<'a>(
             };
 
             // Keyword type flatten
-            if let Some(keyword) = Keyword::is_keyword(allocator.alloc(tr.clone_in(allocator))) {
-                let result_type: TSType<'_> =
+            if let Some(keyword) =
+                Keyword::is_keyword(allocator.alloc(tr.clone_in(allocator)), allocator)
+            {
+                let result =
                     keyword.flatten(semantic, allocator, result_program, env.clone_in(allocator));
 
-                return result_type;
+                return if let Some(ts_type) = result {
+                    ts_type
+                } else {
+                    new_type
+                };
             }
 
             let type_params = if let Some(tp) = &tr.type_arguments {

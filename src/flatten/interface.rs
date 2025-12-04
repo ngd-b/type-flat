@@ -60,23 +60,27 @@ pub fn flatten_type<'a>(
                 type_arguments: None,
             };
             // Keyword type flatten
-            if let Some(keyword) = Keyword::is_keyword(allocator.alloc(new_reference_type)) {
-                let result_type = keyword.flatten(
+            if let Some(keyword) =
+                Keyword::is_keyword(allocator.alloc(new_reference_type), allocator)
+            {
+                let result = keyword.flatten(
                     semantic,
                     allocator,
                     result_program,
                     env_keys.clone_in(allocator),
                 );
 
-                if let TSType::TSTypeLiteral(tl) = result_type {
-                    for member in tl.members.iter() {
-                        if members
-                            .iter()
-                            .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                        {
-                            continue;
+                if let Some(ts_type) = result {
+                    if let TSType::TSTypeLiteral(tl) = ts_type {
+                        for member in tl.members.iter() {
+                            if members
+                                .iter()
+                                .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                            {
+                                continue;
+                            }
+                            extend_members.push(member.clone_in(allocator));
                         }
-                        extend_members.push(member.clone_in(allocator));
                     }
                 }
 

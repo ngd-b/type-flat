@@ -1,12 +1,12 @@
 use anyhow::{Result, bail};
-use oxc_allocator::{Allocator, Vec as AstVec};
+use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
     ast::{TSQualifiedName, TSSignature, TSType, TSTypeName, TSTypeQueryExprName},
 };
 use oxc_semantic::Semantic;
 
-use crate::graph::declare::DeclRef;
+use crate::graph::{declare::DeclRef, keyword::Keyword};
 
 ///
 /// IF the type name is exist in semantic
@@ -56,9 +56,19 @@ pub fn get_type_name<'a>(
 
     match ts_type {
         TSType::TSTypeReference(ttr) => {
+            if let Some(keyword) =
+                Keyword::is_keyword(allocator.alloc(ttr.clone_in(allocator)), allocator)
+            {
+                let ts_names = keyword.flatten(semantic, allocator);
+
+                names.extend(ts_names);
+                return names;
+            }
             match &ttr.type_name {
                 TSTypeName::IdentifierReference(ir) => {
-                    names.push(ir.name.to_string());
+                    let name = ir.name.as_str();
+
+                    names.push(name.to_string());
                 }
                 TSTypeName::QualifiedName(qn) => {
                     if let Ok(name) = get_qualified_type_name(qn) {
