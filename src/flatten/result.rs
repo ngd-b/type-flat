@@ -15,12 +15,12 @@ pub struct CacheDecl<'a> {
 impl<'a> CacheDecl<'a> {
     // Format generated type parameters
     pub fn format_type_params(
-        &self,
+        generics: &'a HashMap<'a, &'a str, Generic<'a>>,
         allocator: &'a Allocator,
     ) -> Option<AstBox<'a, TSTypeParameterDeclaration<'a>>> {
         let mut params = AstVec::new_in(allocator);
 
-        let mut generic_vec: Vec<_> = self.generics.values().collect();
+        let mut generic_vec: Vec<_> = generics.values().collect();
         generic_vec.sort_by_key(|item| item.index);
 
         for genr in generic_vec.iter() {
@@ -223,24 +223,24 @@ impl<'a> ResultProgram<'a> {
         if let Some(decl) = self.cached.get(name) {
             // Collect all generics
 
-            let type_params = decl.format_type_params(self.allocator);
+            let type_params = CacheDecl::format_type_params(&decl.generics, self.allocator);
 
             match decl.decl {
                 DeclRef::Interface(dri) => {
                     let mut new_interface = dri.clone_in(self.allocator);
-                    new_interface.type_parameters = type_params;
+                    new_interface.type_parameters = type_params.clone_in(self.allocator);
 
                     return Some(DeclRef::Interface(self.allocator.alloc(new_interface)));
                 }
                 DeclRef::TypeAlias(drt) => {
                     let mut new_class = drt.clone_in(self.allocator);
-                    new_class.type_parameters = type_params;
+                    new_class.type_parameters = type_params.clone_in(self.allocator);
 
                     return Some(DeclRef::TypeAlias(self.allocator.alloc(new_class)));
                 }
                 DeclRef::Class(drc) => {
                     let mut new_class = drc.clone_in(self.allocator);
-                    new_class.type_parameters = type_params;
+                    new_class.type_parameters = type_params.clone_in(self.allocator);
 
                     return Some(DeclRef::Class(self.allocator.alloc(new_class)));
                 }

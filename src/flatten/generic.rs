@@ -104,7 +104,7 @@ pub fn merge_type_with_generic<'a>(
     );
     // 1. IF the child type not has generic type. return the child type
     if child_type.generics.is_empty() {
-        return child_type.decl.type_decl(allocator);
+        return None;
     }
     let ts_type = child_type.decl.type_decl(allocator);
     if ts_type.is_none() {

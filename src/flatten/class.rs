@@ -60,16 +60,20 @@ pub fn flatten_type<'a>(
                     allocator,
                 );
 
-                if let Some(ts_type) = result {
-                    let flat_type = type_alias::flatten_ts_type(
-                        allocator.alloc(ts_type.clone_in(allocator)),
+                let ts_type = if let Some(flat_type) = result {
+                    Some(type_alias::flatten_ts_type(
+                        allocator.alloc(flat_type.clone_in(allocator)),
                         semantic,
                         allocator,
                         result_program,
                         env_keys.clone_in(allocator),
-                    );
+                    ))
+                } else {
+                    decl.decl.type_decl(allocator)
+                };
 
-                    match flat_type {
+                if let Some(ts_type) = ts_type {
+                    match ts_type {
                         TSType::TSTypeLiteral(tl) => {
                             let super_elements =
                                 utils::type_members_to_class_elements(&tl.members, allocator);
@@ -207,7 +211,9 @@ pub fn flatten_class_elements_type<'a>(
                         }
 
                         new_fun.params = tft.params.clone_in(allocator);
-                        new_fun.type_parameters = decl.format_type_params(allocator);
+                        let type_params = CacheDecl::format_type_params(&decl.generics, allocator);
+                        new_fun.type_parameters = type_params.clone_in(allocator);
+
                         new_fun.this_param = tft.this_param.clone_in(allocator);
 
                         new_element.value = new_fun;

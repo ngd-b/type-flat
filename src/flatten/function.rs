@@ -1,5 +1,5 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
-use oxc_ast::ast::{FormalParameters, Function};
+use oxc_ast::ast::{FormalParameters, Function, TSThisParameter};
 use oxc_semantic::Semantic;
 use tracing::info;
 
@@ -57,6 +57,15 @@ pub fn flatten_type<'a>(
     );
 
     new_fun.params = AstBox::new_in(new_params, allocator);
+
+    // this params
+    new_fun.this_param = flatten_method_this_type(
+        &fun.this_param,
+        semantic,
+        allocator,
+        result_program,
+        env_keys.clone_in(allocator),
+    );
 
     info!("Flatten function type {}, Success!", fun_name);
 
@@ -125,4 +134,37 @@ pub fn flatten_method_params_type<'a>(
     new_params.items = items;
 
     new_params
+}
+
+///
+/// Flatten the method this type
+///
+pub fn flatten_method_this_type<'a>(
+    this_type: &'a Option<AstBox<'a, TSThisParameter<'a>>>,
+    semantic: &Semantic<'a>,
+    allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
+    env: AstVec<'a, &'a str>,
+) -> Option<AstBox<'a, TSThisParameter<'a>>> {
+    if let Some(this_param) = this_type {
+        let mut new_this_param = this_param.clone_in(allocator);
+
+        if let Some(this_type) = &this_param.type_annotation {
+            let mut new_this_type = this_type.clone_in(allocator);
+
+            new_this_type.type_annotation = type_alias::flatten_ts_type(
+                allocator.alloc(this_type.type_annotation.clone_in(allocator)),
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
+
+            new_this_param.type_annotation = Some(new_this_type);
+        }
+
+        Some(new_this_param)
+    } else {
+        None
+    }
 }

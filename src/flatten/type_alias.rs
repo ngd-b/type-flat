@@ -120,15 +120,20 @@ pub fn flatten_ts_type<'a>(
                     allocator,
                 );
 
-                if let Some(ts_type) = result {
-                    let flat_type = flatten_ts_type(
-                        allocator.alloc(ts_type.clone_in(allocator)),
+                let ts_type = if let Some(flat_type) = result {
+                    Some(flatten_ts_type(
+                        allocator.alloc(flat_type.clone_in(allocator)),
                         semantic,
                         allocator,
                         result_program,
                         env.clone_in(allocator),
-                    );
-                    new_type = flat_type;
+                    ))
+                } else {
+                    decl.decl.type_decl(allocator)
+                };
+
+                if let Some(ts_type) = ts_type {
+                    new_type = ts_type;
                 }
             } else {
                 let mut new_reference_type = tr.clone_in(allocator);
@@ -323,6 +328,26 @@ pub fn flatten_ts_type<'a>(
 
             new_fn_type.params = AstBox::new_in(new_params, allocator);
 
+            // type params
+            if let Some(_) = &tft.type_parameters {
+                let fun_env = generic::flatten_generic(
+                    &tft.type_parameters,
+                    semantic,
+                    allocator,
+                    result_program,
+                );
+
+                let type_params = CacheDecl::format_type_params(&fun_env, allocator);
+
+                new_fn_type.type_parameters = type_params.clone_in(allocator);
+            }
+            new_fn_type.this_param = function::flatten_method_this_type(
+                &tft.this_param,
+                semantic,
+                allocator,
+                result_program,
+                env,
+            );
             new_type = TSType::TSFunctionType(new_fn_type);
         }
         _ => {}

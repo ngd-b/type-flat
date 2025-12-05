@@ -203,6 +203,17 @@ pub fn get_type_name<'a>(
                     names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
                 }
             }
+
+            // this
+            if let Some(this_params) = &tft.this_param {
+                if let Some(this_type) = &this_params.type_annotation {
+                    names.extend(get_type_name(
+                        &this_type.type_annotation,
+                        semantic,
+                        allocator,
+                    ));
+                }
+            }
         }
         _ => {}
     };

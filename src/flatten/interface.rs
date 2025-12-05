@@ -93,6 +93,7 @@ pub fn flatten_type<'a>(
                 result_program,
                 env_keys.clone_in(allocator),
             );
+
             if let Some(decl) = result_program.get_cached(reference_name) {
                 let result = generic::merge_type_with_generic(
                     allocator.alloc(type_params.clone_in(allocator)),
@@ -100,15 +101,20 @@ pub fn flatten_type<'a>(
                     allocator,
                 );
 
-                if let Some(ts_type) = result {
-                    let flat_type = type_alias::flatten_ts_type(
-                        allocator.alloc(ts_type.clone_in(allocator)),
+                let ts_type = if let Some(flat_type) = result {
+                    Some(type_alias::flatten_ts_type(
+                        allocator.alloc(flat_type.clone_in(allocator)),
                         semantic,
                         allocator,
                         result_program,
                         env_keys.clone_in(allocator),
-                    );
-                    match flat_type {
+                    ))
+                } else {
+                    decl.decl.type_decl(allocator)
+                };
+
+                if let Some(ts_type) = ts_type {
+                    match ts_type {
                         TSType::TSTypeLiteral(tl) => {
                             for member in tl.members.iter() {
                                 if members
@@ -252,6 +258,27 @@ pub fn flatten_member_type<'a>(
 
                 new_prop.return_type = Some(new_return_type)
             }
+
+            // type params
+            if let Some(_) = &tms.type_parameters {
+                let fun_env = generic::flatten_generic(
+                    &tms.type_parameters,
+                    semantic,
+                    allocator,
+                    result_program,
+                );
+
+                let type_params = CacheDecl::format_type_params(&fun_env, allocator);
+
+                new_prop.type_parameters = type_params.clone_in(allocator);
+            }
+            new_prop.this_param = function::flatten_method_this_type(
+                &tms.this_param,
+                semantic,
+                allocator,
+                result_program,
+                env,
+            );
 
             TSSignature::TSMethodSignature(new_prop)
         }
