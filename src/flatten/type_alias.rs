@@ -111,7 +111,7 @@ pub fn flatten_ts_type<'a>(
                 result_program,
                 env.clone_in(allocator),
             );
-            if let Some(decl) = result_program.get_cached(reference_name) {
+            if let Some(decl) = result_program.get_cached(reference_name, false) {
                 // Merge the parent env with the current env. and replace the members withe the parent env type.
 
                 let result = generic::merge_type_with_generic(
@@ -248,7 +248,7 @@ pub fn flatten_ts_type<'a>(
             TSTypeQueryExprName::IdentifierReference(ir) => {
                 let reference_name = ir.name.as_str();
 
-                if let Some(decl) = result_program.get_cached(reference_name) {
+                if let Some(decl) = result_program.get_cached(reference_name, false) {
                     if let Some(ts_type) = decl.decl.type_decl(allocator) {
                         new_type = ts_type;
                     }
@@ -421,7 +421,6 @@ pub fn flatten_index_access_type<'a>(
     object_type: &'a TSType<'a>,
     index_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
-
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSType<'a> {
@@ -434,12 +433,29 @@ pub fn flatten_index_access_type<'a>(
         allocator,
     ));
 
+    // Maybe it is a reference circle type.
+    let object_type = if let TSType::TSTypeReference(ttr) = object_type {
+        // Not flatten. maybe is circle self type
+        let reference_name = match &ttr.type_name {
+            TSTypeName::IdentifierReference(ir) => ir.name.as_str(),
+            _ => "",
+        };
+        if let Some(decl) = result_program.get_cached(reference_name, true)
+            && let Some(ts_type) = decl.decl.type_decl(allocator)
+        {
+            ts_type.clone_in(allocator)
+        } else {
+            object_type.clone_in(allocator)
+        }
+    } else {
+        object_type.clone_in(allocator)
+    };
     match index_type {
         TSType::TSLiteralType(tlt) => {
             if let TSLiteral::StringLiteral(sl) = &tlt.literal {
                 let result = utils::get_field_type(
                     sl.value.as_str(),
-                    object_type,
+                    allocator.alloc(object_type.clone_in(allocator)),
                     semantic,
                     allocator,
                     result_program,
@@ -455,7 +471,7 @@ pub fn flatten_index_access_type<'a>(
 
             for mebmer in &tut.types {
                 members.push(flatten_index_access_type(
-                    object_type,
+                    allocator.alloc(object_type.clone_in(allocator)),
                     mebmer,
                     semantic,
                     allocator,
@@ -531,7 +547,7 @@ pub fn flatten_ts_query_qualified<'a>(
         TSTypeName::IdentifierReference(ir) => {
             let reference_name = ir.name.as_str();
 
-            if let Some(decl) = result_program.get_cached(reference_name) {
+            if let Some(decl) = result_program.get_cached(reference_name, false) {
                 if let Some(ts_type) = decl.decl.type_decl(allocator) {
                     Some(ts_type)
                 } else {

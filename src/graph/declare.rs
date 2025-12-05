@@ -4,7 +4,7 @@ use oxc_ast::ast::{
     TSTypeLiteral, TSTypeName, TSTypeParameterDeclaration, TSTypeReference, TSUnionType,
 };
 
-use crate::flatten::utils;
+use crate::graph::utils;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DeclRef<'a> {

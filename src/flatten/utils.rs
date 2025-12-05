@@ -598,8 +598,8 @@ pub fn class_elements_to_type_members<'a>(
                     TSMethodSignature {
                         span: md.span.clone_in(allocator),
                         key: md.key.clone_in(allocator),
-                        type_parameters: None,
-                        this_param: None,
+                        type_parameters: md.value.type_parameters.clone_in(allocator),
+                        this_param: md.value.this_param.clone_in(allocator),
                         params: md.value.params.clone_in(allocator),
                         return_type: md.value.return_type.clone_in(allocator),
                         scope_id: md.value.scope_id.clone_in(allocator),
@@ -766,23 +766,21 @@ pub fn eq_class_element<'a>(
 pub fn has_this_type_param<'a>(member: &'a TSSignature<'a>) -> bool {
     match member {
         TSSignature::TSIndexSignature(tis) => {
-            if tis.parameters.iter().any(|tp| {
-                if let TSType::TSThisType(_) = tp.type_annotation.type_annotation {
-                    true
-                } else {
-                    false
-                }
-            }) {
+            if tis
+                .parameters
+                .iter()
+                .any(|tp| is_this_type(&tp.type_annotation.type_annotation))
+            {
                 return true;
             }
 
-            if let TSType::TSThisType(_) = tis.type_annotation.type_annotation {
+            if is_this_type(&tis.type_annotation.type_annotation) {
                 return true;
             }
         }
         TSSignature::TSPropertySignature(tps) => {
             if let Some(ta) = &tps.type_annotation {
-                if let TSType::TSThisType(_) = ta.type_annotation {
+                if is_this_type(&ta.type_annotation) {
                     return true;
                 }
             }
@@ -793,25 +791,112 @@ pub fn has_this_type_param<'a>(member: &'a TSSignature<'a>) -> bool {
                 return true;
             }
 
-            // params
-            if tms.params.items.iter().any(|pt| {
-                if let Some(ta) = &pt.pattern.type_annotation {
-                    if let TSType::TSThisType(_) = ta.type_annotation {
+            // type params
+            if let Some(type_params) = &tms.type_parameters {
+                for param in type_params.params.iter() {
+                    if let Some(constraint_type) = &param.constraint
+                        && is_this_type(constraint_type)
+                    {
+                        return true;
+                    }
+
+                    if let Some(default_type) = &param.default
+                        && is_this_type(default_type)
+                    {
                         return true;
                     }
                 }
-                return false;
+            }
+            // params
+            if tms.params.items.iter().any(|pt| {
+                if let Some(ta) = &pt.pattern.type_annotation {
+                    if is_this_type(&ta.type_annotation) {
+                        return true;
+                    }
+                }
+                false
             }) {
                 return true;
             }
             // return type
             if let Some(ta) = &tms.return_type {
-                if let TSType::TSThisType(_) = ta.type_annotation {
+                if is_this_type(&ta.type_annotation) {
                     return true;
                 }
             }
         }
         _ => {}
     }
+    false
+}
+
+///
+/// The tstype is a TSThis type
+///
+pub fn is_this_type<'a>(ts_type: &'a TSType<'a>) -> bool {
+    match ts_type {
+        TSType::TSTypeReference(ttr) => {
+            if let Some(type_params) = &ttr.type_arguments {
+                for param_type in type_params.params.iter() {
+                    if is_this_type(param_type) {
+                        return true;
+                    }
+                }
+            }
+        }
+        TSType::TSIndexedAccessType(tiat) => {
+            if is_this_type(&tiat.index_type) || is_this_type(&tiat.object_type) {
+                return true;
+            }
+        }
+        TSType::TSFunctionType(tft) => {
+            if is_this_type(&tft.return_type.type_annotation) {
+                return true;
+            }
+
+            if let Some(this_param) = &tft.this_param {
+                if let Some(this_type) = &this_param.type_annotation {
+                    if is_this_type(&this_type.type_annotation) {
+                        return true;
+                    }
+                }
+            }
+
+            if let Some(type_params) = &tft.type_parameters {
+                for param in type_params.params.iter() {
+                    if let Some(constraint_type) = &param.constraint
+                        && is_this_type(constraint_type)
+                    {
+                        return true;
+                    }
+
+                    if let Some(default_type) = &param.default
+                        && is_this_type(default_type)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            for param in tft.params.items.iter() {
+                if let Some(param_type) = &param.pattern.type_annotation
+                    && is_this_type(&param_type.type_annotation)
+                {
+                    return true;
+                }
+            }
+
+            if let Some(rest) = &tft.params.rest {
+                if let Some(rest_type) = &rest.argument.type_annotation
+                    && is_this_type(&rest_type.type_annotation)
+                {
+                    return true;
+                }
+            }
+        }
+        TSType::TSThisType(_) => return true,
+        _ => {}
+    }
+
     false
 }

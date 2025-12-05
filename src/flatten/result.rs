@@ -207,8 +207,9 @@ impl<'a> ResultProgram<'a> {
     }
 
     // Get cached type already flatten
-    pub fn get_cached(&self, name: &'a str) -> Option<&CacheDecl<'a>> {
-        if self.circle_type.contains(name) {
+    // Interface's extends or Class‘s superClass can get circle_type
+    pub fn get_cached(&self, name: &'a str, ignore_is_circle: bool) -> Option<&CacheDecl<'a>> {
+        if !ignore_is_circle && self.circle_type.contains(name) {
             return None;
         }
         if let Some(decl) = self.cached.get(name) {

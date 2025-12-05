@@ -1,12 +1,18 @@
 use anyhow::{Result, bail};
-use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
-    ast::{TSQualifiedName, TSSignature, TSType, TSTypeName, TSTypeQueryExprName},
+    ast::{
+        ClassElement, PropertyKey, TSAccessibility, TSMethodSignature, TSPropertySignature,
+        TSQualifiedName, TSSignature, TSType, TSTypeName, TSTypeQueryExprName,
+    },
 };
 use oxc_semantic::Semantic;
 
-use crate::graph::{declare::DeclRef, keyword::Keyword};
+use crate::{
+    flatten::utils,
+    graph::{declare::DeclRef, keyword::Keyword},
+};
 
 ///
 /// IF the type name is exist in semantic
@@ -296,4 +302,82 @@ pub fn get_member_type_name<'a>(
         _ => {}
     }
     names
+}
+
+pub fn class_elements_to_type_members<'a>(
+    elements: &'a [ClassElement<'a>],
+    allocator: &'a Allocator,
+) -> AstVec<'a, TSSignature<'a>> {
+    let mut new_members = AstVec::new_in(allocator);
+
+    for member in elements.iter() {
+        match member {
+            ClassElement::TSIndexSignature(tsi) => {
+                let new_member = TSSignature::TSIndexSignature(tsi.clone_in(allocator));
+
+                new_members.push(new_member);
+            }
+            ClassElement::PropertyDefinition(pd) => {
+                if !pd.accessibility.is_none() && pd.accessibility == Some(TSAccessibility::Private)
+                {
+                    continue;
+                }
+                if let Some(name) = pd.key.name()
+                    && name.starts_with("_")
+                {
+                    continue;
+                }
+                let new_member = TSSignature::TSPropertySignature(AstBox::new_in(
+                    TSPropertySignature {
+                        span: pd.span.clone_in(allocator),
+                        key: pd.key.clone_in(allocator),
+                        type_annotation: pd.type_annotation.clone_in(allocator),
+                        computed: pd.computed,
+                        optional: pd.optional,
+                        readonly: pd.readonly,
+                    },
+                    allocator,
+                ));
+
+                new_members.push(new_member);
+            }
+            ClassElement::MethodDefinition(md) => {
+                if !md.accessibility.is_none() && md.accessibility == Some(TSAccessibility::Private)
+                {
+                    continue;
+                }
+
+                if let PropertyKey::StaticIdentifier(psi) = &md.key
+                    && psi.name.starts_with("_")
+                {
+                    continue;
+                }
+                if let Some(id) = &md.value.id
+                    && id.name.starts_with("_")
+                {
+                    continue;
+                }
+                let new_member = TSSignature::TSMethodSignature(AstBox::new_in(
+                    TSMethodSignature {
+                        span: md.span.clone_in(allocator),
+                        key: md.key.clone_in(allocator),
+                        type_parameters: md.value.type_parameters.clone_in(allocator),
+                        this_param: md.value.this_param.clone_in(allocator),
+                        params: md.value.params.clone_in(allocator),
+                        return_type: md.value.return_type.clone_in(allocator),
+                        scope_id: md.value.scope_id.clone_in(allocator),
+                        computed: md.computed,
+                        optional: md.optional,
+                        kind: utils::class_method_to_map_type_method(&md.kind),
+                    },
+                    allocator,
+                ));
+
+                new_members.push(new_member);
+            }
+            _ => {}
+        }
+    }
+
+    new_members
 }
