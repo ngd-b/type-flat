@@ -12,6 +12,35 @@ pub struct CacheDecl<'a> {
     pub generics: HashMap<'a, &'a str, Generic<'a>>,
 }
 
+impl<'a> CacheDecl<'a> {
+    // Format generated type parameters
+    pub fn format_type_params(
+        &self,
+        allocator: &'a Allocator,
+    ) -> Option<AstBox<'a, TSTypeParameterDeclaration<'a>>> {
+        let mut params = AstVec::new_in(allocator);
+
+        let mut generic_vec: Vec<_> = self.generics.values().collect();
+        generic_vec.sort_by_key(|item| item.index);
+
+        for genr in generic_vec.iter() {
+            params.push(genr.ts_type.clone_in(allocator));
+        }
+
+        if params.is_empty() {
+            None
+        } else {
+            Some(AstBox::new_in(
+                TSTypeParameterDeclaration {
+                    span: Default::default(),
+                    params,
+                },
+                allocator,
+            ))
+        }
+    }
+}
+
 pub struct ResultProgram<'a> {
     pub program: Program<'a>,
     allocator: &'a Allocator,
@@ -193,26 +222,8 @@ impl<'a> ResultProgram<'a> {
     pub fn format_cached(&self, name: &'a str) -> Option<DeclRef<'a>> {
         if let Some(decl) = self.cached.get(name) {
             // Collect all generics
-            let mut params = AstVec::new_in(self.allocator);
 
-            let mut generic_vec: Vec<_> = decl.generics.values().collect();
-            generic_vec.sort_by_key(|item| item.index);
-
-            for genr in generic_vec.iter() {
-                params.push(genr.ts_type.clone_in(self.allocator));
-            }
-
-            let type_params = if params.is_empty() {
-                None
-            } else {
-                Some(AstBox::new_in(
-                    TSTypeParameterDeclaration {
-                        span: Default::default(),
-                        params,
-                    },
-                    self.allocator,
-                ))
-            };
+            let type_params = decl.format_type_params(self.allocator);
 
             match decl.decl {
                 DeclRef::Interface(dri) => {

@@ -1,13 +1,13 @@
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
+use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, ClassElement, Expression, FormalParameters, PropertyKey, TSAccessibility, TSType,
+    Class, ClassElement, Expression, MethodDefinitionKind, PropertyKey, TSAccessibility, TSType,
 };
 use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
     declare::DeclRef,
-    generic,
+    function, generic,
     result::{CacheDecl, ResultProgram},
     type_alias, utils,
 };
@@ -45,28 +45,13 @@ pub fn flatten_type<'a>(
         if let Expression::Identifier(ei) = extend {
             let reference_name = allocator.alloc_str(&ei.name);
 
-            let type_params = if let Some(tp) = &class_type.super_type_arguments {
-                let mut new_tp = tp.clone_in(allocator);
-
-                let mut params = AstVec::new_in(allocator);
-
-                for param in tp.params.iter() {
-                    let ts_type = type_alias::flatten_ts_type(
-                        param,
-                        semantic,
-                        allocator,
-                        result_program,
-                        env_keys.clone_in(allocator),
-                    );
-                    params.push(ts_type);
-                }
-
-                new_tp.params = params;
-
-                Some(new_tp)
-            } else {
-                None
-            };
+            let type_params = generic::flatten_type_parameters(
+                &class_type.super_type_arguments,
+                semantic,
+                allocator,
+                result_program,
+                env_keys.clone_in(allocator),
+            );
 
             if let Some(decl) = result_program.get_cached(reference_name) {
                 let result = generic::merge_type_with_generic(
@@ -210,91 +195,28 @@ pub fn flatten_class_elements_type<'a>(
 
             let mut new_element = tmd.clone_in(allocator);
 
-            // flatten return type
-            if let Some(return_type) = &tmd.value.return_type {
-                let mut new_return_type = return_type.clone_in(allocator);
+            let decl = function::flatten_type(&tmd.value, semantic, allocator, result_program);
 
-                new_return_type.type_annotation = type_alias::flatten_ts_type(
-                    &return_type.type_annotation,
-                    semantic,
-                    allocator,
-                    result_program,
-                    env.clone_in(allocator),
-                );
+            if let Some(ts_type) = decl.decl.type_decl(allocator) {
+                match ts_type {
+                    TSType::TSFunctionType(tft) => {
+                        let mut new_fun = tmd.value.clone_in(allocator);
 
-                new_element.value.return_type = Some(new_return_type);
-            }
+                        if tmd.kind != MethodDefinitionKind::Constructor {
+                            new_fun.return_type = Some(tft.return_type.clone_in(allocator));
+                        }
 
-            let new_params = flatten_method_params_type(
-                &tmd.value.params,
-                semantic,
-                allocator,
-                result_program,
-                env.clone_in(allocator),
-            );
-            new_element.value.params = AstBox::new_in(new_params, allocator);
+                        new_fun.params = tft.params.clone_in(allocator);
+                        new_fun.type_parameters = decl.format_type_params(allocator);
+                        new_fun.this_param = tft.this_param.clone_in(allocator);
 
+                        new_element.value = new_fun;
+                    }
+                    _ => {}
+                }
+            };
             Some(ClassElement::MethodDefinition(new_element))
         }
         _ => None,
     }
-}
-
-///
-/// Faltten Method params and return type and this params type
-///
-pub fn flatten_method_params_type<'a>(
-    params: &'a FormalParameters<'a>,
-    semantic: &Semantic<'a>,
-    allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
-    env: AstVec<'a, &'a str>,
-) -> FormalParameters<'a> {
-    let mut new_params = params.clone_in(allocator);
-
-    // flatten parameters type
-    let mut items = AstVec::new_in(allocator);
-
-    for item in params.items.iter() {
-        let mut new_item = item.clone_in(allocator);
-
-        if let Some(item_type) = &item.pattern.type_annotation {
-            let mut new_item_type = item_type.clone_in(allocator);
-
-            new_item_type.type_annotation = type_alias::flatten_ts_type(
-                &item_type.type_annotation,
-                semantic,
-                allocator,
-                result_program,
-                env.clone_in(allocator),
-            );
-
-            new_item.pattern.type_annotation = Some(new_item_type);
-        }
-        items.push(new_item);
-    }
-
-    // If exist rest params.
-    if let Some(rest) = &params.rest {
-        let mut new_rest = rest.clone_in(allocator);
-
-        if let Some(rest_type) = &rest.argument.type_annotation {
-            let mut new_rest_type = rest_type.clone_in(allocator);
-            new_rest_type.type_annotation = type_alias::flatten_ts_type(
-                &rest_type.type_annotation,
-                semantic,
-                allocator,
-                result_program,
-                env.clone_in(allocator),
-            );
-
-            new_rest.argument.type_annotation = Some(new_rest_type);
-        }
-
-        new_params.rest = Some(new_rest);
-    }
-
-    new_params.items = items;
-
-    new_params
 }

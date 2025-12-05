@@ -11,8 +11,8 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    class,
     declare::DeclRef,
+    function,
     generic::{self},
     interface,
     keyword::Keyword,
@@ -104,28 +104,13 @@ pub fn flatten_ts_type<'a>(
                 };
             }
 
-            let type_params = if let Some(tp) = &tr.type_arguments {
-                let mut new_tp = tp.clone_in(allocator);
-
-                let mut params = AstVec::new_in(allocator);
-
-                for param in tp.params.iter() {
-                    let ts_type = flatten_ts_type(
-                        param,
-                        semantic,
-                        allocator,
-                        result_program,
-                        env.clone_in(allocator),
-                    );
-                    params.push(ts_type);
-                }
-
-                new_tp.params = params;
-
-                Some(new_tp)
-            } else {
-                None
-            };
+            let type_params = generic::flatten_type_parameters(
+                &tr.type_arguments,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
             if let Some(decl) = result_program.get_cached(reference_name) {
                 // Merge the parent env with the current env. and replace the members withe the parent env type.
 
@@ -145,6 +130,11 @@ pub fn flatten_ts_type<'a>(
                     );
                     new_type = flat_type;
                 }
+            } else {
+                let mut new_reference_type = tr.clone_in(allocator);
+
+                new_reference_type.type_arguments = type_params;
+                new_type = TSType::TSTypeReference(new_reference_type);
             }
         }
         // union type. only flat not merge
@@ -323,7 +313,7 @@ pub fn flatten_ts_type<'a>(
 
             new_fn_type.return_type.type_annotation = ts_type;
 
-            let new_params = class::flatten_method_params_type(
+            let new_params = function::flatten_method_params_type(
                 allocator.alloc(tft.params.clone_in(allocator)),
                 semantic,
                 allocator,

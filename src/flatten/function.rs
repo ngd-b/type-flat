@@ -1,10 +1,9 @@
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn};
-use oxc_ast::ast::Function;
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
+use oxc_ast::ast::{FormalParameters, Function};
 use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    class,
     declare::DeclRef,
     generic,
     result::{CacheDecl, ResultProgram},
@@ -49,7 +48,7 @@ pub fn flatten_type<'a>(
         new_fun.return_type = Some(new_return_type)
     }
 
-    let new_params = class::flatten_method_params_type(
+    let new_params = flatten_method_params_type(
         allocator.alloc(fun.params.clone_in(allocator)),
         semantic,
         allocator,
@@ -67,4 +66,63 @@ pub fn flatten_type<'a>(
         generics: env,
     };
     decl
+}
+
+///
+/// Faltten Method params and return type and this params type
+///
+pub fn flatten_method_params_type<'a>(
+    params: &'a FormalParameters<'a>,
+    semantic: &Semantic<'a>,
+    allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
+    env: AstVec<'a, &'a str>,
+) -> FormalParameters<'a> {
+    let mut new_params = params.clone_in(allocator);
+
+    // flatten parameters type
+    let mut items = AstVec::new_in(allocator);
+
+    for item in params.items.iter() {
+        let mut new_item = item.clone_in(allocator);
+
+        if let Some(item_type) = &item.pattern.type_annotation {
+            let mut new_item_type = item_type.clone_in(allocator);
+
+            new_item_type.type_annotation = type_alias::flatten_ts_type(
+                &item_type.type_annotation,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
+
+            new_item.pattern.type_annotation = Some(new_item_type);
+        }
+        items.push(new_item);
+    }
+
+    // If exist rest params.
+    if let Some(rest) = &params.rest {
+        let mut new_rest = rest.clone_in(allocator);
+
+        if let Some(rest_type) = &rest.argument.type_annotation {
+            let mut new_rest_type = rest_type.clone_in(allocator);
+            new_rest_type.type_annotation = type_alias::flatten_ts_type(
+                &rest_type.type_annotation,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
+
+            new_rest.argument.type_annotation = Some(new_rest_type);
+        }
+
+        new_params.rest = Some(new_rest);
+    }
+
+    new_params.items = items;
+
+    new_params
 }

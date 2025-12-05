@@ -7,9 +7,8 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    class,
     declare::DeclRef,
-    generic,
+    function, generic,
     keyword::Keyword,
     result::{CacheDecl, ResultProgram},
     type_alias,
@@ -87,28 +86,13 @@ pub fn flatten_type<'a>(
                 continue;
             }
 
-            let type_params = if let Some(tp) = &extend.type_arguments {
-                let mut new_tp = tp.clone_in(allocator);
-
-                let mut params = AstVec::new_in(allocator);
-
-                for param in tp.params.iter() {
-                    let ts_type = type_alias::flatten_ts_type(
-                        param,
-                        semantic,
-                        allocator,
-                        result_program,
-                        env_keys.clone_in(allocator),
-                    );
-                    params.push(ts_type);
-                }
-
-                new_tp.params = params;
-
-                Some(new_tp)
-            } else {
-                None
-            };
+            let type_params = generic::flatten_type_parameters(
+                &extend.type_arguments,
+                semantic,
+                allocator,
+                result_program,
+                env_keys.clone_in(allocator),
+            );
             if let Some(decl) = result_program.get_cached(reference_name) {
                 let result = generic::merge_type_with_generic(
                     allocator.alloc(type_params.clone_in(allocator)),
@@ -245,7 +229,7 @@ pub fn flatten_member_type<'a>(
             let mut new_prop = tms.clone_in(allocator);
 
             // params flatten
-            let new_params = class::flatten_method_params_type(
+            let new_params = function::flatten_method_params_type(
                 allocator.alloc(tms.params.clone_in(allocator)),
                 semantic,
                 allocator,

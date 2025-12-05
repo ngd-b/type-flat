@@ -405,3 +405,37 @@ pub fn replace_member_type_with_generic<'a>(
 
     new_member
 }
+
+///
+/// Flatten the type parameters
+///
+pub fn flatten_type_parameters<'a>(
+    type_parameters: &'a Option<Box<'a, TSTypeParameterInstantiation<'a>>>,
+    semantic: &Semantic<'a>,
+    allocator: &'a Allocator,
+    result_program: &mut ResultProgram<'a>,
+    env: AstVec<'a, &'a str>,
+) -> Option<Box<'a, TSTypeParameterInstantiation<'a>>> {
+    if let Some(tp) = type_parameters {
+        let mut new_tp = tp.clone_in(allocator);
+
+        let mut params = AstVec::new_in(allocator);
+
+        for param in tp.params.iter() {
+            let ts_type = type_alias::flatten_ts_type(
+                param,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
+            params.push(ts_type);
+        }
+
+        new_tp.params = params;
+
+        Some(new_tp)
+    } else {
+        None
+    }
+}
