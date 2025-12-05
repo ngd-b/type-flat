@@ -1,7 +1,7 @@
-use oxc_allocator::{Allocator, Box, CloneIn, HashMap, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, Vec as AstVec};
 use oxc_ast::ast::{
-    TSSignature, TSTupleElement, TSType, TSTypeName, TSTypeParameter, TSTypeParameterDeclaration,
-    TSTypeParameterInstantiation,
+    FormalParameters, TSSignature, TSThisParameter, TSTupleElement, TSType, TSTypeName,
+    TSTypeParameter, TSTypeParameterDeclaration, TSTypeParameterInstantiation,
 };
 use oxc_semantic::Semantic;
 use tracing::info;
@@ -19,7 +19,7 @@ pub struct Generic<'a> {
 
 /// #[instrument(skip(args, extend_args, semantic, env, allocator, result_program))]
 pub fn flatten_generic<'a>(
-    args: &'a Option<Box<'a, TSTypeParameterDeclaration<'a>>>,
+    args: &'a Option<AstBox<'a, TSTypeParameterDeclaration<'a>>>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
@@ -93,7 +93,7 @@ pub fn get_generic_keys<'a>(
 /// Merge the generic type to child type members
 ///
 pub fn merge_type_with_generic<'a>(
-    current_envs: &'a Option<Box<'a, TSTypeParameterInstantiation<'a>>>,
+    current_envs: &'a Option<AstBox<'a, TSTypeParameterInstantiation<'a>>>,
     child_type: &CacheDecl<'a>,
     allocator: &'a Allocator,
 ) -> Option<TSType<'a>> {
@@ -315,6 +315,18 @@ pub fn replace_type_with_generic<'a>(
             new_fn_type.return_type.type_annotation =
                 replace_type_with_generic(env, &tft.return_type.type_annotation, allocator);
 
+            // this
+            if let Some(this_param) = &tft.this_param {
+                new_fn_type.this_param = Some(AstBox::new_in(
+                    replace_method_this_type_with_generic(env, this_param, allocator),
+                    allocator,
+                ));
+            }
+            // params
+            new_fn_type.params = AstBox::new_in(
+                replace_method_params_type_with_generic(env, &tft.params, allocator),
+                allocator,
+            );
             new_type = TSType::TSFunctionType(new_fn_type);
         }
         TSType::TSTypeOperatorType(tot) => {
@@ -388,7 +400,10 @@ pub fn replace_member_type_with_generic<'a>(
             let mut new_method = tms.clone_in(allocator);
 
             // params flatten
-
+            new_method.params = AstBox::new_in(
+                replace_method_params_type_with_generic(env, &tms.params, allocator),
+                allocator,
+            );
             // return type flatten
             if let Some(rt) = &tms.return_type {
                 let mut new_return_type = rt.clone_in(allocator);
@@ -396,6 +411,14 @@ pub fn replace_member_type_with_generic<'a>(
                 new_return_type.type_annotation =
                     replace_type_with_generic(env, &rt.type_annotation, allocator);
                 new_method.return_type = Some(new_return_type)
+            }
+
+            // this
+            if let Some(this_param) = &tms.this_param {
+                new_method.this_param = Some(AstBox::new_in(
+                    replace_method_this_type_with_generic(env, this_param, allocator),
+                    allocator,
+                ));
             }
 
             new_member = TSSignature::TSMethodSignature(new_method)
@@ -407,15 +430,78 @@ pub fn replace_member_type_with_generic<'a>(
 }
 
 ///
+/// Replace the method params type with generic
+///
+pub fn replace_method_params_type_with_generic<'a>(
+    env: &HashMap<'a, &'a str, Generic<'a>>,
+    params: &'a FormalParameters<'a>,
+    allocator: &'a Allocator,
+) -> FormalParameters<'a> {
+    let mut new_params: FormalParameters<'_> = params.clone_in(allocator);
+
+    let mut items = AstVec::new_in(allocator);
+
+    for item in params.items.iter() {
+        let mut new_item = item.clone_in(allocator);
+
+        if let Some(item_type) = &item.pattern.type_annotation {
+            let mut new_item_type = item_type.clone_in(allocator);
+
+            new_item_type.type_annotation =
+                replace_type_with_generic(env, &item_type.type_annotation, allocator);
+
+            new_item.pattern.type_annotation = Some(new_item_type);
+        }
+
+        items.push(new_item);
+    }
+    if let Some(rest) = &params.rest {
+        let mut new_rest = rest.clone_in(allocator);
+
+        if let Some(rest_type) = &rest.argument.type_annotation {
+            let mut new_rest_type = rest_type.clone_in(allocator);
+            new_rest_type.type_annotation =
+                replace_type_with_generic(env, &rest_type.type_annotation, allocator);
+
+            new_rest.argument.type_annotation = Some(new_rest_type);
+        }
+
+        new_params.rest = Some(new_rest);
+    }
+    new_params.items = items;
+
+    new_params
+}
+
+///
+/// Replace the method this type with generic
+///
+pub fn replace_method_this_type_with_generic<'a>(
+    env: &HashMap<'a, &'a str, Generic<'a>>,
+    this_param: &'a TSThisParameter<'a>,
+    allocator: &'a Allocator,
+) -> TSThisParameter<'a> {
+    let mut new_this_param = this_param.clone_in(allocator);
+    if let Some(this_type) = &this_param.type_annotation {
+        let mut new_this_type = this_type.clone_in(allocator);
+
+        new_this_type.type_annotation =
+            replace_type_with_generic(env, &this_type.type_annotation, allocator);
+
+        new_this_param.type_annotation = Some(new_this_type);
+    }
+
+    new_this_param
+}
 /// Flatten the type parameters
 ///
 pub fn flatten_type_parameters<'a>(
-    type_parameters: &'a Option<Box<'a, TSTypeParameterInstantiation<'a>>>,
+    type_parameters: &'a Option<AstBox<'a, TSTypeParameterInstantiation<'a>>>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
-) -> Option<Box<'a, TSTypeParameterInstantiation<'a>>> {
+) -> Option<AstBox<'a, TSTypeParameterInstantiation<'a>>> {
     if let Some(tp) = type_parameters {
         let mut new_tp = tp.clone_in(allocator);
 

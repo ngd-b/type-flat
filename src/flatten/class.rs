@@ -196,6 +196,11 @@ pub fn flatten_class_elements_type<'a>(
             {
                 return None;
             }
+            if let Some(id) = &tmd.value.id
+                && id.name.starts_with("_")
+            {
+                return None;
+            }
 
             let mut new_element = tmd.clone_in(allocator);
 
