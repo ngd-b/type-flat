@@ -47,6 +47,7 @@ pub struct ResultProgram<'a> {
     pub exclude_type: HashSet<'a, &'a str>,
     pub cached: HashMap<'a, &'a str, CacheDecl<'a>>,
     pub circle_type: HashSet<'a, &'a str>,
+    pub standby_type: HashSet<'a, &'a str>,
 }
 
 impl<'a> ResultProgram<'a> {
@@ -66,6 +67,7 @@ impl<'a> ResultProgram<'a> {
             exclude_type: HashSet::new_in(allocator),
             cached: HashMap::new_in(allocator),
             circle_type: HashSet::new_in(allocator),
+            standby_type: HashSet::new_in(allocator),
         }
     }
     pub fn has_decl(&self, name: &str) -> bool {
@@ -208,7 +210,7 @@ impl<'a> ResultProgram<'a> {
 
     // Get cached type already flatten
     // Interface's extends or Class‘s superClass can get circle_type
-    pub fn get_cached(&self, name: &'a str, ignore_is_circle: bool) -> Option<&CacheDecl<'a>> {
+    pub fn get_cached(&mut self, name: &'a str, ignore_is_circle: bool) -> Option<&CacheDecl<'a>> {
         if !ignore_is_circle && self.circle_type.contains(name) {
             return None;
         }
@@ -216,6 +218,7 @@ impl<'a> ResultProgram<'a> {
             return Some(decl);
         }
 
+        self.standby_type.insert(name);
         None
     }
 

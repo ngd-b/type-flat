@@ -205,26 +205,23 @@ pub fn flatten_class_elements_type<'a>(
             let mut new_element = tmd.clone_in(allocator);
 
             let decl = function::flatten_type(&tmd.value, semantic, allocator, result_program);
+            match decl.decl {
+                DeclRef::Function(tft) => {
+                    let mut new_fun = tmd.value.clone_in(allocator);
 
-            if let Some(ts_type) = decl.decl.type_decl(allocator) {
-                match ts_type {
-                    TSType::TSFunctionType(tft) => {
-                        let mut new_fun = tmd.value.clone_in(allocator);
-
-                        if tmd.kind != MethodDefinitionKind::Constructor {
-                            new_fun.return_type = Some(tft.return_type.clone_in(allocator));
-                        }
-
-                        new_fun.params = tft.params.clone_in(allocator);
-                        let type_params = CacheDecl::format_type_params(&decl.generics, allocator);
-                        new_fun.type_parameters = type_params.clone_in(allocator);
-
-                        new_fun.this_param = tft.this_param.clone_in(allocator);
-
-                        new_element.value = new_fun;
+                    if tmd.kind != MethodDefinitionKind::Constructor {
+                        new_fun.return_type = tft.return_type.clone_in(allocator);
                     }
-                    _ => {}
+
+                    new_fun.params = tft.params.clone_in(allocator);
+                    let type_params = CacheDecl::format_type_params(&decl.generics, allocator);
+                    new_fun.type_parameters = type_params.clone_in(allocator);
+
+                    new_fun.this_param = tft.this_param.clone_in(allocator);
+
+                    new_element.value = new_fun;
                 }
+                _ => {}
             };
             Some(ClassElement::MethodDefinition(new_element))
         }

@@ -128,7 +128,7 @@ impl<'a> Flatten<'a> {
         // add circle Class
         let mut loop_type = AstVec::new_in(&self.allocator);
 
-        for name in result.circle_type.iter() {
+        for name in result.circle_type.iter().chain(result.standby_type.iter()) {
             if let Some(decl) = result.format_cached(name) {
                 info!("Add circle type {} ", name);
                 loop_type.push(decl);
