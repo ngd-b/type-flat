@@ -14,6 +14,7 @@ pub mod utils;
 pub struct Graph<'a> {
     pub name: &'a str,
     pub self_loop: bool,
+    pub reference_num: u32,
     pub children: AstVec<'a, &'a RefCell<Graph<'a>>>,
 }
 
@@ -39,6 +40,7 @@ impl<'a> Graph<'a> {
         Self {
             name,
             self_loop: false,
+            reference_num: 0,
             children: AstVec::new_in(allocator),
         }
     }
@@ -51,6 +53,9 @@ impl<'a> Graph<'a> {
         self.self_loop = self_loop;
     }
 
+    pub fn reference_num_plus(&mut self) {
+        self.reference_num = self.reference_num + 1;
+    }
     ///
     pub fn collect_order(
         graph_ref: &'a RefCell<Graph<'a>>,
@@ -111,14 +116,16 @@ pub fn build_graph<'a>(
                 let child_name_str = allocator.alloc_str(&child_name);
 
                 let child_graph = if let Some(graph) = pool.get(child_name_str) {
+                    (*graph).borrow_mut().reference_num_plus();
+
                     *graph
                 } else {
-                    let new_graph: &'a RefCell<Graph<'a>> =
+                    let child_graph: &'a RefCell<Graph<'a>> =
                         allocator.alloc(RefCell::new(Graph::new(child_name_str, allocator)));
 
-                    pool.insert(child_name_str, new_graph);
+                    pool.insert(child_name_str, child_graph);
 
-                    new_graph
+                    child_graph
                 };
 
                 graph.borrow_mut().add_child(child_graph);

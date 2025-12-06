@@ -13,7 +13,7 @@ use oxc_ast::{
 use oxc_semantic::Semantic;
 use tracing::info;
 
-use crate::flatten::{declare::DeclRef, result::ResultProgram};
+use crate::flatten::{declare::DeclRef, interface, result::ResultProgram};
 
 ///
 ///
@@ -98,35 +98,51 @@ pub fn merge_type_to_class<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
-    let decl = decls.last().unwrap().clone();
+    // If the merged tyep is class
+    let mut is_class_decl = false;
+    let decl = if let Some(decl) = decls.iter().find(|decl| match decl {
+        DeclRef::Class(_) => true,
+        _ => false,
+    }) {
+        is_class_decl = true;
+        decl
+    } else {
+        decls.last().unwrap()
+    };
 
     let mut members: AstVec<'_, TSSignature<'a>> = AstVec::new_in(allocator);
 
-    for decl in decls.iter().take(decls.len().saturating_sub(1)) {
-        decl.flatten_type(semantic, allocator, result_program);
+    let take_len = if is_class_decl {
+        decls.len()
+    } else {
+        decls.len() - 1
+    };
+    for decl in decls.iter().take(take_len) {
+        match decl {
+            DeclRef::Interface(rif) => {
+                let decl = interface::flatten_type(rif, semantic, allocator, result_program);
 
-        if let Some(ts_type) = decl.type_decl(allocator) {
-            match ts_type {
-                TSType::TSTypeLiteral(tl) => {
+                if let DeclRef::Interface(rif) = decl.decl {
                     let mut new_members = AstVec::new_in(allocator);
-
-                    for member in tl.members.iter() {
+                    for member in rif.body.body.iter() {
                         if members
                             .iter()
                             .any(|tsig| eq_ts_signature(tsig, member, allocator))
                         {
                             continue;
                         }
+
                         new_members.push(member.clone_in(allocator));
                     }
 
                     members.extend(new_members);
                 }
-                _ => {}
             }
+            _ => {}
         }
     }
 
+    info!("Merge multi type with member len {}", members.len());
     match decl {
         DeclRef::Interface(tid) => {
             let mut new_type = tid.clone_in(allocator);
@@ -134,7 +150,7 @@ pub fn merge_type_to_class<'a>(
             let mut new_members = AstVec::new_in(allocator);
 
             for member in members.iter() {
-                if new_type
+                if tid
                     .body
                     .body
                     .iter()
@@ -147,33 +163,6 @@ pub fn merge_type_to_class<'a>(
 
             new_type.body.body.extend(new_members);
             Ok(DeclRef::Interface(allocator.alloc(new_type)))
-        }
-        DeclRef::TypeAlias(tad) => {
-            let mut new_type = tad.clone_in(allocator);
-
-            match &tad.type_annotation {
-                TSType::TSTypeLiteral(tl) => {
-                    let mut new_literal = tl.clone_in(allocator);
-
-                    let mut new_members = AstVec::new_in(allocator);
-
-                    for member in members.iter() {
-                        if new_literal
-                            .members
-                            .iter()
-                            .any(|mb| eq_ts_signature(mb, member, allocator))
-                        {
-                            continue;
-                        }
-                        new_members.push(member.clone_in(allocator));
-                    }
-
-                    new_literal.members.extend(new_members);
-                    new_type.type_annotation = TSType::TSTypeLiteral(new_literal);
-                }
-                _ => {}
-            }
-            Ok(DeclRef::TypeAlias(allocator.alloc(new_type)))
         }
         DeclRef::Class(tcd) => {
             let mut new_type = tcd.clone_in(allocator);
@@ -200,7 +189,7 @@ pub fn merge_type_to_class<'a>(
             Ok(DeclRef::Class(allocator.alloc(new_type)))
         }
         _ => {
-            bail!("Invalid class type")
+            bail!("👻 Is Not Valid type to merge")
         }
     }
 }
