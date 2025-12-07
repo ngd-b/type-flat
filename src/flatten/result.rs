@@ -3,6 +3,7 @@ use oxc_ast::ast::{
     BindingPatternKind, Class, Program, Statement, TSInterfaceDeclaration, TSTypeAliasDeclaration,
     TSTypeParameterDeclaration, VariableDeclaration,
 };
+use tracing::info;
 
 use crate::flatten::{declare::DeclRef, generic::Generic};
 
@@ -218,6 +219,7 @@ impl<'a> ResultProgram<'a> {
             return Some(decl);
         }
 
+        info!("Not get the cached reference type {} ", name);
         self.standby_type.insert(name);
         None
     }
