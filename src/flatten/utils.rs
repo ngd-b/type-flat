@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
@@ -491,42 +493,39 @@ pub fn type_members_to_class_elements<'a>(
             TSSignature::TSCallSignatureDeclaration(_tcsd) => {}
             TSSignature::TSConstructSignatureDeclaration(_tcsd) => {}
             TSSignature::TSMethodSignature(tms) => {
-                let new_signature = ClassElement::MethodDefinition(AstBox::new_in(
-                    MethodDefinition {
-                        span: tms.span.clone_in(allocator),
-                        decorators: AstVec::new_in(allocator),
-                        key: tms.key.clone_in(allocator),
-                        value: AstBox::new_in(
-                            Function {
-                                span: tms.span.clone_in(allocator),
-                                id: None,
-                                type_parameters: None,
-                                this_param: None,
-                                params: tms.params.clone_in(allocator),
-                                return_type: tms.return_type.clone_in(allocator),
-                                body: None,
-                                scope_id: tms.scope_id.clone_in(allocator),
-                                r#type: FunctionType::TSDeclareFunction,
-                                generator: false,
-                                r#async: false,
-                                declare: false,
-                                pure: false,
-                                pife: false,
-                            },
-                            allocator,
-                        ),
-                        r#type: MethodDefinitionType::MethodDefinition,
-                        kind: MethodDefinitionKind::Method,
-                        computed: tms.computed,
-                        r#static: false,
-                        r#override: false,
-                        optional: tms.optional,
-                        accessibility: None,
-                    },
-                    allocator,
-                ));
+                let new_fun = Function {
+                    span: Default::default(),
+                    id: None,
+                    type_parameters: tms.type_parameters.clone_in(allocator),
+                    this_param: tms.this_param.clone_in(allocator),
+                    params: tms.params.clone_in(allocator),
+                    return_type: tms.return_type.clone_in(allocator),
+                    body: None,
+                    scope_id: Cell::new(None),
+                    r#type: FunctionType::TSDeclareFunction,
+                    generator: false,
+                    r#async: false,
+                    declare: false,
+                    pure: false,
+                    pife: false,
+                };
+                let new_member = MethodDefinition {
+                    span: Default::default(),
+                    decorators: AstVec::new_in(allocator),
+                    key: tms.key.clone_in(allocator),
+                    value: AstBox::new_in(new_fun, allocator),
+                    r#type: MethodDefinitionType::MethodDefinition,
+                    kind: MethodDefinitionKind::Method,
+                    computed: tms.computed,
+                    r#static: false,
+                    r#override: false,
+                    optional: tms.optional,
+                    accessibility: None,
+                };
 
-                elements.push(new_signature);
+                elements.push(ClassElement::MethodDefinition(AstBox::new_in(
+                    new_member, allocator,
+                )))
             }
         }
     }

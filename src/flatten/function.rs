@@ -26,7 +26,7 @@ pub fn flatten_type<'a>(
         "DoNotGetFunName"
     };
 
-    info!("Flatten class type {}", fun_name);
+    info!("Flatten function type {}. ", fun_name);
 
     let mut new_fun = fun.clone_in(allocator);
 
