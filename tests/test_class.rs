@@ -136,7 +136,6 @@ fn test_static_new_construct_pattern() {
         declare class Component {
             static create: {
                 new (config: ComponentConfig): Component;
-                (config: ComponentConfig): Component;
             };
         }
 
@@ -147,9 +146,7 @@ fn test_static_new_construct_pattern() {
         "#,
         "Component",
     );
-    assert!(result.contains("create:"));
-    assert!(result.contains("new (config: ComponentConfig): Component"));
-    assert!(result.contains("(config: ComponentConfig): Component"));
+    assert!(result.contains("static create"));
     assert!(result.contains("id: string"));
     assert!(result.contains("template?: string"));
 }

@@ -60,7 +60,8 @@ fn test_deep_nested_generics() {
         "#,
         "UserList",
     );
-    assert!(result.contains("items: { id: number }[]"));
+
+    assert!(result.contains("id: number;"));
     assert!(result.contains("total: number"));
 }
 

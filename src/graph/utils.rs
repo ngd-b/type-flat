@@ -298,6 +298,45 @@ pub fn get_member_type_name<'a>(
 
                 names.extend(ts_names);
             }
+
+            // this param
+            if let Some(this_param) = &tms.this_param {
+                if let Some(this_type) = &this_param.type_annotation {
+                    let ts_names = get_type_name(&this_type.type_annotation, semantic, allocator);
+
+                    names.extend(ts_names);
+                }
+            }
+        }
+        TSSignature::TSConstructSignatureDeclaration(tcsd) => {
+            for item in tcsd.params.items.iter() {
+                if let Some(ts_type) = &item.pattern.type_annotation {
+                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
+                }
+            }
+            if let Some(rest_type) = &tcsd.params.rest {
+                if let Some(ts_type) = &rest_type.argument.type_annotation {
+                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
+                }
+            }
+
+            if let Some(tpd) = &tcsd.type_parameters {
+                for tp in tpd.params.iter() {
+                    if let Some(ts_type) = &tp.constraint {
+                        names.extend(get_type_name(ts_type, semantic, allocator))
+                    }
+                    if let Some(ts_type) = &tp.default {
+                        names.extend(get_type_name(ts_type, semantic, allocator))
+                    }
+                }
+            }
+
+            // return type flatten
+            if let Some(rt) = &tcsd.return_type {
+                let ts_names = get_type_name(&rt.type_annotation, semantic, allocator);
+
+                names.extend(ts_names);
+            }
         }
         _ => {}
     }

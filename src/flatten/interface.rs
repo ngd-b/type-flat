@@ -282,6 +282,93 @@ pub fn flatten_member_type<'a>(
 
             TSSignature::TSMethodSignature(new_prop)
         }
-        _ => member.clone_in(allocator),
+        TSSignature::TSConstructSignatureDeclaration(tcsd) => {
+            let mut new_member = tcsd.clone_in(allocator);
+
+            // params flatten
+            let new_params = function::flatten_method_params_type(
+                allocator.alloc(tcsd.params.clone_in(allocator)),
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
+            new_member.params = AstBox::new_in(new_params, allocator);
+
+            // return type flatten
+            if let Some(rt) = &tcsd.return_type {
+                let mut new_return_type = rt.clone_in(allocator);
+
+                new_return_type.type_annotation = type_alias::flatten_ts_type(
+                    allocator.alloc(rt.type_annotation.clone_in(allocator)),
+                    semantic,
+                    allocator,
+                    result_program,
+                    env.clone_in(allocator),
+                );
+
+                new_member.return_type = Some(new_return_type)
+            }
+
+            // type params
+            if let Some(_) = &tcsd.type_parameters {
+                let fun_env = generic::flatten_generic(
+                    &tcsd.type_parameters,
+                    semantic,
+                    allocator,
+                    result_program,
+                );
+
+                let type_params = CacheDecl::format_type_params(&fun_env, allocator);
+
+                new_member.type_parameters = type_params.clone_in(allocator);
+            }
+
+            TSSignature::TSConstructSignatureDeclaration(new_member)
+        }
+        TSSignature::TSCallSignatureDeclaration(tcsd) => {
+            let mut new_member = tcsd.clone_in(allocator);
+
+            // params flatten
+            let new_params = function::flatten_method_params_type(
+                allocator.alloc(tcsd.params.clone_in(allocator)),
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
+            new_member.params = AstBox::new_in(new_params, allocator);
+
+            // return type flatten
+            if let Some(rt) = &tcsd.return_type {
+                let mut new_return_type = rt.clone_in(allocator);
+
+                new_return_type.type_annotation = type_alias::flatten_ts_type(
+                    allocator.alloc(rt.type_annotation.clone_in(allocator)),
+                    semantic,
+                    allocator,
+                    result_program,
+                    env.clone_in(allocator),
+                );
+
+                new_member.return_type = Some(new_return_type)
+            }
+
+            // type params
+            if let Some(_) = &tcsd.type_parameters {
+                let fun_env = generic::flatten_generic(
+                    &tcsd.type_parameters,
+                    semantic,
+                    allocator,
+                    result_program,
+                );
+
+                let type_params = CacheDecl::format_type_params(&fun_env, allocator);
+
+                new_member.type_parameters = type_params.clone_in(allocator);
+            }
+
+            TSSignature::TSCallSignatureDeclaration(new_member)
+        }
     }
 }
