@@ -710,7 +710,7 @@ pub fn eq_class_element<'a>(
     match (class_element, other) {
         (ClassElement::MethodDefinition(a), ClassElement::MethodDefinition(b)) => {
             if a.kind == MethodDefinitionKind::Constructor
-                || b.kind == MethodDefinitionKind::Constructor
+                && b.kind == MethodDefinitionKind::Constructor
             {
                 return true;
             }
