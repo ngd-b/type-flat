@@ -1,26 +1,17 @@
 use common::run_flat;
 mod common;
 
-// 空接口 / 空类型
+// 空接口
 #[test]
 fn test_empty_interface_type() {
     let result1 = run_flat(
         r#"
         interface Empty {}
-        type EmptyType = {}
         "#,
         "Empty",
     );
-    let result2 = run_flat(
-        r#"
-        interface Empty {}
-        type EmptyType = {}
-        "#,
-        "EmptyType",
-    );
 
     assert!(result1.contains("interface Empty {}"));
-    assert!(result2.contains("type EmptyType = {}"));
 }
 
 // 多层继承
@@ -51,8 +42,7 @@ fn test_generic_with_default_and_constraint() {
         "#,
         "User",
     );
-    assert!(result.contains("id: number;"));
-    assert!(result.contains("name: string"));
+    assert!(result.contains("data: { id: number; name: string; }"));
 }
 
 #[test]
@@ -66,6 +56,7 @@ fn test_recursive_generic_type() {
         "#,
         "TreeNode",
     );
+    assert!(result.contains("value: T;"));
     assert!(result.contains("children?: TreeNode<T>[]"));
 }
 

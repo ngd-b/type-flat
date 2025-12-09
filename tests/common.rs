@@ -30,5 +30,16 @@ pub fn run_flat(content: &str, type_name: &str) -> String {
 
     file.write_all(content.as_bytes()).unwrap();
 
-    run(file.path().to_str().unwrap(), type_name)
+    let result = run(file.path().to_str().unwrap(), type_name);
+
+    result
+        .replace(['\n', '\t', '\r'], " ")
+        .replace("  ", " ")
+        .replace("  ", " ")
+        .replace("< ", "<")
+        .replace(" >", ">")
+        .replace("( ", "(")
+        .replace(" )", ")")
+        .trim()
+        .to_string()
 }

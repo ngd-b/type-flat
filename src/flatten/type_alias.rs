@@ -1,10 +1,10 @@
 use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::ast::{
-    IdentifierName, PropertyKey, TSConditionalType, TSIndexedAccessType, TSLiteral, TSMappedType,
-    TSPropertySignature, TSQualifiedName, TSSignature, TSTupleElement, TSType,
-    TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSTypeName, TSTypeOperatorOperator,
-    TSTypeParameterInstantiation, TSTypeQueryExprName, TSUnionType,
+    IdentifierName, PropertyKey, TSConditionalType, TSIndexedAccessType, TSIntersectionType,
+    TSLiteral, TSMappedType, TSPropertySignature, TSQualifiedName, TSSignature, TSTupleElement,
+    TSType, TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSTypeName,
+    TSTypeOperatorOperator, TSTypeParameterInstantiation, TSTypeQueryExprName, TSUnionType,
 };
 use oxc_semantic::Semantic;
 
@@ -368,9 +368,11 @@ pub fn merge_ts_type<'a>(
     is_union: bool,
     env: AstVec<'a, &'a str>,
 ) -> TSType<'a> {
+    let mut new_types = AstVec::new_in(allocator);
+
     let mut memebers = AstVec::new_in(allocator);
-    // union type
-    let mut union_types = AstVec::new_in(allocator);
+    // Need Intersection typs
+    let mut intersection_types = AstVec::new_in(allocator);
 
     for it in types.iter() {
         let ts_type = flatten_ts_type(
@@ -381,32 +383,43 @@ pub fn merge_ts_type<'a>(
             env.clone_in(allocator),
         );
 
-        if is_union {
-            union_types.push(ts_type.clone_in(allocator));
-            continue;
-        }
-        // get type literal
+        new_types.push(ts_type.clone_in(allocator));
+        // IF it is intersection type. need flat the members
         match &ts_type {
             TSType::TSTypeLiteral(tl) => {
                 memebers.extend(tl.members.clone_in(allocator));
             }
-            _ => {}
+            _ => {
+                intersection_types.push(ts_type.clone_in(allocator));
+            }
         }
     }
 
     if is_union {
-        TSType::TSUnionType(AstBox::new_in(
+        return TSType::TSUnionType(AstBox::new_in(
             TSUnionType {
                 span: Default::default(),
-                types: union_types,
+                types: new_types,
             },
             allocator,
-        ))
+        ));
+    }
+    let new_literal = TSType::TSTypeLiteral(AstBox::new_in(
+        TSTypeLiteral {
+            span: Default::default(),
+            members: memebers,
+        },
+        allocator,
+    ));
+
+    if intersection_types.is_empty() {
+        return new_literal;
     } else {
-        TSType::TSTypeLiteral(AstBox::new_in(
-            TSTypeLiteral {
+        intersection_types.push(new_literal);
+        TSType::TSIntersectionType(AstBox::new_in(
+            TSIntersectionType {
                 span: Default::default(),
-                members: memebers,
+                types: intersection_types,
             },
             allocator,
         ))
@@ -637,6 +650,11 @@ pub fn flatten_ts_conditional_type<'a>(
         | (TSType::TSUndefinedKeyword(_), TSType::TSUndefinedKeyword(_))
         | (TSType::TSNullKeyword(_), TSType::TSNullKeyword(_)) => {
             return true_type.clone_in(allocator);
+        }
+        (TSType::TSLiteralType(tl), TSType::TSStringKeyword(_)) => {
+            if let TSLiteral::StringLiteral(_) = tl.literal {
+                return true_type.clone_in(allocator);
+            }
         }
         _ => {}
     }

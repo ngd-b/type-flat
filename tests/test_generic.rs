@@ -13,8 +13,7 @@ fn test_nested_generic_optional() {
         "UserResponse",
     );
     assert!(result.contains("status: string"));
-    assert!(result.contains("id: number;"));
-    assert!(result.contains("name?: string"));
+    assert!(result.contains("data?: { id: number; name?: string; }"));
 }
 
 // 复杂联合类型嵌套泛型
@@ -76,6 +75,7 @@ fn test_method_level_generic() {
         "#,
         "Mapper",
     );
+
     assert!(result.contains("map<U>(input: string): U"));
     assert!(result.contains("process<T, R>(data: T): R"));
 }

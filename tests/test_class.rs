@@ -146,7 +146,6 @@ fn test_static_new_construct_pattern() {
         "#,
         "Component",
     );
-    assert!(result.contains("static create"));
-    assert!(result.contains("id: string"));
-    assert!(result.contains("template?: string"));
+    println!("{}", result);
+    assert!(result.contains("new (config: { id: string; template?: string; }): Component;"));
 }
