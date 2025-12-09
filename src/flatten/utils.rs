@@ -267,7 +267,6 @@ pub fn get_field_type<'a>(
     field_name: &str,
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
-
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> Option<TSType<'a>> {
@@ -276,14 +275,11 @@ pub fn get_field_type<'a>(
             for member in tl.members.iter() {
                 match member {
                     TSSignature::TSPropertySignature(ps) => {
-                        let ts_type = if let Some(ta) = &ps.type_annotation {
-                            ta.type_annotation.clone_in(allocator)
-                        } else {
-                            continue;
-                        };
                         if let PropertyKey::StaticIdentifier(si) = &ps.key {
                             if si.name.as_str() == field_name {
-                                return Some(ts_type);
+                                if let Some(ta) = &ps.type_annotation {
+                                    return Some(ta.type_annotation.clone_in(allocator));
+                                }
                             }
                         }
                     }
@@ -326,8 +322,6 @@ pub fn get_field_type<'a>(
                     _ => {}
                 }
             }
-
-            None
         }
         TSType::TSUnionType(tut) => {
             let mut new_type = tut.clone_in(allocator);
@@ -342,12 +336,16 @@ pub fn get_field_type<'a>(
                 }
             }
 
-            new_type.types = members;
+            if !members.is_empty() {
+                new_type.types = members;
 
-            return Some(TSType::TSUnionType(new_type));
+                return Some(TSType::TSUnionType(new_type));
+            }
         }
-        _ => None,
+        _ => {}
     }
+
+    None
 }
 
 ///

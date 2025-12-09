@@ -234,15 +234,13 @@ pub fn flatten_ts_type<'a>(
                 env.clone_in(allocator),
             );
 
-            let result = flatten_index_access_type(
+            new_type = flatten_index_access_type(
                 allocator.alloc(object_type),
                 allocator.alloc(index_type),
                 semantic,
                 allocator,
                 result_program,
             );
-
-            new_type = result;
         }
         TSType::TSTypeQuery(tq) => match &tq.expr_name {
             TSTypeQueryExprName::IdentifierReference(ir) => {
@@ -370,7 +368,7 @@ pub fn merge_ts_type<'a>(
 ) -> TSType<'a> {
     let mut new_types = AstVec::new_in(allocator);
 
-    let mut memebers = AstVec::new_in(allocator);
+    let mut members = AstVec::new_in(allocator);
     // Need Intersection typs
     let mut intersection_types = AstVec::new_in(allocator);
 
@@ -387,7 +385,15 @@ pub fn merge_ts_type<'a>(
         // IF it is intersection type. need flat the members
         match &ts_type {
             TSType::TSTypeLiteral(tl) => {
-                memebers.extend(tl.members.clone_in(allocator));
+                for member in tl.members.iter() {
+                    if members
+                        .iter()
+                        .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                    {
+                        continue;
+                    }
+                    members.push(member.clone_in(allocator));
+                }
             }
             _ => {
                 intersection_types.push(ts_type.clone_in(allocator));
@@ -407,7 +413,7 @@ pub fn merge_ts_type<'a>(
     let new_literal = TSType::TSTypeLiteral(AstBox::new_in(
         TSTypeLiteral {
             span: Default::default(),
-            members: memebers,
+            members: members,
         },
         allocator,
     ));
@@ -437,7 +443,7 @@ pub fn flatten_index_access_type<'a>(
     allocator: &'a Allocator,
     result_program: &mut ResultProgram<'a>,
 ) -> TSType<'a> {
-    let new_type = TSType::TSIndexedAccessType(AstBox::new_in(
+    let ts_type = TSType::TSIndexedAccessType(AstBox::new_in(
         TSIndexedAccessType {
             span: Default::default(),
             object_type: object_type.clone_in(allocator),
@@ -445,7 +451,6 @@ pub fn flatten_index_access_type<'a>(
         },
         allocator,
     ));
-
     // Maybe it is a reference circle type.
     let object_type = if let TSType::TSTypeReference(ttr) = object_type {
         // Not flatten. maybe is circle self type
@@ -475,7 +480,7 @@ pub fn flatten_index_access_type<'a>(
                 );
 
                 if let Some(ts_type) = result {
-                    return ts_type.clone_in(allocator);
+                    return ts_type;
                 }
             }
         }
@@ -500,38 +505,11 @@ pub fn flatten_index_access_type<'a>(
                 allocator,
             ));
         }
-        TSType::TSSymbolKeyword(_) | TSType::TSNumberKeyword(_) | TSType::TSStringKeyword(_) => {
-            let name = utils::get_normal_type_str(index_type);
 
-            match object_type {
-                TSType::TSTypeLiteral(ttl) => {
-                    for member in ttl.members.iter() {
-                        match member {
-                            TSSignature::TSIndexSignature(tis) => {
-                                for param in tis.parameters.iter() {
-                                    let param_type_name = utils::get_normal_type_str(
-                                        &param.type_annotation.type_annotation,
-                                    );
-
-                                    if name == param_type_name {
-                                        return tis
-                                            .type_annotation
-                                            .type_annotation
-                                            .clone_in(allocator);
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
         _ => {}
     }
 
-    new_type
+    ts_type
 }
 
 ///
