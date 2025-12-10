@@ -146,6 +146,27 @@ fn test_static_new_construct_pattern() {
         "#,
         "Component",
     );
-    println!("{}", result);
+
     assert!(result.contains("new (config: { id: string; template?: string; }): Component;"));
+}
+
+#[test]
+fn test_extends_super_class() {
+    let result = run_flat(
+        r#"
+        declare class Element {
+            protected canBeInsideText(): boolean;
+        }
+
+        declare class Path extends Element {
+            protected canBeInsideText(): boolean;
+        }
+
+    "#,
+        "Path",
+    );
+
+    println!("{}", result);
+    assert!(result.contains("protected canBeInsideText(): boolean;"));
+    assert!(!result.contains("protected canBeInsideText(): boolean; canBeInsideText(): boolean;"));
 }

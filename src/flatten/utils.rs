@@ -716,8 +716,9 @@ pub fn eq_class_element<'a>(
             if a.kind != b.kind {
                 return false;
             }
+
             match (&a.key, &b.key) {
-                (PropertyKey::Identifier(ak), PropertyKey::Identifier(bk)) => {
+                (PropertyKey::StaticIdentifier(ak), PropertyKey::StaticIdentifier(bk)) => {
                     if ak.name.as_str() == bk.name.as_str() {
                         return true;
                     }
