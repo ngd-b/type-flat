@@ -28,6 +28,10 @@ pub fn flatten_type<'a>(
         "[DoNotGetName]"
     };
     info!("Flatten class type {}", class_name);
+    let mut new_class = class_type.clone_in(allocator);
+    new_class.super_class = None;
+    new_class.super_type_arguments = None;
+
     let elements = class_type.body.body.clone_in(allocator);
 
     let env = generic::flatten_generic(
@@ -91,6 +95,9 @@ pub fn flatten_type<'a>(
                         _ => {}
                     }
                 }
+            } else {
+                new_class.super_class = class_type.super_class.clone_in(allocator);
+                new_class.super_type_arguments = type_params;
             }
         }
     }
@@ -109,9 +116,6 @@ pub fn flatten_type<'a>(
         }
     }
 
-    let mut new_class = class_type.clone_in(allocator);
-    new_class.super_class = None;
-    new_class.super_type_arguments = None;
     new_class.implements = AstVec::new_in(allocator);
     // new_class.type_parameters = None;
 

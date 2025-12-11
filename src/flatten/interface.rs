@@ -36,6 +36,10 @@ pub fn flatten_type<'a>(
 
     info!("Flatten interface type {}", ts_name);
 
+    let mut new_type = ts_type.clone_in(allocator);
+    new_type.extends = AstVec::new_in(allocator);
+    new_type.type_parameters = None;
+
     // Handle the type parameters
     let env = generic::flatten_generic(
         &ts_type.type_parameters,
@@ -49,7 +53,10 @@ pub fn flatten_type<'a>(
 
     let mut extend_members = AstVec::new_in(allocator);
     // the extends type
+    let mut extends = AstVec::new_in(allocator);
     for extend in ts_type.extends.iter() {
+        let mut new_extend = extend.clone_in(allocator);
+
         if let Expression::Identifier(ei) = &extend.expression {
             let reference_name = allocator.alloc_str(&ei.name);
 
@@ -129,7 +136,13 @@ pub fn flatten_type<'a>(
                         _ => {}
                     }
                 }
+            } else {
+                new_extend.type_arguments = type_params;
+
+                extends.push(new_extend);
             }
+        } else {
+            extends.push(new_extend);
         }
     }
 
@@ -149,11 +162,8 @@ pub fn flatten_type<'a>(
     }
 
     // create new type. return new type
-    let mut new_type = ts_type.clone_in(allocator);
-    new_type.extends = AstVec::new_in(allocator);
-    // new_type.type_parameters = None;
-
     new_members.extend(extend_members);
+    new_type.extends = extends;
     new_type.body.body = new_members;
 
     info!(

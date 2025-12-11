@@ -216,6 +216,10 @@ impl<'a> ResultProgram<'a> {
             return None;
         }
         if let Some(decl) = self.cached.get(name) {
+            if decl.decl.type_decl(self.allocator).is_none() {
+                self.standby_type.insert(name);
+                return None;
+            }
             return Some(decl);
         }
 

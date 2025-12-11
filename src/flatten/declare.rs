@@ -31,11 +31,17 @@ impl<'a> DeclRef<'a> {
         match self {
             DeclRef::TypeAlias(decl) => return Some(decl.type_annotation.clone_in(allocator)),
             DeclRef::Interface(decl) => {
+                if !decl.extends.is_empty() {
+                    return None;
+                }
                 new_type.members.extend(decl.body.body.clone_in(allocator));
 
                 return Some(TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator)));
             }
             DeclRef::Class(drc) => {
+                if drc.super_class.is_some() {
+                    return None;
+                }
                 let new_members = utils::class_elements_to_type_members(&drc.body.body, allocator);
 
                 if new_members.is_empty() {
