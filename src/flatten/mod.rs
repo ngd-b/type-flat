@@ -1,4 +1,4 @@
-use std::{cell::RefCell, process};
+use std::{cell::RefCell, collections::HashSet, process};
 
 use crate::{
     flatten::result::ResultProgram,
@@ -72,11 +72,16 @@ impl<'a> Flatten<'a> {
 
         let semantic = self.semantic();
 
+        let mut will_exclude: HashSet<String> = type_names.iter().cloned().collect();
+
         for name in type_names.iter() {
             let graph = graph::build_graph(name.as_str(), &semantic, self.allocator);
 
-            let mut result = self.flatten_ts(graph, &semantic, exclude);
-
+            will_exclude.remove(name);
+            let mut exclude_names = exclude.iter().cloned().collect::<HashSet<String>>();
+            exclude_names.extend(will_exclude.clone());
+            let mut result = self.flatten_ts(graph, &semantic, exclude_names);
+            will_exclude.insert(name.to_string());
             // target
             if let Some(decl) = result.format_cached(name) {
                 result.push(decl);
@@ -95,7 +100,7 @@ impl<'a> Flatten<'a> {
         &'a self,
         graph_ref: &'a RefCell<Graph<'a>>,
         semantic: &Semantic<'a>,
-        exclude: &[String],
+        exclude: HashSet<String>,
     ) -> ResultProgram<'a> {
         let mut result = self.result_program();
         // need to exclude type

@@ -91,7 +91,7 @@ fn test_index_signature_and_literal_index() {
     assert!(result.contains("[key: string]: number"));
 
     let result_value = run_flat(cotent, "DictionaryValue");
-    assert!(result_value.contains("type DictionaryValue = number"));
+    assert!(result_value.contains("{ [key: string]: number; }[string]"));
 }
 
 #[test]
