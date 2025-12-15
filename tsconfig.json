@@ -11,5 +11,6 @@
     "resolveJsonModule": true,
     "strict": true,
   },
-  "include": ["web"]
+  "include": ["web"],
+  "exclude":["node_modules/**","dist/**"]
 }

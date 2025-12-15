@@ -43,3 +43,21 @@ pub fn run_flat(content: &str, type_name: &str) -> String {
         .trim()
         .to_string()
 }
+pub fn run_multiple_flat(content: &str, type_name: Vec<&str>) -> String {
+    let mut file = NamedTempFile::new().unwrap();
+
+    file.write_all(content.as_bytes()).unwrap();
+
+    let result = run(file.path().to_str().unwrap(), type_name.join(",").as_str());
+
+    result
+        .replace(['\n', '\t', '\r'], " ")
+        .replace("  ", " ")
+        .replace("  ", " ")
+        .replace("< ", "<")
+        .replace(" >", ">")
+        .replace("( ", "(")
+        .replace(" )", ")")
+        .trim()
+        .to_string()
+}
