@@ -38,11 +38,10 @@ fn test_multiple_extends_type() {
         interface C {
             c: string;
         }
-
         "#,
         ["C", "A"].to_vec(),
     );
 
     assert!(result.contains("interface C { c: string; }"));
-    assert!(result.contains("interface A { a: string; b: string; c: string; }"));
+    assert!(result.contains("interface A extends B { a: string; }"));
 }

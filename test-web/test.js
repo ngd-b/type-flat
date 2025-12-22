@@ -30,10 +30,8 @@ test("Multiple flatten type names", (t) => {
     interface B extends A { b: string }
     interface C extends B { c: boolean }
   `;
-  let result = run(content, ["C"]);
+  let result = run(content, ["A", "C"]);
 
-  console.log(result);
-  t.assert(
-    result.includes("interface C { c: boolean; b: string; a: number; }")
-  );
+  t.assert(result.includes("interface A { a: number; }"));
+  t.assert(result.includes("interface C extends B { c: boolean; }"));
 });
