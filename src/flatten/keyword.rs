@@ -103,7 +103,7 @@ impl<'a> Keyword<'a> {
         &self,
         semantic: &Semantic<'a>,
         allocator: &'a Allocator,
-        result_program: &mut ResultProgram<'a>,
+        result_program: &ResultProgram<'a>,
         env: AstVec<'a, &'a str>,
     ) -> Option<TSType<'a>> {
         let vec = self.get_type();
@@ -271,7 +271,7 @@ pub fn get_type_members<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> AstVec<'a, TSSignature<'a>> {
     let ts_type = type_alias::flatten_ts_type(ts_type, semantic, allocator, result_program, env);
@@ -295,7 +295,7 @@ pub fn set_type_required_or_optional<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> TSType<'a> {
     let mut new_type = TSTypeLiteral {
@@ -335,7 +335,7 @@ pub fn set_type_readonly<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> TSType<'a> {
     let mut new_type = TSTypeLiteral {
@@ -377,7 +377,7 @@ pub fn flatten_pick_omit<'a>(
     params: &'a AstVec<'a, TSType<'a>>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> TSTypeLiteral<'a> {
     let mut new_type = TSTypeLiteral {

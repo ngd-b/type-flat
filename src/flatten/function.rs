@@ -18,7 +18,7 @@ pub fn flatten_type<'a>(
     fun: &'a Function<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> CacheDecl<'a> {
     let fun_name = if let Some(id) = &fun.id {
         id.name.as_str()
@@ -84,7 +84,7 @@ pub fn flatten_method_params_type<'a>(
     params: &'a FormalParameters<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> FormalParameters<'a> {
     let mut new_params = params.clone_in(allocator);
@@ -143,7 +143,7 @@ pub fn flatten_method_this_type<'a>(
     this_type: &'a Option<AstBox<'a, TSThisParameter<'a>>>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> Option<AstBox<'a, TSThisParameter<'a>>> {
     if let Some(this_param) = this_type {

@@ -22,7 +22,7 @@ pub fn flatten_generic<'a>(
     args: &'a Option<AstBox<'a, TSTypeParameterDeclaration<'a>>>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> HashMap<'a, &'a str, Generic<'a>> {
     let mut env = HashMap::new_in(allocator);
 
@@ -499,7 +499,7 @@ pub fn flatten_type_parameters<'a>(
     type_parameters: &'a Option<AstBox<'a, TSTypeParameterInstantiation<'a>>>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> Option<AstBox<'a, TSTypeParameterInstantiation<'a>>> {
     if let Some(tp) = type_parameters {

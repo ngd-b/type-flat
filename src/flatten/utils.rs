@@ -26,7 +26,7 @@ pub fn get_type<'a>(
     reference_name: &'a str,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
     info!("Get reference_name:{}", reference_name);
     let mut decls = AstVec::new_in(allocator);
@@ -98,7 +98,7 @@ pub fn merge_type_to_class<'a>(
     decls: &'a [DeclRef<'a>],
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> Result<DeclRef<'a>> {
     // If the merged tyep is class
     let mut is_class_decl = false;
@@ -204,7 +204,7 @@ pub fn get_keyof_union_type<'a>(
     ts_type: TSType<'a>,
     _semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    _result_program: &mut ResultProgram<'a>,
+    _result_program: &ResultProgram<'a>,
 ) -> Option<TSType<'a>> {
     match ts_type {
         TSType::TSTypeLiteral(tl) => {
@@ -268,7 +268,7 @@ pub fn get_field_type<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> Option<TSType<'a>> {
     match ts_type {
         TSType::TSTypeLiteral(tl) => {

@@ -20,7 +20,7 @@ pub fn flatten_type<'a>(
     class_type: &'a Class<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> CacheDecl<'a> {
     let class_name = if let Some(name) = class_type.name() {
         name.as_str()
@@ -144,7 +144,7 @@ pub fn flatten_class_elements_type<'a>(
     element: &'a ClassElement<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> Option<ClassElement<'a>> {
     match element {

@@ -1,7 +1,6 @@
 use oxc_allocator::Allocator;
-use oxc_allocator::{HashMap, Vec as AstVec};
+use oxc_allocator::{HashMap, HashSet, Vec as AstVec};
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use tracing::info;
 
@@ -16,6 +15,144 @@ pub struct Graph<'a> {
     pub self_loop: bool,
     pub reference_num: u32,
     pub children: AstVec<'a, &'a RefCell<Graph<'a>>>,
+}
+
+pub struct GraphFlatten<'a> {
+    pub entries: AstVec<'a, &'a RefCell<Graph<'a>>>,
+    pub nodes: AstVec<'a, &'a RefCell<Graph<'a>>>,
+}
+
+impl<'a> GraphFlatten<'a> {
+    pub fn build(
+        entry_names: &[&'a str],
+        semantic: &Semantic<'a>,
+        allocator: &'a Allocator,
+    ) -> Self {
+        let (entries, nodes) = build_graph(entry_names, semantic, allocator);
+
+        Self { entries, nodes }
+    }
+
+    pub fn flatten(
+        &self,
+        allocator: &'a Allocator,
+    ) -> (
+        AstVec<'a, &'a RefCell<Graph<'a>>>,
+        AstVec<'a, &'a RefCell<Graph<'a>>>,
+    ) {
+        let mut resolved = HashSet::new_in(allocator);
+        let mut path = HashSet::new_in(allocator);
+        let mut stack: Vec<(&'a RefCell<Graph<'a>>, bool)> = Vec::new();
+        let mut result = AstVec::new_in(allocator);
+        let mut cycle_nodes = AstVec::new_in(allocator);
+
+        for &node in self.nodes.iter() {
+            stack.push((node, false));
+        }
+
+        while let Some((node, is_post)) = stack.pop() {
+            let name = node.borrow().name;
+
+            if is_post {
+                path.remove(name);
+                resolved.insert(name);
+                result.push(node);
+                continue;
+            }
+
+            if resolved.contains(name) {
+                continue;
+            }
+
+            if path.contains(name) {
+                node.borrow_mut().set_self_loop(true);
+                cycle_nodes.push(node);
+
+                stack.push((node, true));
+                continue;
+            }
+
+            path.insert(name);
+            stack.push((node, true));
+
+            let children = &node.borrow().children;
+            for index in (0..children.len()).rev() {
+                let child = children[index];
+                let child_name = child.borrow().name;
+
+                if !resolved.contains(child_name) {
+                    stack.push((child, false));
+                }
+            }
+        }
+
+        (result, cycle_nodes)
+    }
+    // pub fn flatten(
+    //     &self,
+    //     allocator: &'a Allocator,
+    // ) -> (
+    //     AstVec<'a, &'a RefCell<Graph<'a>>>,
+    //     AstVec<'a, &'a RefCell<Graph<'a>>>,
+    // ) {
+    //     let mut name_map_node: HashMap<'a, &'a str, &'a RefCell<Graph<'a>>> =
+    //         HashMap::new_in(allocator);
+
+    //     for &node in self.nodes.iter() {
+    //         name_map_node.insert(node.borrow().name, node);
+    //     }
+
+    //     //degree of node
+    //     let mut in_degree: HashMap<&'a str, u32> = HashMap::new_in(allocator);
+
+    //     for &node in self.nodes.iter() {
+    //         in_degree.insert(node.borrow().name, 0);
+    //     }
+
+    //     for &node in self.nodes.iter() {
+    //         for child in node.borrow().children.iter() {
+    //             let child_name = child.borrow().name;
+
+    //             *in_degree.get_mut(child_name).unwrap_or(&mut 0) += 1;
+    //         }
+    //     }
+
+    //     let mut queue = VecDeque::new();
+
+    //     for &node in self.nodes.iter() {
+    //         if in_degree[node.borrow().name] == 0 {
+    //             queue.push_back(node);
+    //         }
+    //     }
+
+    //     let mut safe_nodes = AstVec::new_in(allocator);
+    //     while let Some(node) = queue.pop_front() {
+    //         safe_nodes.push(node);
+
+    //         for child in node.borrow().children.iter() {
+    //             let child_name = child.borrow().name;
+
+    //             let deg = in_degree.get_mut(child_name).unwrap();
+    //             *deg -= 1;
+
+    //             if *deg == 0 {
+    //                 queue.push_back(*child);
+    //             }
+    //         }
+    //     }
+
+    //     let mut cycle_nodes = AstVec::new_in(allocator);
+    //     for &node in self.nodes.iter() {
+    //         if in_degree[node.borrow().name] > 0 {
+    //             info!("【Graph】Cycle node {}", node.borrow().name);
+    //             node.borrow_mut().set_self_loop(true);
+    //             cycle_nodes.push(node);
+    //         }
+    //     }
+
+    //     safe_nodes.reverse();
+    //     return (safe_nodes, cycle_nodes);
+    // }
 }
 
 impl<'a> Debug for Graph<'_> {
@@ -63,10 +200,10 @@ impl<'a> Graph<'a> {
     ) -> AstVec<'a, &'a RefCell<Graph<'a>>> {
         let mut order = AstVec::new_in(allocator);
 
-        let mut path = HashSet::new();
-        let mut resolved = HashSet::new();
+        // let mut path = HashSet::new();
+        // let mut resolved = HashSet::new();
 
-        traverse_collect_order(allocator, graph_ref, &mut path, &mut resolved, &mut order);
+        // traverse_collect_order(allocator, graph_ref, &mut path, &mut resolved, &mut order);
         order
     }
 }
@@ -75,29 +212,40 @@ impl<'a> Graph<'a> {
 /// Build dependency graph
 ///
 pub fn build_graph<'a>(
-    name: &'a str,
+    names: &[&'a str],
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-) -> &'a RefCell<Graph<'a>> {
+) -> (
+    AstVec<'a, &'a RefCell<Graph<'a>>>,
+    AstVec<'a, &'a RefCell<Graph<'a>>>,
+) {
     // pool
     let mut pool: HashMap<'a, &'a str, &'a RefCell<Graph<'a>>> = HashMap::new_in(allocator);
 
-    let graph: &'a RefCell<Graph<'a>> = allocator.alloc(RefCell::new(Graph::new(name, allocator)));
-    pool.insert(name, graph);
-
+    let mut all_nodes: AstVec<'a, &'a RefCell<Graph<'a>>> = AstVec::new_in(allocator);
     // visited
-    let mut visited = HashSet::new();
+    let mut visited = HashSet::new_in(allocator);
+    let mut stack: Vec<String> = Vec::new();
 
-    let mut stack = vec![name.to_string()];
+    for &name in names.iter() {
+        let name_alloc = allocator.alloc_str(name);
+
+        let node = allocator.alloc(RefCell::new(Graph::new(name_alloc, allocator)));
+        pool.insert(name_alloc, node);
+        all_nodes.push(node);
+
+        stack.push(name.to_string())
+    }
 
     while let Some(name) = stack.pop() {
-        if visited.contains(&name) {
+        if visited.contains(name.as_str()) {
             continue;
         }
+        visited.insert(allocator.alloc_str(name.as_str()));
 
-        visited.insert(name.clone());
+        let name_alloc = allocator.alloc_str(&name);
 
-        let graph = *pool.get(allocator.alloc_str(&name)).unwrap();
+        let current_graph = *pool.get(name_alloc).unwrap();
 
         let decls = utils::get_type(&name, semantic, allocator);
 
@@ -124,20 +272,31 @@ pub fn build_graph<'a>(
                         allocator.alloc(RefCell::new(Graph::new(child_name_str, allocator)));
 
                     pool.insert(child_name_str, child_graph);
+                    all_nodes.push(child_graph);
 
                     child_graph
                 };
 
-                graph.borrow_mut().add_child(child_graph);
+                current_graph.borrow_mut().add_child(child_graph);
 
-                if !visited.contains(&child_name) {
-                    stack.push(child_name.clone());
+                if !visited.contains(child_name.as_str()) {
+                    stack.push(child_name);
                 }
             }
         }
     }
 
-    graph
+    let mut entry_nodes: AstVec<'a, &'a RefCell<Graph<'a>>> = AstVec::new_in(allocator);
+
+    for &name in names.iter() {
+        let name_alloc = allocator.alloc_str(name);
+
+        let graph = *pool.get(name_alloc).unwrap();
+
+        entry_nodes.push(graph);
+    }
+
+    (entry_nodes, all_nodes)
 }
 
 ///

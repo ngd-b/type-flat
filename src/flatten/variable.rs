@@ -12,7 +12,7 @@ pub fn flatten_type<'a>(
     var_const: &'a VariableDeclaration<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> VariableDeclaration<'a> {
     let mut decls = AstVec::new_in(allocator);
 

@@ -22,7 +22,7 @@ fn test_multiple_reference_type() {
     );
 
     assert!(result.contains("type C = { e: string; }"));
-    assert!(result.contains("type A = { a: string; b: { c: string; d: C; }"));
+    assert!(result.contains("type A = { a: string; b: { c: string; d: { e: string; }; }"));
 }
 
 #[test]
@@ -43,5 +43,5 @@ fn test_multiple_extends_type() {
     );
 
     assert!(result.contains("interface C { c: string; }"));
-    assert!(result.contains("interface A extends B { a: string; }"));
+    assert!(result.contains("interface A { a: string; b: string; c: string; }"));
 }

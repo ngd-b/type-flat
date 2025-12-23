@@ -30,7 +30,7 @@ pub fn flatten_type<'a>(
     ts_type: &'a TSInterfaceDeclaration<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> CacheDecl<'a> {
     let ts_name = ts_type.id.name.as_str();
 
@@ -188,7 +188,7 @@ pub fn flatten_member_type<'a>(
     member: &'a TSSignature<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> TSSignature<'a> {
     match member {

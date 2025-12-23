@@ -1,11 +1,11 @@
-use std::{cell::RefCell, collections::HashSet, process};
+use std::{cell::RefCell, process};
 
 use crate::{
     flatten::result::ResultProgram,
     graph::{self, Graph},
 };
 use anyhow::Result;
-use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
+use oxc_allocator::{Allocator, Vec as AstVec};
 use oxc_ast::ast::Program;
 
 use oxc_codegen::Codegen;
@@ -68,74 +68,72 @@ impl<'a> Flatten<'a> {
         ResultProgram::new(&self.program, self.allocator)
     }
     pub fn flatten(&self, type_names: &[String], exclude: &[String]) -> Result<String> {
-        let mut output = self.result_program();
-
         let semantic = self.semantic();
 
-        let mut will_exclude: HashSet<String> = type_names.iter().cloned().collect();
+        let mut entries = AstVec::new_in(self.allocator);
 
         for name in type_names.iter() {
-            let graph = graph::build_graph(name.as_str(), &semantic, self.allocator);
-
-            will_exclude.remove(name);
-            let mut exclude_names = exclude.iter().cloned().collect::<HashSet<String>>();
-            exclude_names.extend(will_exclude.clone());
-            let mut result = self.flatten_ts(graph, &semantic, exclude_names);
-            will_exclude.insert(name.to_string());
-            // target
-            if let Some(decl) = result.format_cached(name) {
-                result.push(decl);
-            }
-
-            // Compare with previous result
-            for decl in result.program.body.iter() {
-                output.add_statement(decl.clone_in(self.allocator));
-            }
+            entries.push(self.allocator.alloc_str(name));
         }
 
-        let code_gen = Codegen::new().build(&output.program);
-        Ok(code_gen.code)
-    }
-    pub fn flatten_ts(
-        &'a self,
-        graph_ref: &'a RefCell<Graph<'a>>,
-        semantic: &Semantic<'a>,
-        exclude: HashSet<String>,
-    ) -> ResultProgram<'a> {
+        let graph_flatten = graph::GraphFlatten::build(&entries, &semantic, self.allocator);
+
+        let (safe_nodes, cycle_nodes) = graph_flatten.flatten(self.allocator);
+
         let mut result = self.result_program();
-        // need to exclude type
-        for exclude_str in exclude {
+
+        for &cycle_node in cycle_nodes.iter() {
+            result.circle_type.insert(cycle_node.borrow().name);
+        }
+
+        for exclude_str in exclude.iter() {
             result
                 .exclude_type
-                .insert(self.allocator.alloc_str(&exclude_str));
+                .insert(self.allocator.alloc_str(exclude_str));
         }
 
-        let order = Graph::collect_order(graph_ref, &self.allocator);
+        // flatten all types
+        self.flatten_ts(safe_nodes, &semantic, &mut result);
 
-        for node in order.iter() {
+        // add target type
+
+        for name in type_names.iter() {
+            if let Some(decl) = result.format_cached(name) {
+                info!("Add the target type 【{}】 to output file. ", name);
+                result.push(decl);
+            }
+        }
+        let code_gen = Codegen::new().build(&result.program);
+        Ok(code_gen.code)
+    }
+
+    pub fn flatten_ts(
+        &'a self,
+        nodes: AstVec<'a, &'a RefCell<Graph<'a>>>,
+        semantic: &Semantic<'a>,
+        result: &mut ResultProgram<'a>,
+    ) {
+        for node in nodes.iter() {
             let name = node.borrow().name;
 
-            info!("Flatten type {:?}", node);
+            info!("Flatten type 【{:?}】", node);
 
             if result.exclude_type.contains(name) {
+                info!("Exclude type 【{:?}】", node);
                 continue;
             }
 
-            if node.borrow().self_loop {
-                result.circle_type.insert(name);
-            }
-
-            if let Ok(decl) = utils::get_type(name, &semantic, &self.allocator, &mut result) {
-                decl.flatten_type(&semantic, &self.allocator, &mut result);
+            if let Ok(decl) = utils::get_type(name, &semantic, &self.allocator, result) {
+                decl.flatten_type(&semantic, &self.allocator, result);
             }
         }
 
         // add circle Class
         let mut loop_type = AstVec::new_in(&self.allocator);
 
-        for name in result.circle_type.iter().chain(result.standby_type.iter()) {
+        for name in result.circle_type.iter() {
             if let Some(decl) = result.format_cached(name) {
-                info!("Add circle type {} ", name);
+                info!("Add circle type 【{}】 ", name);
                 loop_type.push(decl);
             }
         }
@@ -143,7 +141,5 @@ impl<'a> Flatten<'a> {
         for decl in loop_type.iter() {
             result.push(*decl);
         }
-
-        result
     }
 }

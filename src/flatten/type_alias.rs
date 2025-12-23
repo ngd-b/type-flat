@@ -31,7 +31,7 @@ pub fn flatten_type<'a>(
     semantic: &Semantic<'a>,
 
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> CacheDecl<'a> {
     let ts_name = ts_type.id.name.as_str();
     info!("Flatten type {}", ts_name);
@@ -77,7 +77,7 @@ pub fn flatten_ts_type<'a>(
     ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> TSType<'a> {
     let mut new_type = ts_type.clone_in(allocator);
@@ -362,7 +362,7 @@ pub fn merge_ts_type<'a>(
     types: &'a [TSType<'a>],
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     is_union: bool,
     env: AstVec<'a, &'a str>,
 ) -> TSType<'a> {
@@ -441,7 +441,7 @@ pub fn flatten_index_access_type<'a>(
     index_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> TSType<'a> {
     let ts_type = TSType::TSIndexedAccessType(AstBox::new_in(
         TSIndexedAccessType {
@@ -522,7 +522,7 @@ pub fn flatten_ts_query_qualified<'a>(
     semantic: &Semantic<'a>,
 
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
 ) -> Result<TSType<'a>> {
     let decl_type = match &qq.left {
         TSTypeName::QualifiedName(qn) => {
@@ -575,7 +575,7 @@ pub fn flatten_ts_conditional_type<'a>(
     ct: &'a TSConditionalType<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> TSType<'a> {
     let check_type = flatten_ts_type(
@@ -655,7 +655,7 @@ pub fn flatten_ts_mapped_type<'a>(
     mt: &'a TSMappedType<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &mut ResultProgram<'a>,
+    result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
 ) -> TSType<'a> {
     let mut new_mapped_type = mt.clone_in(allocator);
