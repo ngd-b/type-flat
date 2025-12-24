@@ -53,7 +53,7 @@ impl<'a> GraphFlatten<'a> {
             self.nodes.len()
         );
 
-        for &node in self.nodes.iter() {
+        for &node in self.entries.iter() {
             stack.push((node, false));
         }
 
