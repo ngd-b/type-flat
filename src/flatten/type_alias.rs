@@ -392,6 +392,7 @@ pub fn merge_ts_type<'a>(
                     {
                         continue;
                     }
+
                     members.push(member.clone_in(allocator));
                 }
             }

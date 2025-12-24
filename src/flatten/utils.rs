@@ -887,3 +887,46 @@ pub fn is_this_type<'a>(ts_type: &'a TSType<'a>) -> bool {
 
     false
 }
+
+///
+/// Merge TSSignature Type update it's attrs
+///
+/// Can merged. it must equal
+///
+pub fn merge_ts_signature<'a>(
+    ts_signature: &'a TSSignature<'a>,
+    other: &'a TSSignature<'a>,
+    allocator: &'a Allocator,
+) -> TSSignature<'a> {
+    match (ts_signature, other) {
+        (TSSignature::TSIndexSignature(a), TSSignature::TSIndexSignature(b)) => {
+            let mut new_signature = a.clone_in(allocator);
+
+            if b.readonly {
+                new_signature.readonly = true;
+            }
+            if b.r#static {
+                new_signature.r#static = true;
+            }
+
+            return TSSignature::TSIndexSignature(new_signature);
+        }
+        (TSSignature::TSPropertySignature(a), TSSignature::TSPropertySignature(b)) => {
+            let mut new_signature = a.clone_in(allocator);
+
+            if b.optional {
+                new_signature.optional = true;
+            }
+            if b.readonly {
+                new_signature.readonly = true;
+            }
+            if b.computed {
+                new_signature.computed = true;
+            }
+
+            TSSignature::TSPropertySignature(new_signature)
+        }
+
+        _ => ts_signature.clone_in(allocator),
+    }
+}
