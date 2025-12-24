@@ -196,3 +196,230 @@ fn test_function_overload_type() {
     assert!(result.contains("(x: string) => string"));
     assert!(result.contains("(x: number) => number"));
 }
+
+#[test]
+fn test_self_recursive_type() {
+    let result = run_flat(
+        r#"
+        type A = {
+            a: string;
+            self: A;
+        };
+        "#,
+        "A",
+    );
+
+    assert!(result.contains("type A = { a: string; self: A; }"));
+}
+
+#[test]
+fn test_mutual_recursive_type() {
+    let result = run_flat(
+        r#"
+        type A = {
+            a: string;
+            b: B;
+        };
+        type B = {
+            c: string;
+            a: A;
+        };
+        "#,
+        "A",
+    );
+
+    assert!(result.contains("type A = { a: string; b: { c: string; a: A; }; }"));
+}
+
+#[test]
+fn test_three_level_cycle() {
+    let result = run_flat(
+        r#"
+        type A = { b: B };
+        type B = { c: C };
+        type C = { a: A };
+        "#,
+        "A",
+    );
+
+    assert!(result.contains("type A = { b: { c: { a: A; }; }; }"));
+}
+
+#[test]
+fn test_cycle_with_normal_fields() {
+    let result = run_flat(
+        r#"
+        type A = {
+            a: string;
+            b: B;
+        };
+        type B = {
+            c: string;
+            d: C;
+        };
+        type C = {
+            e: string;
+            a: A;
+        };
+        "#,
+        "A",
+    );
+
+    assert!(result.contains("type A = { a: string; b: { c: string; d: { e: string; a: A; }; }; }"));
+}
+
+#[test]
+fn test_recursive_in_array() {
+    let result = run_flat(
+        r#"
+        type Node = {
+            value: string;
+            children: Node[];
+        };
+        "#,
+        "Node",
+    );
+
+    assert!(result.contains("type Node = { value: string; children: Node[]; }"));
+}
+
+#[test]
+fn test_recursive_in_union() {
+    let result = run_flat(
+        r#"
+        type A = {
+            value: string;
+            next: A | null;
+        };
+        "#,
+        "A",
+    );
+
+    assert!(result.contains("type A = { value: string; next: A | null; }"));
+}
+
+#[test]
+fn test_generic_recursive_type() {
+    let result = run_flat(
+        r#"
+        type Box<T> = {
+            value: T;
+            next?: Box<T>;
+        };
+        "#,
+        "Box",
+    );
+
+    assert!(result.contains("type Box<T> = { value: T; next?: Box<T>; }"));
+}
+
+#[test]
+fn test_keyof_basic() {
+    let result = run_flat(
+        r#"
+        type User = { id: number; name: string };
+        type Keys = keyof User;
+        "#,
+        "Keys",
+    );
+
+    assert!(result.contains("type Keys = \"id\" | \"name\""));
+}
+
+#[test]
+fn test_record_type() {
+    let result = run_flat(
+        r#"
+        type UserMap = Record<string, { id: number }>;
+        "#,
+        "UserMap",
+    );
+
+    assert!(result.contains("type UserMap = { [key: string]: { id: number; }; }"));
+}
+
+#[test]
+fn test_optional_override_in_intersection() {
+    let result = run_flat(
+        r#"
+        type A = { a?: string };
+        type B = { a: string };
+        type C = A & B;
+        "#,
+        "C",
+    );
+
+    assert!(result.contains("type C = { a: string; }"));
+}
+
+#[test]
+fn test_readonly_property() {
+    let result = run_flat(
+        r#"
+        type A = {
+            readonly id: number;
+            name: string;
+        };
+        "#,
+        "A",
+    );
+
+    assert!(result.contains("type A = { readonly id: number; name: string;}"));
+}
+
+#[test]
+fn test_generic_default_type() {
+    let result = run_flat(
+        r#"
+        type Box<T = string> = {
+            value: T;
+        };
+        "#,
+        "Box",
+    );
+
+    assert!(result.contains("type Box<T = string> = { value: T; }"));
+}
+
+#[test]
+fn test_union_object_and_primitive() {
+    let result = run_flat(
+        r#"
+        type A = { id: number } | string;
+        "#,
+        "A",
+    );
+
+    assert!(result.contains("type A = { id: number } | string;"));
+}
+
+#[test]
+fn test_function_return_recursive_type() {
+    let result = run_flat(
+        r#"
+        type Node = {
+            value: string;
+            next: () => Node;
+        };
+        "#,
+        "Node",
+    );
+
+    assert!(result.contains("type Node = { value: string; next: () => Node; }"));
+}
+
+#[test]
+fn test_index_access_union() {
+    let result = run_flat(
+        r#"
+        type Obj = {
+            a: { x: number };
+            b: { y: string };
+        };
+        type Value = Obj[keyof Obj];
+        "#,
+        "Value",
+    );
+
+    assert!(result.contains("type Value = { x: number; } | { y: string; }"));
+}
