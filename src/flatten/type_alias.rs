@@ -382,18 +382,26 @@ pub fn merge_ts_type<'a>(
         );
 
         new_types.push(ts_type.clone_in(allocator));
+        if is_union {
+            continue;
+        }
         // IF it is intersection type. need flat the members
         match &ts_type {
             TSType::TSTypeLiteral(tl) => {
                 for member in tl.members.iter() {
-                    if members
+                    let index = members
                         .iter()
-                        .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                    {
-                        continue;
+                        .position(|m| utils::eq_ts_signature(m, member, allocator));
+                    if let Some(pos) = index {
+                        // 处理修饰符，合并
+                        utils::merge_ts_signature(
+                            &mut members[pos],
+                            allocator.alloc(member.clone_in(allocator)),
+                            allocator,
+                        );
+                    } else {
+                        members.push(member.clone_in(allocator));
                     }
-
-                    members.push(member.clone_in(allocator));
                 }
             }
             _ => {
@@ -420,9 +428,9 @@ pub fn merge_ts_type<'a>(
     ));
 
     if intersection_types.is_empty() {
-        return new_literal;
+        return new_literal.clone_in(allocator);
     } else {
-        intersection_types.push(new_literal);
+        intersection_types.push(new_literal.clone_in(allocator));
         TSType::TSIntersectionType(AstBox::new_in(
             TSIntersectionType {
                 span: Default::default(),

@@ -160,34 +160,7 @@ impl<'a> ResultProgram<'a> {
                 self.allocator,
             )));
     }
-    pub fn add_statement(&mut self, statement: Statement<'a>) {
-        let name = match &statement {
-            Statement::TSInterfaceDeclaration(decl) => decl.id.name.as_str(),
-            Statement::TSTypeAliasDeclaration(decl) => decl.id.name.as_str(),
-            Statement::ClassDeclaration(decl) => {
-                if let Some(id) = &decl.id {
-                    id.name.as_str()
-                } else {
-                    ""
-                }
-            }
-            Statement::VariableDeclaration(svd) => {
-                if let Some(decl) = svd.declarations.first() {
-                    match &decl.id.kind {
-                        BindingPatternKind::BindingIdentifier(id) => id.name.as_str(),
-                        _ => "",
-                    }
-                } else {
-                    ""
-                }
-            }
-            _ => "",
-        };
-        if name.is_empty() || self.has_decl(name) {
-            return;
-        }
-        self.program.body.push(statement);
-    }
+
     pub fn push(&mut self, decl: DeclRef<'a>) {
         match decl {
             DeclRef::Interface(decl) => {

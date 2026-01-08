@@ -366,24 +366,6 @@ pub fn computed_optional_or_readonly(optional: Option<TSMappedTypeModifierOperat
 }
 
 ///
-/// Get normal type string name
-///
-pub fn get_normal_type_str<'a>(ts_type: &'a TSType<'a>) -> &'a str {
-    match ts_type {
-        TSType::TSStringKeyword(_) => "string",
-        TSType::TSNumberKeyword(_) => "number",
-        TSType::TSBooleanKeyword(_) => "boolean",
-        TSType::TSBigIntKeyword(_) => "bigint",
-        TSType::TSUndefinedKeyword(_) => "undefined",
-        TSType::TSNullKeyword(_) => "null",
-        TSType::TSSymbolKeyword(_) => "symbol",
-        TSType::TSVoidKeyword(_) => "void",
-
-        _ => "unknown",
-    }
-}
-
-///
 /// New TSSignature type member
 ///
 pub fn new_ts_signature<'a>(
@@ -894,39 +876,33 @@ pub fn is_this_type<'a>(ts_type: &'a TSType<'a>) -> bool {
 /// Can merged. it must equal
 ///
 pub fn merge_ts_signature<'a>(
-    ts_signature: &'a TSSignature<'a>,
+    ts_signature: &mut TSSignature<'a>,
     other: &'a TSSignature<'a>,
     allocator: &'a Allocator,
-) -> TSSignature<'a> {
-    match (ts_signature, other) {
+) {
+    match (&*ts_signature, other) {
         (TSSignature::TSIndexSignature(a), TSSignature::TSIndexSignature(b)) => {
             let mut new_signature = a.clone_in(allocator);
 
-            if b.readonly {
-                new_signature.readonly = true;
-            }
-            if b.r#static {
-                new_signature.r#static = true;
+            if !b.readonly {
+                new_signature.readonly = false;
             }
 
-            return TSSignature::TSIndexSignature(new_signature);
+            *ts_signature = TSSignature::TSIndexSignature(new_signature);
         }
         (TSSignature::TSPropertySignature(a), TSSignature::TSPropertySignature(b)) => {
             let mut new_signature = a.clone_in(allocator);
 
-            if b.optional {
-                new_signature.optional = true;
+            if !b.optional {
+                new_signature.optional = false;
             }
-            if b.readonly {
-                new_signature.readonly = true;
-            }
-            if b.computed {
-                new_signature.computed = true;
+            if !b.readonly {
+                new_signature.readonly = false;
             }
 
-            TSSignature::TSPropertySignature(new_signature)
+            *ts_signature = TSSignature::TSPropertySignature(new_signature)
         }
 
-        _ => ts_signature.clone_in(allocator),
+        _ => {}
     }
 }
