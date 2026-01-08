@@ -364,7 +364,7 @@ fn test_readonly_property() {
         "A",
     );
 
-    assert!(result.contains("type A = { readonly id: number; name: string;}"));
+    assert!(result.contains("type A = { readonly id: number; name: string; }"));
 }
 
 #[test]
@@ -390,7 +390,7 @@ fn test_union_object_and_primitive() {
         "A",
     );
 
-    assert!(result.contains("type A = { id: number } | string;"));
+    assert!(result.contains("type A = { id: number; } | string;"));
 }
 
 #[test]
