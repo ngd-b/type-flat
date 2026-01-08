@@ -1,6 +1,7 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    PropertyKey, TSLiteral, TSSignature, TSType, TSTypeLiteral, TSTypeName, TSTypeReference,
+    PropertyKey, TSIndexSignature, TSIndexSignatureName, TSLiteral, TSSignature, TSType,
+    TSTypeAnnotation, TSTypeLiteral, TSTypeName, TSTypeReference,
 };
 use oxc_semantic::Semantic;
 
@@ -211,6 +212,45 @@ impl<'a> Keyword<'a> {
                                     }
                                 }
                             }
+
+                            return Some(TSType::TSTypeLiteral(AstBox::new_in(
+                                new_type.clone_in(allocator),
+                                allocator,
+                            )));
+                        }
+                        TSType::TSStringKeyword(_)
+                        | TSType::TSNumberKeyword(_)
+                        | TSType::TSAnyKeyword(_)
+                        | TSType::TSSymbolKeyword(_) => {
+                            let key = TSIndexSignatureName {
+                                span: Default::default(),
+                                name: allocator.alloc_str("key").into(),
+                                type_annotation: AstBox::new_in(
+                                    TSTypeAnnotation {
+                                        span: Default::default(),
+                                        type_annotation: key_type.clone_in(allocator),
+                                    },
+                                    allocator,
+                                ),
+                            };
+
+                            let new_signature = TSSignature::TSIndexSignature(AstBox::new_in(
+                                TSIndexSignature {
+                                    span: Default::default(),
+                                    parameters: AstVec::from_array_in([key], allocator),
+                                    type_annotation: AstBox::new_in(
+                                        TSTypeAnnotation {
+                                            span: Default::default(),
+                                            type_annotation: value_type.clone_in(allocator),
+                                        },
+                                        allocator,
+                                    ),
+                                    readonly: false,
+                                    r#static: false,
+                                },
+                                allocator,
+                            ));
+                            new_type.members.push(new_signature);
 
                             return Some(TSType::TSTypeLiteral(AstBox::new_in(
                                 new_type.clone_in(allocator),
