@@ -3,8 +3,12 @@ use oxc_ast::ast::{
     BindingPatternKind, Class, Program, Statement, TSInterfaceDeclaration, TSTypeAliasDeclaration,
     TSTypeParameterDeclaration, VariableDeclaration,
 };
+use tracing::info;
 
-use crate::flatten::{declare::DeclRef, generic::Generic};
+use crate::flatten::{
+    declare::{DeclName, DeclRef},
+    generic::Generic,
+};
 
 pub struct CacheDecl<'a> {
     pub name: &'a str,
@@ -45,7 +49,7 @@ pub struct ResultProgram<'a> {
     pub program: Program<'a>,
     allocator: &'a Allocator,
     pub exclude_type: HashSet<'a, &'a str>,
-    pub cached: HashMap<'a, &'a str, CacheDecl<'a>>,
+    pub cached: HashMap<'a, DeclName<'a>, &'a CacheDecl<'a>>,
     pub circle_type: HashSet<'a, &'a str>,
 }
 
@@ -181,21 +185,40 @@ impl<'a> ResultProgram<'a> {
 
     // Get cached type already flatten
     // Interface's extends or Class‘s superClass can get circle_type
-    pub fn get_cached(&self, name: &'a str, ignore_is_circle: bool) -> Option<&CacheDecl<'a>> {
-        if !ignore_is_circle && self.circle_type.contains(name) {
+    pub fn get_cached(
+        &'a self,
+        refer_name: &'a DeclName<'a>,
+        ignore_is_circle: bool,
+    ) -> Option<&CacheDecl<'a>> {
+        if !ignore_is_circle && self.circle_type.contains(refer_name.name()) {
             return None;
         }
-        if let Some(decl) = self.cached.get(name) {
+        if let Some(decl) = self.cached.get(refer_name) {
             return Some(decl);
         }
+
+        info!("【Cached】Not found cached type: {}", refer_name.name());
+
         None
     }
 
     // Format the cached type to TSType
-    pub fn format_cached(&self, name: &'a str) -> Option<DeclRef<'a>> {
-        if let Some(decl) = self.cached.get(name) {
-            // Collect all generics
+    pub fn format_cached(&self, refer_name: &'a str) -> AstVec<'a, DeclRef<'a>> {
+        let mut result = AstVec::new_in(self.allocator);
 
+        let decls = self
+            .cached
+            .iter()
+            .filter(|(key, _)| match key {
+                DeclName::Interface(name)
+                | DeclName::TypeAlias(name)
+                | DeclName::Class(name)
+                | DeclName::Function(name)
+                | DeclName::Variable(name) => *name == refer_name,
+            })
+            .collect::<Vec<_>>();
+
+        for (_, decl) in decls.iter() {
             let type_params = CacheDecl::format_type_params(&decl.generics, self.allocator);
 
             match decl.decl {
@@ -203,24 +226,24 @@ impl<'a> ResultProgram<'a> {
                     let mut new_interface = dri.clone_in(self.allocator);
                     new_interface.type_parameters = type_params.clone_in(self.allocator);
 
-                    return Some(DeclRef::Interface(self.allocator.alloc(new_interface)));
+                    result.push(DeclRef::Interface(self.allocator.alloc(new_interface)));
                 }
                 DeclRef::TypeAlias(drt) => {
                     let mut new_class = drt.clone_in(self.allocator);
                     new_class.type_parameters = type_params.clone_in(self.allocator);
 
-                    return Some(DeclRef::TypeAlias(self.allocator.alloc(new_class)));
+                    result.push(DeclRef::TypeAlias(self.allocator.alloc(new_class)));
                 }
                 DeclRef::Class(drc) => {
                     let mut new_class = drc.clone_in(self.allocator);
                     new_class.type_parameters = type_params.clone_in(self.allocator);
 
-                    return Some(DeclRef::Class(self.allocator.alloc(new_class)));
+                    result.push(DeclRef::Class(self.allocator.alloc(new_class)));
                 }
                 _ => {}
             }
         }
 
-        None
+        result
     }
 }

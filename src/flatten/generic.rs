@@ -11,10 +11,11 @@ use crate::flatten::{
     type_alias,
 };
 
+#[derive(Debug, Clone, Copy)]
 pub struct Generic<'a> {
     // position
     pub index: usize,
-    pub ts_type: TSTypeParameter<'a>,
+    pub ts_type: &'a TSTypeParameter<'a>,
 }
 
 /// #[instrument(skip(args, extend_args, semantic, env, allocator, result_program))]
@@ -65,7 +66,7 @@ pub fn flatten_generic<'a>(
             param.name.name.as_str(),
             Generic {
                 index,
-                ts_type: new_param,
+                ts_type: allocator.alloc(new_param),
             },
         );
     }
@@ -119,7 +120,7 @@ pub fn merge_type_with_generic<'a>(
             key,
             Generic {
                 index: gener.index,
-                ts_type: gener.ts_type.clone_in(allocator),
+                ts_type: gener.ts_type,
             },
         );
     }
@@ -143,7 +144,7 @@ pub fn merge_type_with_generic<'a>(
                     name,
                     Generic {
                         index: index,
-                        ts_type: new_type,
+                        ts_type: allocator.alloc(new_type),
                     },
                 );
             }
@@ -154,7 +155,7 @@ pub fn merge_type_with_generic<'a>(
                 name,
                 Generic {
                     index: generic.index,
-                    ts_type: generic.ts_type.clone_in(allocator),
+                    ts_type: generic.ts_type,
                 },
             );
         }

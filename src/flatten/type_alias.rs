@@ -11,7 +11,7 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    declare::DeclRef,
+    declare::{DeclName, DeclRef},
     function,
     generic::{self},
     interface,
@@ -100,7 +100,7 @@ pub fn flatten_ts_type<'a>(
                 return if let Some(ts_type) = result {
                     ts_type
                 } else {
-                    new_type
+                    new_type.clone_in(allocator)
                 };
             }
 
@@ -111,7 +111,9 @@ pub fn flatten_ts_type<'a>(
                 result_program,
                 env.clone_in(allocator),
             );
-            if let Some(decl) = result_program.get_cached(reference_name, false) {
+            if let Some(decl) = result_program
+                .get_cached(allocator.alloc(DeclName::TypeAlias(reference_name)), false)
+            {
                 // Merge the parent env with the current env. and replace the members withe the parent env type.
 
                 let result = generic::merge_type_with_generic(
@@ -246,7 +248,9 @@ pub fn flatten_ts_type<'a>(
             TSTypeQueryExprName::IdentifierReference(ir) => {
                 let reference_name = ir.name.as_str();
 
-                if let Some(decl) = result_program.get_cached(reference_name, false) {
+                if let Some(decl) = result_program
+                    .get_cached(allocator.alloc(DeclName::TypeAlias(reference_name)), false)
+                {
                     if let Some(ts_type) = decl.decl.type_decl(allocator) {
                         new_type = ts_type;
                     }
@@ -467,7 +471,7 @@ pub fn flatten_index_access_type<'a>(
             TSTypeName::IdentifierReference(ir) => ir.name.as_str(),
             _ => "",
         };
-        if let Some(decl) = result_program.get_cached(reference_name, true)
+        if let Some(decl) = result_program.get_cached(&DeclName::TypeAlias(reference_name), true)
             && let Some(ts_type) = decl.decl.type_decl(allocator)
         {
             ts_type.clone_in(allocator)
@@ -547,7 +551,9 @@ pub fn flatten_ts_query_qualified<'a>(
         TSTypeName::IdentifierReference(ir) => {
             let reference_name = ir.name.as_str();
 
-            if let Some(decl) = result_program.get_cached(reference_name, false) {
+            if let Some(decl) = result_program
+                .get_cached(allocator.alloc(DeclName::TypeAlias(reference_name)), false)
+            {
                 if let Some(ts_type) = decl.decl.type_decl(allocator) {
                     Some(ts_type)
                 } else {

@@ -98,7 +98,7 @@ impl<'a> Flatten<'a> {
         // add target type
 
         for name in type_names.iter() {
-            if let Some(decl) = result.format_cached(name) {
+            for decl in result.format_cached(name) {
                 info!("Add the target type 【{}】 to output file. ", name);
                 result.push(decl);
             }
@@ -132,7 +132,7 @@ impl<'a> Flatten<'a> {
         let mut loop_type = AstVec::new_in(&self.allocator);
 
         for name in result.circle_type.iter() {
-            if let Some(decl) = result.format_cached(name) {
+            for decl in result.format_cached(name) {
                 info!("Add circle type 【{}】 ", name);
                 loop_type.push(decl);
             }

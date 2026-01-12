@@ -17,6 +17,14 @@ pub enum DeclRef<'a> {
     Function(&'a Function<'a>),
     Variable(&'a VariableDeclaration<'a>),
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DeclName<'a> {
+    Interface(&'a str),
+    TypeAlias(&'a str),
+    Class(&'a str),
+    Function(&'a str),
+    Variable(&'a str),
+}
 
 impl<'a> DeclRef<'a> {
     ///
@@ -98,17 +106,23 @@ impl<'a> DeclRef<'a> {
             DeclRef::Interface(tid) => {
                 let decl = interface::flatten_type(tid, semantic, allocator, result_program);
 
-                result_program.cached.insert(decl.name, decl);
+                result_program
+                    .cached
+                    .insert(DeclName::Interface(decl.name), allocator.alloc(decl));
             }
             DeclRef::TypeAlias(tad) => {
                 let decl = type_alias::flatten_type(tad, semantic, allocator, result_program);
 
-                result_program.cached.insert(decl.name, decl);
+                result_program
+                    .cached
+                    .insert(DeclName::TypeAlias(decl.name), allocator.alloc(decl));
             }
             DeclRef::Class(tcd) => {
                 let decl = class::flatten_type(tcd, semantic, allocator, result_program);
 
-                result_program.cached.insert(decl.name, decl);
+                result_program
+                    .cached
+                    .insert(DeclName::Class(decl.name), allocator.alloc(decl));
             }
             DeclRef::Variable(drv) => {
                 let decl = variable::flatten_type(drv, semantic, allocator, result_program);
@@ -120,8 +134,61 @@ impl<'a> DeclRef<'a> {
             DeclRef::Function(drf) => {
                 let decl = function::flatten_type(drf, semantic, allocator, result_program);
 
-                result_program.cached.insert(decl.name, decl);
+                result_program
+                    .cached
+                    .insert(DeclName::Function(decl.name), allocator.alloc(decl));
             }
         };
+    }
+
+    /**
+     * Merge the multiple type alias,Some type need merge when flatten before
+     *
+     * 1. interface + interface   flatten before. not here
+     * 2. namespace + namespace
+     * 3. function + function    function overload，retain teh declare
+     * 4. namespace + interface
+     * 5. namespace + class
+     * 6. namespace + function
+     * 7. interface + class
+     */
+    pub fn merge_decl(&self, decl: &DeclRef<'a>, allocator: &'a Allocator) -> DeclRef<'a> {
+        match (self, decl) {
+            (DeclRef::Class(drc), DeclRef::Interface(dri)) => {
+                // merge the interface decl to class declare
+                let members = utils::type_members_to_class_elements(&dri.body.body, allocator);
+
+                let mut extend_elements = AstVec::new_in(allocator);
+                for element in drc.body.body.iter() {
+                    if members
+                        .iter()
+                        .any(|el| utils::eq_class_element(el, element, allocator))
+                    {
+                        continue;
+                    }
+                    extend_elements.push(element.clone_in(allocator));
+                }
+
+                let mut new_class = drc.clone_in(allocator);
+                new_class.body.body.extend(extend_elements);
+
+                return DeclRef::Class(allocator.alloc(new_class));
+            }
+
+            _ => {}
+        }
+        *self
+    }
+}
+
+impl<'a> DeclName<'a> {
+    pub fn name(&self) -> &'a str {
+        match self {
+            DeclName::Interface(name)
+            | DeclName::TypeAlias(name)
+            | DeclName::Class(name)
+            | DeclName::Function(name)
+            | DeclName::Variable(name) => name,
+        }
     }
 }

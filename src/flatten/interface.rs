@@ -7,7 +7,7 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    declare::DeclRef,
+    declare::{DeclName, DeclRef},
     function, generic,
     keyword::Keyword,
     result::{CacheDecl, ResultProgram},
@@ -101,7 +101,9 @@ pub fn flatten_type<'a>(
                 env_keys.clone_in(allocator),
             );
 
-            if let Some(decl) = result_program.get_cached(reference_name, true) {
+            if let Some(decl) =
+                result_program.get_cached(&DeclName::Interface(reference_name), true)
+            {
                 let result = generic::merge_type_with_generic(
                     allocator.alloc(type_params.clone_in(allocator)),
                     decl,
