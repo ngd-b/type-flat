@@ -123,7 +123,7 @@ impl<'a> Flatten<'a> {
                 continue;
             }
 
-            if let Ok(decl) = utils::get_type(name, &semantic, &self.allocator, result) {
+            for decl in utils::get_type(name, &semantic, &self.allocator, result) {
                 decl.flatten_type(&semantic, &self.allocator, result);
             }
         }

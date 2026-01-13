@@ -1,4 +1,4 @@
-use oxc_allocator::{Allocator, CloneIn, HashMap, Vec as AstVec};
+use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
     Class, ClassElement, Expression, MethodDefinitionKind, PropertyKey, TSAccessibility, TSType,
 };
@@ -6,7 +6,7 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    declare::{DeclName, DeclRef},
+    declare::DeclRef,
     function, generic,
     result::{CacheDecl, ResultProgram},
     type_alias, utils,
@@ -56,30 +56,8 @@ pub fn flatten_type<'a>(
                 result_program,
                 env_keys.clone_in(allocator),
             );
-            // the super class is exist multiple type alias
-            // TODO: namespace + class
-            // interface + class
-            let super_decl = if let (Some(class_decl), Some(interface_decl)) = (
-                result_program.get_cached(allocator.alloc(DeclName::Class(reference_name)), true),
-                result_program
-                    .get_cached(allocator.alloc(DeclName::Interface(reference_name)), true),
-            ) {
-                let new_decl = class_decl.decl.merge_decl(&interface_decl.decl, allocator);
 
-                let mut new_generics = HashMap::new_in(allocator);
-                for (&key, &value) in class_decl.generics.iter() {
-                    new_generics.insert(key, value.clone());
-                }
-
-                Some(CacheDecl {
-                    name: class_decl.name,
-                    decl: new_decl,
-                    generics: new_generics,
-                })
-            } else {
-                None
-            };
-            if let Some(decl) = super_decl {
+            if let Some(decl) = result_program.get_cached(reference_name, true) {
                 let result = generic::merge_type_with_generic(
                     allocator.alloc(type_params.clone_in(allocator)),
                     &decl,

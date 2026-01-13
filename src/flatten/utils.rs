@@ -26,8 +26,8 @@ pub fn get_type<'a>(
     reference_name: &'a str,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &ResultProgram<'a>,
-) -> Result<DeclRef<'a>> {
+    _result_program: &ResultProgram<'a>,
+) -> AstVec<'a, DeclRef<'a>> {
     info!("Get reference_name:{}", reference_name);
     let mut decls = AstVec::new_in(allocator);
 
@@ -77,24 +77,15 @@ pub fn get_type<'a>(
         }
     }
 
-    if decls.len() == 1 {
-        return Ok(decls[0]);
-    };
-    if decls.len() > 1 {
-        info!("Merge multi type {}, len {}", reference_name, decls.len());
-
-        return merge_type_to_class(allocator.alloc(decls), semantic, allocator, result_program);
-    }
-
-    info!("Not found reference_name:{}", reference_name);
-    bail!("Unsupported Referenc Type")
+    info!("Get type alias decls len {}", decls.len());
+    decls
 }
 
 ///
 /// Merge type to class declare
 ///
 /// #[instrument(skip(decls, semantic, env, allocator, result_program),fields(len=decls.len()))]
-pub fn merge_type_to_class<'a>(
+pub fn _merge_type_to_class<'a>(
     decls: &'a [DeclRef<'a>],
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,

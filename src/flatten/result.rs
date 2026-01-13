@@ -49,7 +49,7 @@ pub struct ResultProgram<'a> {
     pub program: Program<'a>,
     allocator: &'a Allocator,
     pub exclude_type: HashSet<'a, &'a str>,
-    pub cached: HashMap<'a, DeclName<'a>, &'a CacheDecl<'a>>,
+    pub cached: HashMap<'a, DeclName<'a>, AstVec<'a, CacheDecl<'a>>>,
     pub circle_type: HashSet<'a, &'a str>,
 }
 
@@ -187,17 +187,29 @@ impl<'a> ResultProgram<'a> {
     // Interface's extends or Class‘s superClass can get circle_type
     pub fn get_cached(
         &'a self,
-        refer_name: &'a DeclName<'a>,
+        refer_name: &'a str,
         ignore_is_circle: bool,
-    ) -> Option<&CacheDecl<'a>> {
-        if !ignore_is_circle && self.circle_type.contains(refer_name.name()) {
+    ) -> Option<CacheDecl<'a>> {
+        if !ignore_is_circle && self.circle_type.contains(refer_name) {
             return None;
         }
-        if let Some(decl) = self.cached.get(refer_name) {
-            return Some(decl);
+        let decls = self
+            .cached
+            .iter()
+            .filter(|(key, _)| match key {
+                DeclName::Interface(name)
+                | DeclName::TypeAlias(name)
+                | DeclName::Class(name)
+                | DeclName::Function(name) => *name == refer_name,
+            })
+            .flat_map(|(_, item)| item.iter())
+            .collect::<Vec<_>>();
+
+        if decls.len() > 0 {
+            return Some(DeclRef::merge_decls(decls, self.allocator));
         }
 
-        info!("【Cached】Not found cached type: {}", refer_name.name());
+        info!("【Cached】Not found cached type: {}", refer_name);
 
         None
     }
@@ -213,15 +225,16 @@ impl<'a> ResultProgram<'a> {
                 DeclName::Interface(name)
                 | DeclName::TypeAlias(name)
                 | DeclName::Class(name)
-                | DeclName::Function(name)
-                | DeclName::Variable(name) => *name == refer_name,
+                | DeclName::Function(name) => *name == refer_name,
             })
             .collect::<Vec<_>>();
 
-        for (_, decl) in decls.iter() {
-            let type_params = CacheDecl::format_type_params(&decl.generics, self.allocator);
+        for (_, decls) in decls.iter() {
+            let vec_decl = decls.iter().map(|decl| decl).collect::<Vec<_>>();
+            let new_decl = DeclRef::merge_decls(vec_decl, self.allocator);
 
-            match decl.decl {
+            let type_params = CacheDecl::format_type_params(&new_decl.generics, self.allocator);
+            match new_decl.decl {
                 DeclRef::Interface(dri) => {
                     let mut new_interface = dri.clone_in(self.allocator);
                     new_interface.type_parameters = type_params.clone_in(self.allocator);

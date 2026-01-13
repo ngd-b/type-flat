@@ -1,4 +1,4 @@
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, IntoIn, Vec as AstVec};
 use oxc_ast::ast::{
     Class, Function, TSFunctionType, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration,
     TSTypeAnnotation, TSTypeLiteral, TSVoidKeyword, VariableDeclaration,
@@ -6,7 +6,9 @@ use oxc_ast::ast::{
 use oxc_semantic::Semantic;
 
 use crate::flatten::{
-    class, function, interface, result::ResultProgram, type_alias, utils, variable,
+    class, function, interface,
+    result::{CacheDecl, ResultProgram},
+    type_alias, utils, variable,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -23,7 +25,6 @@ pub enum DeclName<'a> {
     TypeAlias(&'a str),
     Class(&'a str),
     Function(&'a str),
-    Variable(&'a str),
 }
 
 impl<'a> DeclRef<'a> {
@@ -106,23 +107,32 @@ impl<'a> DeclRef<'a> {
             DeclRef::Interface(tid) => {
                 let decl = interface::flatten_type(tid, semantic, allocator, result_program);
 
-                result_program
+                let decls = result_program
                     .cached
-                    .insert(DeclName::Interface(decl.name), allocator.alloc(decl));
+                    .entry(DeclName::Interface(decl.name))
+                    .or_insert_with(|| AstVec::new_in(allocator));
+
+                decls.push(decl.into_in(allocator));
             }
             DeclRef::TypeAlias(tad) => {
                 let decl = type_alias::flatten_type(tad, semantic, allocator, result_program);
 
+                let name: &str = decl.name;
+                let mut decls = AstVec::new_in(allocator);
+                decls.push(decl);
+
                 result_program
                     .cached
-                    .insert(DeclName::TypeAlias(decl.name), allocator.alloc(decl));
+                    .insert(DeclName::TypeAlias(name), decls);
             }
             DeclRef::Class(tcd) => {
                 let decl = class::flatten_type(tcd, semantic, allocator, result_program);
 
-                result_program
-                    .cached
-                    .insert(DeclName::Class(decl.name), allocator.alloc(decl));
+                let name: &str = decl.name;
+                let mut decls = AstVec::new_in(allocator);
+                decls.push(decl);
+
+                result_program.cached.insert(DeclName::Class(name), decls);
             }
             DeclRef::Variable(drv) => {
                 let decl = variable::flatten_type(drv, semantic, allocator, result_program);
@@ -134,17 +144,39 @@ impl<'a> DeclRef<'a> {
             DeclRef::Function(drf) => {
                 let decl = function::flatten_type(drf, semantic, allocator, result_program);
 
-                result_program
+                let decls = result_program
                     .cached
-                    .insert(DeclName::Function(decl.name), allocator.alloc(decl));
+                    .entry(DeclName::Function(decl.name))
+                    .or_insert_with(|| AstVec::new_in(allocator));
+
+                decls.push(decl);
             }
         };
     }
 
+    pub fn merge_decls(decls: Vec<&'a CacheDecl<'a>>, allocator: &'a Allocator) -> CacheDecl<'a> {
+        let mut new_generics = HashMap::new_in(allocator);
+        for (&key, &value) in decls[0].generics.iter() {
+            new_generics.insert(key, value.clone());
+        }
+
+        let mut cache_decl = CacheDecl {
+            name: decls[0].name,
+            decl: decls[0].decl,
+            generics: new_generics,
+        };
+        if decls.len() == 1 {
+            return cache_decl;
+        }
+        let new_decl = decls[0].decl.merge_decl(&decls[1].decl, allocator);
+
+        cache_decl.decl = new_decl;
+        return cache_decl;
+    }
     /**
      * Merge the multiple type alias,Some type need merge when flatten before
      *
-     * 1. interface + interface   flatten before. not here
+     * 1. interface + interface  
      * 2. namespace + namespace
      * 3. function + function    function overload，retain teh declare
      * 4. namespace + interface
@@ -187,8 +219,7 @@ impl<'a> DeclName<'a> {
             DeclName::Interface(name)
             | DeclName::TypeAlias(name)
             | DeclName::Class(name)
-            | DeclName::Function(name)
-            | DeclName::Variable(name) => name,
+            | DeclName::Function(name) => name,
         }
     }
 }
