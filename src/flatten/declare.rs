@@ -154,37 +154,15 @@ impl<'a> DeclRef<'a> {
         };
     }
 
-    pub fn merge_decls(decls: Vec<&'a CacheDecl<'a>>, allocator: &'a Allocator) -> CacheDecl<'a> {
-        let mut new_generics = HashMap::new_in(allocator);
-        for (&key, &value) in decls[0].generics.iter() {
-            new_generics.insert(key, value.clone());
-        }
-
-        let mut cache_decl = CacheDecl {
-            name: decls[0].name,
-            decl: decls[0].decl,
-            generics: new_generics,
-        };
-        if decls.len() == 1 {
-            return cache_decl;
-        }
-        let new_decl = decls[0].decl.merge_decl(&decls[1].decl, allocator);
-
-        cache_decl.decl = new_decl;
-        return cache_decl;
-    }
     /**
      * Merge the multiple type alias,Some type need merge when flatten before
      *
-     * 1. interface + interface  
-     * 2. namespace + namespace
-     * 3. function + function    function overload，retain teh declare
-     * 4. namespace + interface
-     * 5. namespace + class
-     * 6. namespace + function
-     * 7. interface + class
+     * 1. namespace + interface
+     * 2. namespace + class
+     * 3. namespace + function
+     * 4. interface + class
      */
-    pub fn merge_decl(&self, decl: &DeclRef<'a>, allocator: &'a Allocator) -> DeclRef<'a> {
+    pub fn merge_decl(&self, decl: &DeclRef<'a>, allocator: &'a Allocator) -> Option<DeclRef<'a>> {
         match (self, decl) {
             (DeclRef::Class(drc), DeclRef::Interface(dri)) => {
                 // merge the interface decl to class declare
@@ -204,12 +182,12 @@ impl<'a> DeclRef<'a> {
                 let mut new_class = drc.clone_in(allocator);
                 new_class.body.body.extend(extend_elements);
 
-                return DeclRef::Class(allocator.alloc(new_class));
+                return Some(DeclRef::Class(allocator.alloc(new_class)));
             }
 
             _ => {}
         }
-        *self
+        None
     }
 }
 
@@ -221,5 +199,118 @@ impl<'a> DeclName<'a> {
             | DeclName::Class(name)
             | DeclName::Function(name) => name,
         }
+    }
+}
+
+/**
+ * Merge the multiple type alias. Some same type or some not.
+ *
+ */
+pub fn merge_decls<'a>(
+    decls: Vec<(&'a DeclName<'a>, &'a AstVec<'a, CacheDecl<'a>>)>,
+    allocator: &'a Allocator,
+) -> AstVec<'a, &'a CacheDecl<'a>> {
+    let mut merge_decls: AstVec<'a, &'a CacheDecl<'_>> = AstVec::new_in(allocator);
+
+    let mut new_generics = HashMap::new_in(allocator);
+    let mut has_class = false;
+    let mut has_interface = false;
+    let mut has_function = false;
+
+    for (name, decls) in decls.iter() {
+        if let Some(decl) = merge_multiple_decls(name, decls, allocator) {
+            merge_decls.push(allocator.alloc(decl));
+        } else {
+            for decl in decls.iter() {
+                merge_decls.push(decl.clone());
+            }
+        }
+        match name {
+            DeclName::Class(_) => has_class = true,
+            DeclName::Interface(_) => has_interface = true,
+            DeclName::Function(_) => has_function = true,
+            _ => {}
+        }
+    }
+
+    let target_decl = if let Some((_, decls)) = decls.iter().find(|(name, _)| {
+        if has_class {
+            return **name == DeclName::Class(name.name());
+        }
+        if has_interface {
+            return **name == DeclName::Interface(name.name());
+        }
+        if has_function {
+            return **name == DeclName::Function(name.name());
+        }
+        return false;
+    }) {
+        &decls[0]
+    } else {
+        merge_decls[0]
+    };
+    for (&key, &value) in target_decl.generics.iter() {
+        new_generics.insert(key, value.clone());
+    }
+
+    let mut result = AstVec::new_in(allocator);
+    if merge_decls.len() == 1 {
+        result.push(target_decl);
+        return result;
+    }
+
+    let mut cache_decl = CacheDecl {
+        name: target_decl.name,
+        decl: target_decl.decl,
+        generics: new_generics,
+    };
+    for decl in merge_decls.iter() {
+        if has_class && let DeclRef::Class(_) = decl.decl {
+            continue;
+        }
+        if has_interface && let DeclRef::Interface(_) = decl.decl {
+            continue;
+        }
+        if has_function && let DeclRef::Function(_) = decl.decl {
+            continue;
+        }
+        if let Some(new_decl) = target_decl.decl.merge_decl(&decl.decl, allocator) {
+            cache_decl.decl = new_decl;
+        } else {
+            result.push(*decl)
+        }
+    }
+    result.push(allocator.alloc(cache_decl));
+
+    return result;
+}
+/**
+ * Merge the multiple decls. It's same declare
+ *
+ * 1. interface + interface  
+ * 2. namespace + namespace
+ * 3. function + function    function overload，retain teh declare
+ */
+pub fn merge_multiple_decls<'a>(
+    name: &'a DeclName<'a>,
+    decls: &'a AstVec<'a, CacheDecl<'a>>,
+    allocator: &'a Allocator,
+) -> Option<CacheDecl<'a>> {
+    let mut new_generics = HashMap::new_in(allocator);
+
+    for (&key, &value) in decls[0].generics.iter() {
+        new_generics.insert(key, value.clone());
+    }
+
+    let mut new_decl = CacheDecl {
+        name: decls[0].name,
+        decl: decls[0].decl,
+        generics: new_generics,
+    };
+
+    match name {
+        DeclName::Interface(_) => Some(new_decl),
+        DeclName::Function(_) => Some(new_decl),
+        _ => None,
     }
 }

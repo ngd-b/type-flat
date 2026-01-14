@@ -6,10 +6,11 @@ use oxc_ast::ast::{
 use tracing::info;
 
 use crate::flatten::{
-    declare::{DeclName, DeclRef},
+    declare::{self, DeclName, DeclRef},
     generic::Generic,
 };
 
+#[derive(Debug)]
 pub struct CacheDecl<'a> {
     pub name: &'a str,
     pub decl: DeclRef<'a>,
@@ -189,7 +190,7 @@ impl<'a> ResultProgram<'a> {
         &'a self,
         refer_name: &'a str,
         ignore_is_circle: bool,
-    ) -> Option<CacheDecl<'a>> {
+    ) -> Option<&'a CacheDecl<'a>> {
         if !ignore_is_circle && self.circle_type.contains(refer_name) {
             return None;
         }
@@ -202,11 +203,12 @@ impl<'a> ResultProgram<'a> {
                 | DeclName::Class(name)
                 | DeclName::Function(name) => *name == refer_name,
             })
-            .flat_map(|(_, item)| item.iter())
+            // .flat_map(|(_, item)| item.iter())
             .collect::<Vec<_>>();
 
         if decls.len() > 0 {
-            return Some(DeclRef::merge_decls(decls, self.allocator));
+            let merge_decls = declare::merge_decls(decls, self.allocator);
+            return Some(merge_decls[0]);
         }
 
         info!("【Cached】Not found cached type: {}", refer_name);
@@ -229,12 +231,11 @@ impl<'a> ResultProgram<'a> {
             })
             .collect::<Vec<_>>();
 
-        for (_, decls) in decls.iter() {
-            let vec_decl = decls.iter().map(|decl| decl).collect::<Vec<_>>();
-            let new_decl = DeclRef::merge_decls(vec_decl, self.allocator);
+        let merge_decls = declare::merge_decls(decls, self.allocator);
 
-            let type_params = CacheDecl::format_type_params(&new_decl.generics, self.allocator);
-            match new_decl.decl {
+        for decl in merge_decls {
+            let type_params = CacheDecl::format_type_params(&decl.generics, self.allocator);
+            match decl.decl {
                 DeclRef::Interface(dri) => {
                     let mut new_interface = dri.clone_in(self.allocator);
                     new_interface.type_parameters = type_params.clone_in(self.allocator);
