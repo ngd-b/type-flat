@@ -166,7 +166,25 @@ fn test_extends_super_class() {
         "Path",
     );
 
-    println!("{}", result);
     assert!(result.contains("protected canBeInsideText(): boolean;"));
     assert!(!result.contains("protected canBeInsideText(): boolean; canBeInsideText(): boolean;"));
+}
+
+#[test]
+fn test_conditional_type_in_class_with_mthod_params_generic() {
+    let result = run_flat(
+        r#"
+        type Flatten<T> = T extends Array<infer U> ? Flatten<U> : T;
+
+        declare class Container<T> {
+            getValue(): T;
+            getFlattenedValue(): Flatten<T>;
+        }
+        "#,
+        "Container",
+    );
+
+    assert!(result.contains(
+        "declare class Container<T> { getValue(): T; getFlattenedValue(): Flatten<T>; }"
+    ));
 }

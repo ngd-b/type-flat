@@ -4,6 +4,7 @@ use oxc_ast::ast::{
     TSTypeAnnotation, TSTypeLiteral, TSVoidKeyword, VariableDeclaration,
 };
 use oxc_semantic::Semantic;
+use tracing::info;
 
 use crate::flatten::{
     class, function, interface,
@@ -25,6 +26,7 @@ pub enum DeclName<'a> {
     TypeAlias(&'a str),
     Class(&'a str),
     Function(&'a str),
+    Variable(&'a str),
 }
 
 impl<'a> DeclRef<'a> {
@@ -184,7 +186,16 @@ impl<'a> DeclRef<'a> {
 
                 return Some(DeclRef::Class(allocator.alloc(new_class)));
             }
+            (DeclRef::Interface(dri1), DeclRef::Interface(dri2)) => {
+                let mut new_interface = dri1.clone_in(allocator);
 
+                new_interface
+                    .body
+                    .body
+                    .extend(dri2.body.body.clone_in(allocator));
+
+                return Some(DeclRef::Interface(allocator.alloc(new_interface)));
+            }
             _ => {}
         }
         None
@@ -197,7 +208,26 @@ impl<'a> DeclName<'a> {
             DeclName::Interface(name)
             | DeclName::TypeAlias(name)
             | DeclName::Class(name)
-            | DeclName::Function(name) => name,
+            | DeclName::Function(name)
+            | DeclName::Variable(name) => name,
+        }
+    }
+    pub fn type_name(&self) -> &'a str {
+        match self {
+            DeclName::Interface(_) => "interface",
+            DeclName::TypeAlias(_) => "type",
+            DeclName::Class(_) => "class",
+            DeclName::Function(_) => "function",
+            DeclName::Variable(_) => "const",
+        }
+    }
+    pub fn level(&self) -> usize {
+        match self {
+            DeclName::Interface(_) => 3,
+            DeclName::TypeAlias(_) => 1,
+            DeclName::Class(_) => 4,
+            DeclName::Function(_) => 2,
+            DeclName::Variable(_) => 0,
         }
     }
 }
@@ -208,21 +238,27 @@ impl<'a> DeclName<'a> {
  */
 pub fn merge_decls<'a>(
     decls: Vec<(&'a DeclName<'a>, &'a AstVec<'a, CacheDecl<'a>>)>,
+    diff_merge: bool,
     allocator: &'a Allocator,
 ) -> AstVec<'a, &'a CacheDecl<'a>> {
     let mut merge_decls: AstVec<'a, &'a CacheDecl<'_>> = AstVec::new_in(allocator);
 
-    let mut new_generics = HashMap::new_in(allocator);
     let mut has_class = false;
     let mut has_interface = false;
     let mut has_function = false;
 
     for (name, decls) in decls.iter() {
+        info!(
+            "The type 【{}】of name is【{}】. declared count【{}】",
+            name.type_name(),
+            name.name(),
+            decls.len()
+        );
         if let Some(decl) = merge_multiple_decls(name, decls, allocator) {
             merge_decls.push(allocator.alloc(decl));
         } else {
             for decl in decls.iter() {
-                merge_decls.push(decl.clone());
+                merge_decls.push(decl);
             }
         }
         match name {
@@ -231,6 +267,9 @@ pub fn merge_decls<'a>(
             DeclName::Function(_) => has_function = true,
             _ => {}
         }
+    }
+    if !diff_merge {
+        return merge_decls;
     }
 
     let target_decl = if let Some((_, decls)) = decls.iter().find(|(name, _)| {
@@ -249,14 +288,16 @@ pub fn merge_decls<'a>(
     } else {
         merge_decls[0]
     };
-    for (&key, &value) in target_decl.generics.iter() {
-        new_generics.insert(key, value.clone());
-    }
 
     let mut result = AstVec::new_in(allocator);
+
     if merge_decls.len() == 1 {
         result.push(target_decl);
         return result;
+    }
+    let mut new_generics = HashMap::new_in(allocator);
+    for (&key, &value) in target_decl.generics.iter() {
+        new_generics.insert(key, value.clone());
     }
 
     let mut cache_decl = CacheDecl {
@@ -309,8 +350,15 @@ pub fn merge_multiple_decls<'a>(
     };
 
     match name {
-        DeclName::Interface(_) => Some(new_decl),
-        DeclName::Function(_) => Some(new_decl),
+        DeclName::Interface(_) => {
+            for decl in &decls[1..] {
+                if let Some(decl) = new_decl.decl.merge_decl(&decl.decl, allocator) {
+                    new_decl.decl = decl;
+                }
+            }
+
+            return Some(new_decl);
+        }
         _ => None,
     }
 }

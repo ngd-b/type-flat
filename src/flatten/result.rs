@@ -73,19 +73,19 @@ impl<'a> ResultProgram<'a> {
             circle_type: HashSet::new_in(allocator),
         }
     }
-    pub fn has_decl(&self, name: &str) -> bool {
+    pub fn has_decl(&self, name: DeclName<'a>) -> bool {
         self.program.body.iter().any(|st| match st {
-            Statement::TSInterfaceDeclaration(decl) => decl.id.name == name,
-            Statement::TSTypeAliasDeclaration(decl) => decl.id.name == name,
+            Statement::TSInterfaceDeclaration(decl) => DeclName::Interface(&decl.id.name) == name,
+            Statement::TSTypeAliasDeclaration(decl) => DeclName::TypeAlias(&decl.id.name) == name,
             Statement::VariableDeclaration(vd) => {
                 vd.declarations.iter().any(|decl| match &decl.id.kind {
-                    BindingPatternKind::BindingIdentifier(id) => id.name.as_str() == name,
+                    BindingPatternKind::BindingIdentifier(id) => id.name.as_str() == name.name(),
                     _ => false,
                 })
             }
             Statement::ClassDeclaration(scd) => {
                 if let Some(id) = &scd.id {
-                    id.name.as_str() == name
+                    DeclName::Class(&id.name) == name
                 } else {
                     false
                 }
@@ -96,9 +96,14 @@ impl<'a> ResultProgram<'a> {
     /// #[instrument(skip(self, decl))]
     pub fn add_interface(&mut self, decl: TSInterfaceDeclaration<'a>) {
         // if already exists . ignore
-        if self.has_decl(&decl.id.name) {
+        if self.has_decl(DeclName::Interface(&decl.id.name)) {
             return;
         }
+
+        info!(
+            "Add the 【inteface】 of name is 【{}】 to output file. ",
+            decl.id.name
+        );
         let output_decl = decl.clone_in(self.allocator);
 
         self.program
@@ -111,9 +116,13 @@ impl<'a> ResultProgram<'a> {
 
     /// #[instrument(skip(self, decl))]
     pub fn add_type_alias(&mut self, decl: TSTypeAliasDeclaration<'a>) {
-        if self.has_decl(&decl.id.name) {
+        if self.has_decl(DeclName::TypeAlias(&decl.id.name)) {
             return;
         }
+        info!(
+            "Add the 【type】 of name is 【{}】 to output file. ",
+            decl.id.name
+        );
         let output_decl = decl.clone_in(self.allocator);
 
         self.program
@@ -131,10 +140,10 @@ impl<'a> ResultProgram<'a> {
         } else {
             return;
         };
-        if self.has_decl(name) {
+        if self.has_decl(DeclName::Class(name)) {
             return;
         }
-
+        info!("Add the 【Class】 of name is 【{}】 to output file. ", name);
         let output_decl = decl.clone_in(self.allocator);
 
         self.program
@@ -155,9 +164,13 @@ impl<'a> ResultProgram<'a> {
         } else {
             return;
         };
-        if self.has_decl(name) {
+        if self.has_decl(DeclName::Variable(name)) {
             return;
         }
+        info!(
+            "Add the 【Variable】 of name is 【{}】 to output file. ",
+            name
+        );
         self.program
             .body
             .push(Statement::VariableDeclaration(AstBox::new_in(
@@ -202,13 +215,16 @@ impl<'a> ResultProgram<'a> {
                 | DeclName::TypeAlias(name)
                 | DeclName::Class(name)
                 | DeclName::Function(name) => *name == refer_name,
+                _ => false,
             })
             // .flat_map(|(_, item)| item.iter())
             .collect::<Vec<_>>();
 
         if decls.len() > 0 {
-            let merge_decls = declare::merge_decls(decls, self.allocator);
-            return Some(merge_decls[0]);
+            let merge_decls = declare::merge_decls(decls, true, self.allocator);
+            if let Some(decl) = merge_decls.last() {
+                return Some(decl);
+            }
         }
 
         info!("【Cached】Not found cached type: {}", refer_name);
@@ -217,10 +233,10 @@ impl<'a> ResultProgram<'a> {
     }
 
     // Format the cached type to TSType
-    pub fn format_cached(&self, refer_name: &'a str) -> AstVec<'a, DeclRef<'a>> {
+    pub fn format_cached(&self, refer_name: &str) -> AstVec<'a, DeclRef<'a>> {
         let mut result = AstVec::new_in(self.allocator);
 
-        let decls = self
+        let mut decls = self
             .cached
             .iter()
             .filter(|(key, _)| match key {
@@ -228,10 +244,12 @@ impl<'a> ResultProgram<'a> {
                 | DeclName::TypeAlias(name)
                 | DeclName::Class(name)
                 | DeclName::Function(name) => *name == refer_name,
+                _ => false,
             })
             .collect::<Vec<_>>();
 
-        let merge_decls = declare::merge_decls(decls, self.allocator);
+        decls.sort_by_key(|(key, _)| key.level());
+        let merge_decls = declare::merge_decls(decls, false, self.allocator);
 
         for decl in merge_decls {
             let type_params = CacheDecl::format_type_params(&decl.generics, self.allocator);
@@ -253,6 +271,12 @@ impl<'a> ResultProgram<'a> {
                     new_class.type_parameters = type_params.clone_in(self.allocator);
 
                     result.push(DeclRef::Class(self.allocator.alloc(new_class)));
+                }
+                DeclRef::Function(drf) => {
+                    let mut new_function = drf.clone_in(self.allocator);
+                    new_function.type_parameters = type_params.clone_in(self.allocator);
+
+                    result.push(DeclRef::Function(self.allocator.alloc(new_function)));
                 }
                 _ => {}
             }

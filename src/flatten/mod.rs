@@ -99,7 +99,6 @@ impl<'a> Flatten<'a> {
 
         for name in type_names.iter() {
             for decl in result.format_cached(name) {
-                info!("Add the target type 【{}】 to output file. ", name);
                 result.push(decl);
             }
         }

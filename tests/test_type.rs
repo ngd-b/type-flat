@@ -423,3 +423,19 @@ fn test_index_access_union() {
 
     assert!(result.contains("type Value = { x: number; } | { y: string; }"));
 }
+
+#[test]
+fn test_conditional_type_with_generic_recursive() {
+    let result = run_flat(
+        r#"
+        type Flatten<T> = T extends Array<infer U> ? Flatten<U> : T;
+        type Nested = number[][][];         
+        type Flattened = Flatten<Nested>;
+        "#,
+        "Flattened",
+    );
+
+    assert!(result.contains("type Flatten<T> = T extends Array<infer U> ? Flatten<U> : T;"));
+    // assert!(result.contains("type Flattened = number"));
+    assert!(result.contains("type Flattened = Flatten<number[][][]>;"));
+}
