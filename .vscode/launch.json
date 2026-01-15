@@ -12,7 +12,7 @@
           "name": "type_flat"
         }
       },
-      "args": ["--file-or-dir-path", "tests/echarts.d.ts", "--type-name", "MapToType"],
+      "args": ["--file-or-dir-path", "tests/test.d.ts", "--type-name", "Displayable"],
       "cwd": "${workspaceFolder}",
       "env": {
         "RUST_BACKTRACE": "1"
