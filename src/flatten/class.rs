@@ -7,7 +7,8 @@ use tracing::info;
 
 use crate::flatten::{
     declare::DeclRef,
-    function, generic,
+    function,
+    generic::{self},
     result::{CacheDecl, ResultProgram},
     type_alias, utils,
 };
@@ -42,6 +43,70 @@ pub fn flatten_type<'a>(
     );
 
     let env_keys = generic::get_generic_keys(&env, allocator);
+
+    let mut new_elements = AstVec::new_in(allocator);
+    if let Some(super_elements) = flatten_super_class(
+        class_type,
+        semantic,
+        allocator,
+        result_program,
+        env_keys.clone_in(allocator),
+    ) {
+        new_elements.extend(super_elements);
+    } else {
+        let type_params = generic::flatten_type_parameters(
+            &class_type.super_type_arguments,
+            semantic,
+            allocator,
+            result_program,
+            env_keys.clone_in(allocator),
+        );
+        new_class.super_type_arguments = type_params;
+    }
+
+    // Flatten class elements
+    for element in elements.iter() {
+        if let Some(new_element) = flatten_class_elements_type(
+            allocator.alloc(element.clone_in(allocator)),
+            semantic,
+            allocator,
+            result_program,
+            env_keys.clone_in(allocator),
+        ) {
+            new_elements.push(new_element);
+        }
+    }
+
+    new_class.implements = AstVec::new_in(allocator);
+    // new_class.type_parameters = None;
+
+    new_class.body.body = new_elements;
+
+    info!(
+        "Flatten class type {}, Success!, The class body elements len {}",
+        class_name,
+        new_class.body.body.len()
+    );
+
+    let decl = CacheDecl {
+        name: class_name,
+        decl: DeclRef::Class(allocator.alloc(new_class)),
+        generics: env,
+    };
+    decl
+}
+
+///
+/// Flatten the class super_class
+///
+pub fn flatten_super_class<'a>(
+    class_type: &'a Class<'a>,
+    semantic: &Semantic<'a>,
+    allocator: &'a Allocator,
+    result_program: &ResultProgram<'a>,
+    env_keys: AstVec<'a, &'a str>,
+) -> Option<AstVec<'a, ClassElement<'a>>> {
+    let elements = class_type.body.body.clone_in(allocator);
 
     let mut extend_elements = AstVec::new_in(allocator);
     // Flatten class extends
@@ -91,51 +156,18 @@ pub fn flatten_type<'a>(
                                 }
                                 extend_elements.push(element.clone_in(allocator));
                             }
+
+                            return Some(extend_elements);
                         }
                         _ => {}
                     }
                 }
-            } else {
-                new_class.super_class = class_type.super_class.clone_in(allocator);
-                new_class.super_type_arguments = type_params;
             }
         }
     }
 
-    let mut new_elements = AstVec::new_in(allocator);
-    // Flatten class elements
-    for element in elements.iter() {
-        if let Some(new_element) = flatten_class_elements_type(
-            allocator.alloc(element.clone_in(allocator)),
-            semantic,
-            allocator,
-            result_program,
-            env_keys.clone_in(allocator),
-        ) {
-            new_elements.push(new_element);
-        }
-    }
-
-    new_class.implements = AstVec::new_in(allocator);
-    // new_class.type_parameters = None;
-
-    new_elements.extend(extend_elements);
-    new_class.body.body = new_elements;
-
-    info!(
-        "Flatten class type {}, Success!, The class body elements len {}",
-        class_name,
-        new_class.body.body.len()
-    );
-
-    let decl = CacheDecl {
-        name: class_name,
-        decl: DeclRef::Class(allocator.alloc(new_class)),
-        generics: env,
-    };
-    decl
+    None
 }
-
 ///
 /// Flatten the class elements type
 ///

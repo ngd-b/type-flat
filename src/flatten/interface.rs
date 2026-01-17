@@ -1,14 +1,15 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Expression, TSInterfaceDeclaration, TSSignature, TSType, TSTypeAnnotation, TSTypeName,
-    TSTypeReference,
+    Expression, TSInterfaceDeclaration, TSInterfaceHeritage, TSSignature, TSType, TSTypeAnnotation,
+    TSTypeName, TSTypeReference,
 };
 use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    declare::DeclRef,
-    function, generic,
+    declare::{DeclName, DeclRef},
+    function,
+    generic::{self},
     keyword::Keyword,
     result::{CacheDecl, ResultProgram},
     type_alias,
@@ -49,11 +50,89 @@ pub fn flatten_type<'a>(
     );
     let env_keys = generic::get_generic_keys(&env, allocator);
     // all extend type. include self
+
+    let mut new_members = AstVec::new_in(allocator);
+    let (extends, extends_members) = flatten_extends_type(
+        ts_type,
+        semantic,
+        allocator,
+        result_program,
+        env_keys.clone_in(allocator),
+    );
+    // If exist the same of class delclare.
+    if let Some(cache_decl) = result_program.cached.get(&DeclName::Class(ts_name)) {
+        if let DeclRef::Class(drc) = cache_decl[0].decl {
+            let class_members = utils::class_elements_to_type_members(&drc.body.body, allocator);
+
+            for element in extends_members {
+                if class_members
+                    .iter()
+                    .any(|el| utils::eq_ts_signature(el, &element, allocator))
+                {
+                    continue;
+                }
+
+                new_members.push(element);
+            }
+        }
+    } else {
+        new_members.extend(extends_members);
+    }
+    // self members
+    for member in ts_type.body.body.iter() {
+        // the key is normal property
+        let new_member = flatten_member_type(
+            allocator.alloc(member.clone_in(allocator)),
+            semantic,
+            allocator,
+            result_program,
+            env_keys.clone_in(allocator),
+        );
+
+        new_members.push(new_member);
+    }
+
+    // create new type. return new type
+
+    new_type.extends = extends;
+    new_type.body.body = new_members;
+
+    info!(
+        "Flatten interface type {}, Success!, The inteface body members len {}",
+        ts_name,
+        new_type.body.body.len()
+    );
+
+    let decl = CacheDecl {
+        name: ts_name,
+        decl: DeclRef::Interface(allocator.alloc(new_type)),
+        generics: env,
+    };
+
+    decl
+}
+
+///
+/// Flatten interface extends members.
+///
+pub fn flatten_extends_type<'a>(
+    ts_type: &'a TSInterfaceDeclaration<'a>,
+    semantic: &Semantic<'a>,
+    allocator: &'a Allocator,
+    result_program: &ResultProgram<'a>,
+    env_keys: AstVec<'a, &'a str>,
+) -> (
+    AstVec<'a, TSInterfaceHeritage<'a>>,
+    AstVec<'a, TSSignature<'a>>,
+) {
+    // let env_keys = generic::get_generic_keys(env, allocator);
+
     let members = ts_type.body.body.clone_in(allocator);
 
     let mut extend_members = AstVec::new_in(allocator);
     // the extends type
     let mut extends = AstVec::new_in(allocator);
+
     for extend in ts_type.extends.iter() {
         let mut new_extend = extend.clone_in(allocator);
 
@@ -146,41 +225,8 @@ pub fn flatten_type<'a>(
         }
     }
 
-    let mut new_members = AstVec::new_in(allocator);
-    // self members
-    for member in ts_type.body.body.iter() {
-        // the key is normal property
-        let new_member = flatten_member_type(
-            allocator.alloc(member.clone_in(allocator)),
-            semantic,
-            allocator,
-            result_program,
-            env_keys.clone_in(allocator),
-        );
-
-        new_members.push(new_member);
-    }
-
-    // create new type. return new type
-    new_members.extend(extend_members);
-    new_type.extends = extends;
-    new_type.body.body = new_members;
-
-    info!(
-        "Flatten interface type {}, Success!, The inteface body members len {}",
-        ts_name,
-        new_type.body.body.len()
-    );
-
-    let decl = CacheDecl {
-        name: ts_name,
-        decl: DeclRef::Interface(allocator.alloc(new_type)),
-        generics: env,
-    };
-
-    decl
+    (extends, extend_members)
 }
-
 ///
 /// Flatten member's type
 ///
@@ -228,7 +274,7 @@ pub fn flatten_member_type<'a>(
                     semantic,
                     allocator,
                     result_program,
-                    env,
+                    env.clone_in(allocator),
                 );
 
                 prop.type_annotation = Some(AstBox::new_in(
@@ -287,7 +333,7 @@ pub fn flatten_member_type<'a>(
                 semantic,
                 allocator,
                 result_program,
-                env,
+                env.clone_in(allocator),
             );
 
             TSSignature::TSMethodSignature(new_prop)

@@ -30,6 +30,15 @@ pub enum DeclName<'a> {
 }
 
 impl<'a> DeclRef<'a> {
+    pub fn level(&self) -> usize {
+        match self {
+            DeclRef::Interface(_) => 3,
+            DeclRef::TypeAlias(_) => 1,
+            DeclRef::Class(_) => 4,
+            DeclRef::Function(_) => 2,
+            DeclRef::Variable(_) => 0,
+        }
+    }
     ///
     /// Get type alias declaration TSType
     ///

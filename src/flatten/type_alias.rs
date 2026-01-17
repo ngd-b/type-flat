@@ -144,16 +144,35 @@ pub fn flatten_ts_type<'a>(
         }
         // union type. only flat not merge
         TSType::TSUnionType(ut) => {
-            new_type = merge_ts_type(&ut.types, semantic, allocator, result_program, true, env)
+            new_type = merge_ts_type(
+                &ut.types,
+                semantic,
+                allocator,
+                result_program,
+                true,
+                env.clone_in(allocator),
+            )
         }
         TSType::TSIntersectionType(it) => {
-            new_type = merge_ts_type(&it.types, semantic, allocator, result_program, false, env);
+            new_type = merge_ts_type(
+                &it.types,
+                semantic,
+                allocator,
+                result_program,
+                false,
+                env.clone_in(allocator),
+            );
         }
         TSType::TSArrayType(at) => {
             let mut new_array_type = at.clone_in(allocator);
 
-            new_array_type.element_type =
-                flatten_ts_type(&at.element_type, semantic, allocator, result_program, env);
+            new_array_type.element_type = flatten_ts_type(
+                &at.element_type,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
 
             new_type = TSType::TSArrayType(new_array_type);
         }
@@ -195,10 +214,22 @@ pub fn flatten_ts_type<'a>(
             }
         }
         TSType::TSConditionalType(ct) => {
-            new_type = flatten_ts_conditional_type(ct, semantic, allocator, result_program, env);
+            new_type = flatten_ts_conditional_type(
+                ct,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
         }
         TSType::TSMappedType(mt) => {
-            new_type = flatten_ts_mapped_type(mt, semantic, allocator, result_program, env);
+            new_type = flatten_ts_mapped_type(
+                mt,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            );
         }
         TSType::TSTypeOperatorType(tot) => match tot.operator {
             TSTypeOperatorOperator::Keyof => {
@@ -207,7 +238,7 @@ pub fn flatten_ts_type<'a>(
                     semantic,
                     allocator,
                     result_program,
-                    env,
+                    env.clone_in(allocator),
                 );
 
                 if let Some(tad) =
@@ -273,7 +304,7 @@ pub fn flatten_ts_type<'a>(
                 semantic,
                 allocator,
                 result_program,
-                env,
+                env.clone_in(allocator),
             );
 
             let mut new_parenthesized_type = tpt.clone_in(allocator);
@@ -344,7 +375,7 @@ pub fn flatten_ts_type<'a>(
                 semantic,
                 allocator,
                 result_program,
-                env,
+                env.clone_in(allocator),
             );
             new_type = TSType::TSFunctionType(new_fn_type);
         }

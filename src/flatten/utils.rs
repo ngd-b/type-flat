@@ -78,6 +78,7 @@ pub fn get_type<'a>(
     }
 
     info!("Get type alias decls len {}", decls.len());
+    decls.sort_by_key(|decl| decl.level());
     decls
 }
 
