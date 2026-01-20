@@ -12,7 +12,7 @@
           "name": "type_flat"
         }
       },
-      "args": ["--file-or-dir-path", "tests/test.d.ts", "--type-name", "Displayable"],
+      "args": ["--file-or-dir-path", "tests/test.d.ts", "--type-name", "Admin"],
       "cwd": "${workspaceFolder}",
       "env": {
         "RUST_BACKTRACE": "1"

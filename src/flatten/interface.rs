@@ -61,7 +61,7 @@ pub fn flatten_type<'a>(
     );
     // If exist the same of class delclare.
     if let Some(cache_decl) = result_program.cached.get(&DeclName::Class(ts_name)) {
-        if let DeclRef::Class(drc) = cache_decl[0].decl {
+        if let DeclRef::Class(drc) = cache_decl.decl {
             let class_members = utils::class_elements_to_type_members(&drc.body.body, allocator);
 
             for element in extends_members {
@@ -180,7 +180,7 @@ pub fn flatten_extends_type<'a>(
                 env_keys.clone_in(allocator),
             );
 
-            if let Some(decl) = result_program.get_cached(reference_name, true) {
+            if let Some(decl) = result_program.get_cached(reference_name, false) {
                 let result = generic::merge_type_with_generic(
                     allocator.alloc(type_params.clone_in(allocator)),
                     &decl,

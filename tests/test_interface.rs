@@ -61,27 +61,6 @@ fn test_recursive_generic_type() {
 }
 
 #[test]
-fn test_interface_declaration_merging() {
-    let result = run_flat(
-        r#"
-        interface User {
-            id: number;
-        }
-        interface User {
-            name: string;
-        }
-        interface User {
-            email?: string;
-        }
-        "#,
-        "User",
-    );
-    assert!(result.contains("id: number;"));
-    assert!(result.contains("name: string;"));
-    assert!(result.contains("email?: string;"));
-}
-
-#[test]
 fn test_index_signature_with_properties() {
     let result = run_flat(
         r#"

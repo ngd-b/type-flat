@@ -1,4 +1,4 @@
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, IntoIn, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, Vec as AstVec};
 use oxc_ast::ast::{
     Class, Function, TSFunctionType, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration,
     TSTypeAnnotation, TSTypeLiteral, TSVoidKeyword, VariableDeclaration,
@@ -113,37 +113,40 @@ impl<'a> DeclRef<'a> {
         semantic: &Semantic<'a>,
         allocator: &'a Allocator,
         result_program: &mut ResultProgram<'a>,
-    ) {
+    ) -> Option<(DeclName<'a>, CacheDecl<'a>)> {
         match self {
             DeclRef::Interface(tid) => {
                 let decl = interface::flatten_type(tid, semantic, allocator, result_program);
+                Some((DeclName::Interface(decl.name), decl))
 
-                let decls = result_program
-                    .cached
-                    .entry(DeclName::Interface(decl.name))
-                    .or_insert_with(|| AstVec::new_in(allocator));
+                // let decls = result_program
+                //     .cached
+                //     .entry(DeclName::Interface(decl.name))
+                //     .or_insert_with(|| AstVec::new_in(allocator));
 
-                decls.push(decl.into_in(allocator));
+                // decls.push(decl.into_in(allocator));
             }
             DeclRef::TypeAlias(tad) => {
                 let decl = type_alias::flatten_type(tad, semantic, allocator, result_program);
+                Some((DeclName::TypeAlias(decl.name), decl))
 
-                let name: &str = decl.name;
-                let mut decls = AstVec::new_in(allocator);
-                decls.push(decl);
+                // let name: &str = decl.name;
+                // let mut decls = AstVec::new_in(allocator);
+                // decls.push(decl);
 
-                result_program
-                    .cached
-                    .insert(DeclName::TypeAlias(name), decls);
+                // result_program
+                //     .cached
+                //     .insert(DeclName::TypeAlias(name), decls);
             }
             DeclRef::Class(tcd) => {
                 let decl = class::flatten_type(tcd, semantic, allocator, result_program);
+                Some((DeclName::Class(decl.name), decl))
 
-                let name: &str = decl.name;
-                let mut decls = AstVec::new_in(allocator);
-                decls.push(decl);
+                // let name: &str = decl.name;
+                // let mut decls = AstVec::new_in(allocator);
+                // decls.push(decl);
 
-                result_program.cached.insert(DeclName::Class(name), decls);
+                // result_program.cached.insert(DeclName::Class(name), decls);
             }
             DeclRef::Variable(drv) => {
                 let decl = variable::flatten_type(drv, semantic, allocator, result_program);
@@ -151,18 +154,20 @@ impl<'a> DeclRef<'a> {
                 let decl = DeclRef::Variable(allocator.alloc(decl));
 
                 result_program.push(decl);
+                None
             }
             DeclRef::Function(drf) => {
                 let decl = function::flatten_type(drf, semantic, allocator, result_program);
+                Some((DeclName::Function(decl.name), decl))
 
-                let decls = result_program
-                    .cached
-                    .entry(DeclName::Function(decl.name))
-                    .or_insert_with(|| AstVec::new_in(allocator));
+                // let decls = result_program
+                //     .cached
+                //     .entry(DeclName::Function(decl.name))
+                //     .or_insert_with(|| AstVec::new_in(allocator));
 
-                decls.push(decl);
+                // decls.push(decl);
             }
-        };
+        }
     }
 
     /**
@@ -246,7 +251,7 @@ impl<'a> DeclName<'a> {
  *
  */
 pub fn merge_decls<'a>(
-    decls: Vec<(&'a DeclName<'a>, &'a AstVec<'a, CacheDecl<'a>>)>,
+    decls: Vec<(&'a DeclName<'a>, &'a CacheDecl<'a>)>,
     diff_merge: bool,
     allocator: &'a Allocator,
 ) -> AstVec<'a, &'a CacheDecl<'a>> {
@@ -256,20 +261,13 @@ pub fn merge_decls<'a>(
     let mut has_interface = false;
     let mut has_function = false;
 
-    for (name, decls) in decls.iter() {
+    for (name, decl) in decls.iter() {
         info!(
-            "The type 【{}】of name is【{}】. declared count【{}】",
+            "The type declare 【{}】of name is【{}】.",
             name.type_name(),
             name.name(),
-            decls.len()
         );
-        if let Some(decl) = merge_multiple_decls(name, decls, allocator) {
-            merge_decls.push(allocator.alloc(decl));
-        } else {
-            for decl in decls.iter() {
-                merge_decls.push(decl);
-            }
-        }
+        merge_decls.push(decl);
         match name {
             DeclName::Class(_) => has_class = true,
             DeclName::Interface(_) => has_interface = true,
@@ -281,7 +279,7 @@ pub fn merge_decls<'a>(
         return merge_decls;
     }
 
-    let target_decl = if let Some((_, decls)) = decls.iter().find(|(name, _)| {
+    let target_decl = if let Some((_, decl)) = decls.iter().find(|(name, _)| {
         if has_class {
             return **name == DeclName::Class(name.name());
         }
@@ -293,7 +291,7 @@ pub fn merge_decls<'a>(
         }
         return false;
     }) {
-        &decls[0]
+        decl
     } else {
         merge_decls[0]
     };
@@ -318,13 +316,20 @@ pub fn merge_decls<'a>(
         if has_class && let DeclRef::Class(_) = decl.decl {
             continue;
         }
-        if has_interface && let DeclRef::Interface(_) = decl.decl {
+        if !has_class
+            && has_interface
+            && let DeclRef::Interface(_) = decl.decl
+        {
             continue;
         }
-        if has_function && let DeclRef::Function(_) = decl.decl {
+        if !has_class
+            && !has_interface
+            && has_function
+            && let DeclRef::Function(_) = decl.decl
+        {
             continue;
         }
-        if let Some(new_decl) = target_decl.decl.merge_decl(&decl.decl, allocator) {
+        if let Some(new_decl) = cache_decl.decl.merge_decl(&decl.decl, allocator) {
             cache_decl.decl = new_decl;
         } else {
             result.push(*decl)
@@ -342,10 +347,10 @@ pub fn merge_decls<'a>(
  * 3. function + function    function overload，retain teh declare
  */
 pub fn merge_multiple_decls<'a>(
-    name: &'a DeclName<'a>,
-    decls: &'a AstVec<'a, CacheDecl<'a>>,
+    name: DeclName<'a>,
+    decls: &AstVec<'a, CacheDecl<'a>>,
     allocator: &'a Allocator,
-) -> Option<CacheDecl<'a>> {
+) -> CacheDecl<'a> {
     let mut new_generics = HashMap::new_in(allocator);
 
     for (&key, &value) in decls[0].generics.iter() {
@@ -366,8 +371,8 @@ pub fn merge_multiple_decls<'a>(
                 }
             }
 
-            return Some(new_decl);
+            return new_decl;
         }
-        _ => None,
+        _ => new_decl,
     }
 }

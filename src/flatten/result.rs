@@ -50,7 +50,7 @@ pub struct ResultProgram<'a> {
     pub program: Program<'a>,
     allocator: &'a Allocator,
     pub exclude_type: HashSet<'a, &'a str>,
-    pub cached: HashMap<'a, DeclName<'a>, AstVec<'a, CacheDecl<'a>>>,
+    pub cached: HashMap<'a, DeclName<'a>, CacheDecl<'a>>,
     pub circle_type: HashSet<'a, &'a str>,
 }
 
@@ -222,6 +222,7 @@ impl<'a> ResultProgram<'a> {
 
         if decls.len() > 0 {
             let merge_decls = declare::merge_decls(decls, true, self.allocator);
+
             if let Some(decl) = merge_decls.last() {
                 return Some(decl);
             }

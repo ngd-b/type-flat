@@ -5,7 +5,7 @@ use crate::{
     graph::{self, Graph},
 };
 use anyhow::Result;
-use oxc_allocator::{Allocator, Vec as AstVec};
+use oxc_allocator::{Allocator, HashMap, Vec as AstVec};
 use oxc_ast::ast::Program;
 
 use oxc_codegen::Codegen;
@@ -122,8 +122,22 @@ impl<'a> Flatten<'a> {
                 continue;
             }
 
+            let mut map = HashMap::new_in(self.allocator);
+
             for decl in utils::get_type(name, &semantic, &self.allocator, result) {
-                decl.flatten_type(&semantic, &self.allocator, result);
+                if let Some((name, decl)) = decl.flatten_type(&semantic, &self.allocator, result) {
+                    let decls = map
+                        .entry(name)
+                        .or_insert_with(|| AstVec::new_in(self.allocator));
+
+                    decls.push(decl);
+                }
+            }
+
+            //
+            for (name, decls) in map.into_iter() {
+                let cache_decl = declare::merge_multiple_decls(name, &decls, self.allocator);
+                result.cached.insert(name, cache_decl);
             }
         }
 

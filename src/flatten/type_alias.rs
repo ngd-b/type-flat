@@ -277,7 +277,7 @@ pub fn flatten_ts_type<'a>(
             TSTypeQueryExprName::IdentifierReference(ir) => {
                 let reference_name = ir.name.as_str();
 
-                if let Some(decl) = result_program.get_cached(reference_name, false) {
+                if let Some(decl) = result_program.get_cached(reference_name, true) {
                     if let Some(ts_type) = decl.decl.type_decl(allocator) {
                         new_type = ts_type;
                     }
@@ -578,7 +578,7 @@ pub fn flatten_ts_query_qualified<'a>(
         TSTypeName::IdentifierReference(ir) => {
             let reference_name = ir.name.as_str();
 
-            if let Some(decl) = result_program.get_cached(reference_name, false) {
+            if let Some(decl) = result_program.get_cached(reference_name, true) {
                 if let Some(ts_type) = decl.decl.type_decl(allocator) {
                     Some(ts_type)
                 } else {
