@@ -111,6 +111,10 @@ pub fn flatten_ts_type<'a>(
                 result_program,
                 env.clone_in(allocator),
             );
+            // IF the type is correct handle. Keep it to reference
+            let mut new_reference_type = tr.clone_in(allocator);
+            new_reference_type.type_arguments = type_params.clone_in(allocator);
+
             if let Some(decl) = result_program.get_cached(reference_name, false) {
                 // Merge the parent env with the current env. and replace the members withe the parent env type.
 
@@ -134,11 +138,10 @@ pub fn flatten_ts_type<'a>(
 
                 if let Some(ts_type) = ts_type {
                     new_type = ts_type;
+                } else {
+                    new_type = TSType::TSTypeReference(new_reference_type);
                 }
             } else {
-                let mut new_reference_type = tr.clone_in(allocator);
-
-                new_reference_type.type_arguments = type_params;
                 new_type = TSType::TSTypeReference(new_reference_type);
             }
         }

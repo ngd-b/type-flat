@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::{
@@ -225,6 +227,10 @@ pub fn get_type_name<'a>(
     };
 
     names
+        .into_iter()
+        .collect::<HashSet<String>>()
+        .into_iter()
+        .collect()
 }
 
 ///

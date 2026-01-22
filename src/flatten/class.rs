@@ -62,6 +62,7 @@ pub fn flatten_type<'a>(
             env_keys.clone_in(allocator),
         );
         new_class.super_type_arguments = type_params;
+        new_class.super_class = class_type.super_class.clone_in(allocator)
     }
 
     // Flatten class elements

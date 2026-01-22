@@ -179,6 +179,7 @@ pub fn flatten_extends_type<'a>(
                 result_program,
                 env_keys.clone_in(allocator),
             );
+            new_extend.type_arguments = type_params.clone_in(allocator);
 
             if let Some(decl) = result_program.get_cached(reference_name, false) {
                 let result = generic::merge_type_with_generic(
@@ -214,10 +215,10 @@ pub fn flatten_extends_type<'a>(
                         }
                         _ => {}
                     }
+                } else {
+                    extends.push(new_extend);
                 }
             } else {
-                new_extend.type_arguments = type_params;
-
                 extends.push(new_extend);
             }
         } else {
