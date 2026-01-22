@@ -31,8 +31,8 @@ fn test_class_interface_merge() {
         "Animal",
     );
     // Keep the differ delcare
-    assert!(result.contains("class Animal = { name: string; }"));
-    assert!(result.contains("interface Animal = { age: number; }"));
+    assert!(result.contains("class Animal { name: string; }"));
+    assert!(result.contains("interface Animal { age: number; }"));
 }
 #[test]
 fn test_multiple_interface_class_merge() {
@@ -52,7 +52,7 @@ fn test_multiple_interface_class_merge() {
         "Admin",
     );
 
-    assert!(result.contains("type Admin = { id: number; email: string; name: string; }"));
+    assert!(result.contains("type Admin = { name: string; id: number; email: string; }"));
 }
 #[test]
 fn test_interface_extends_with_class_merge() {
@@ -72,7 +72,7 @@ fn test_interface_extends_with_class_merge() {
         "Admin",
     );
 
-    assert!(result.contains("type Admin = { x: number; y: string; z: boolean; }"));
+    assert!(result.contains("type Admin = { z: boolean; x: number; y: string; }"));
 }
 #[test]
 fn test_nested_interface_extends_and_class_merge() {
@@ -98,7 +98,7 @@ fn test_nested_interface_extends_and_class_merge() {
         "Admin",
     );
     assert!(
-        result.contains("type Admin = { a: string; b: number; c: boolean; d: string[]; e: Date; }")
+        result.contains("type Admin = { e: Date; a: string; b: number; c: boolean; d: string[]; }")
     );
 }
 #[test]
@@ -122,7 +122,7 @@ fn test_interface_multiple_extends_with_class() {
         "Admin",
     );
 
-    assert!(result.contains("ype Admin = { x: number; y: string; z: boolean; extra: null; }"));
+    assert!(result.contains("type Admin = { extra: null; x: number; y: string; z: boolean; }"));
 }
 #[test]
 fn test_interface_extends_with_interface_merge() {
@@ -141,5 +141,5 @@ fn test_interface_extends_with_interface_merge() {
         "C",
     );
 
-    assert!(result.contains("interface C = { a: string; b: number; c: boolean; }"));
+    assert!(result.contains("interface C { a: string; b: number; c: boolean; }"));
 }

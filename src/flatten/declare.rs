@@ -184,19 +184,21 @@ impl<'a> DeclRef<'a> {
                 // merge the interface decl to class declare
                 let members = utils::type_members_to_class_elements(&dri.body.body, allocator);
 
-                let mut extend_elements = AstVec::new_in(allocator);
-                for element in drc.body.body.iter() {
-                    if members
+                let mut merged_elements = AstVec::new_in(allocator);
+                for element in members.iter() {
+                    if drc
+                        .body
+                        .body
                         .iter()
                         .any(|el| utils::eq_class_element(el, element, allocator))
                     {
                         continue;
                     }
-                    extend_elements.push(element.clone_in(allocator));
+                    merged_elements.push(element.clone_in(allocator));
                 }
 
                 let mut new_class = drc.clone_in(allocator);
-                new_class.body.body.extend(extend_elements);
+                new_class.body.body.extend(merged_elements);
 
                 return Some(DeclRef::Class(allocator.alloc(new_class)));
             }
