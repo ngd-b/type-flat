@@ -23,8 +23,9 @@ jobs:
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
-        # with:
-        #  node_version: ${{ inputs.node_version }}
+        with:
+          #node_version: ${{ inputs.node_version }}
+          use_registry: "true"
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -102,6 +103,8 @@ jobs:
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
+        with:
+          use_registry: "false"
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust

@@ -5,6 +5,10 @@ inputs:
     description: Setup Node version
     required: false
     default: "20"
+  use_registry:
+    description: Use npm registry
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -14,7 +18,14 @@ runs:
       
     - name: Setup Node
       uses: actions/setup-node@v4
+      if: inputs.use_registry == 'true'
       with:
         node-version: ${{ inputs.node_version }}
         registry-url: https://registry.npmjs.org/
+        cache: pnpm
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      if: inputs.use_registry == 'false'
+      with:
+        node-version: ${{ inputs.node_version }}
         cache: pnpm
