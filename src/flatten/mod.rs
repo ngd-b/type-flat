@@ -126,11 +126,6 @@ impl<'a> Flatten<'a> {
 
             for decl in utils::get_type(name, &semantic, &self.allocator, result) {
                 if let Some((name, decl)) = decl.flatten_type(&semantic, &self.allocator, result) {
-                    // IT's will not flatten forever. Keep it and output it.
-                    if decl.decl.type_decl(self.allocator).is_none() {
-                        result.circle_type.insert(name.name());
-                    }
-
                     let decls = map
                         .entry(name)
                         .or_insert_with(|| AstVec::new_in(self.allocator));
@@ -142,6 +137,11 @@ impl<'a> Flatten<'a> {
             //
             for (name, decls) in map.into_iter() {
                 let cache_decl = declare::merge_multiple_decls(name, &decls, self.allocator);
+
+                // IT's will not flatten forever. Keep it and output it.
+                if cache_decl.decl.type_decl(self.allocator).is_none() {
+                    result.circle_type.insert(name.name());
+                }
                 result.cached.insert(name, cache_decl);
             }
         }
