@@ -49,7 +49,7 @@
   "author": "hboot<bobolity@163.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ngd-b/type-flat.git"
+    "url": "git+https://github.com/ngd-b/type-flat.git"
   },
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.18.3",

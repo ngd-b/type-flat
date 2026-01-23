@@ -108,18 +108,18 @@ jobs:
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
-        
+
       - name: Ensure no npmrc
         run: |
           rm -f ~/.npmrc
           rm -f .npmrc
-          
+
       - name: Debug
         run: |
           npm -v
           npm config get registry
           npm config list
-          
+
       - name: Install dependencies
         run: pnpm install
 
@@ -149,5 +149,5 @@ jobs:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
       - run: pnpm run publish:npm
         env:
-          # NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
           NPM_CONFIG_PROVENANCE: true

@@ -3,7 +3,7 @@ import pkg from "../package.json" with { type: "json" };
 
 const { version } = pkg;
 
-let command = "npm publish --provenance --access public";
+let command = "pnpm publish --access public --no-git-checks";
 
 if (version.includes("beta")) command += " --tag beta";
 
