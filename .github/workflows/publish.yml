@@ -2,7 +2,7 @@ name: Publish Package
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 on:
   push:
@@ -147,7 +147,8 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-      - run: pnpm run publish:npm
-        # env:
-        # NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-        # NPM_CONFIG_PROVENANCE: true
+      - run: npm publish
+      # - run: pnpm run publish:npm
+      # env:
+      # NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      # NPM_CONFIG_PROVENANCE: true
