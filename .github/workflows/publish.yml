@@ -108,7 +108,18 @@ jobs:
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
-
+        
+      - name: Ensure no npmrc
+        run: |
+          rm -f ~/.npmrc
+          rm -f .npmrc
+          
+      - name: Debug
+        run: |
+          npm -v
+          npm config get registry
+          npm config list
+          
       - name: Install dependencies
         run: pnpm install
 

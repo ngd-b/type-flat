@@ -81,8 +81,5 @@
     "files": [
       "test-web/**"
     ]
-  },
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org/"
   }
 }
