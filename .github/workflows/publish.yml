@@ -2,7 +2,7 @@ name: Publish Package
 
 permissions:
   id-token: write
-  contents: write
+  contents: read
 
 on:
   push:
@@ -104,7 +104,7 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
         with:
-          use_registry: "false"
+          use_registry: "true"
 
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
@@ -148,6 +148,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
       - run: pnpm run publish:npm
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-          NPM_CONFIG_PROVENANCE: true
+        # env:
+        # NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+        # NPM_CONFIG_PROVENANCE: true
