@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Issue Submission Guidelines (Read First!)
+    url: https://github.com/ngd-b/type-flat/blob/main/.github/ISSUE_GUIDELINES.md
+    about: Includes minimal repro requirements and how to add a test-only PR
