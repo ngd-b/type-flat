@@ -5,8 +5,9 @@ use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
     ast::{
-        ClassElement, PropertyKey, TSAccessibility, TSMethodSignature, TSPropertySignature,
-        TSQualifiedName, TSSignature, TSType, TSTypeName, TSTypeQueryExprName,
+        ClassElement, FormalParameters, PropertyKey, TSAccessibility, TSMethodSignature,
+        TSPropertySignature, TSQualifiedName, TSSignature, TSThisParameter, TSType,
+        TSTypeAnnotation, TSTypeName, TSTypeParameterDeclaration, TSTypeQueryExprName,
     },
 };
 use oxc_semantic::Semantic;
@@ -275,80 +276,89 @@ pub fn get_member_type_name<'a>(
             }
         }
         TSSignature::TSMethodSignature(tms) => {
-            // params
-            for item in tms.params.items.iter() {
-                if let Some(ts_type) = &item.pattern.type_annotation {
-                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
-                }
-            }
-            if let Some(rest_type) = &tms.params.rest {
-                if let Some(ts_type) = &rest_type.argument.type_annotation {
-                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
-                }
-            }
-
-            if let Some(tpd) = &tms.type_parameters {
-                for tp in tpd.params.iter() {
-                    if let Some(ts_type) = &tp.constraint {
-                        names.extend(get_type_name(ts_type, semantic, allocator))
-                    }
-                    if let Some(ts_type) = &tp.default {
-                        names.extend(get_type_name(ts_type, semantic, allocator))
-                    }
-                }
-            }
-
-            // return type flatten
-            if let Some(rt) = &tms.return_type {
-                let ts_names = get_type_name(&rt.type_annotation, semantic, allocator);
-
-                names.extend(ts_names);
-            }
-
-            // this param
-            if let Some(this_param) = &tms.this_param {
-                if let Some(this_type) = &this_param.type_annotation {
-                    let ts_names = get_type_name(&this_type.type_annotation, semantic, allocator);
-
-                    names.extend(ts_names);
-                }
-            }
+            names.extend(get_function_type_name(
+                &tms.params,
+                &tms.type_parameters,
+                &tms.return_type,
+                &tms.this_param,
+                semantic,
+                allocator,
+            ));
         }
         TSSignature::TSConstructSignatureDeclaration(tcsd) => {
-            for item in tcsd.params.items.iter() {
-                if let Some(ts_type) = &item.pattern.type_annotation {
-                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
-                }
-            }
-            if let Some(rest_type) = &tcsd.params.rest {
-                if let Some(ts_type) = &rest_type.argument.type_annotation {
-                    names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
-                }
-            }
-
-            if let Some(tpd) = &tcsd.type_parameters {
-                for tp in tpd.params.iter() {
-                    if let Some(ts_type) = &tp.constraint {
-                        names.extend(get_type_name(ts_type, semantic, allocator))
-                    }
-                    if let Some(ts_type) = &tp.default {
-                        names.extend(get_type_name(ts_type, semantic, allocator))
-                    }
-                }
-            }
-
-            // return type flatten
-            if let Some(rt) = &tcsd.return_type {
-                let ts_names = get_type_name(&rt.type_annotation, semantic, allocator);
-
-                names.extend(ts_names);
-            }
+            names.extend(get_function_type_name(
+                &tcsd.params,
+                &tcsd.type_parameters,
+                &tcsd.return_type,
+                &None,
+                semantic,
+                allocator,
+            ));
         }
-        _ => {}
+        TSSignature::TSCallSignatureDeclaration(tsd) => {
+            names.extend(get_function_type_name(
+                &tsd.params,
+                &tsd.type_parameters,
+                &tsd.return_type,
+                &tsd.this_param,
+                semantic,
+                allocator,
+            ));
+        }
     }
     names
 }
 
+pub fn get_function_type_name<'a>(
+    params: &'a AstBox<'a, FormalParameters<'a>>,
+    type_params: &'a Option<AstBox<'a, TSTypeParameterDeclaration<'a>>>,
+    return_type: &'a Option<AstBox<'a, TSTypeAnnotation<'a>>>,
+    this_param: &'a Option<AstBox<'a, TSThisParameter<'a>>>,
+    semantic: &Semantic<'a>,
+    allocator: &'a Allocator,
+) -> Vec<String> {
+    let mut names = vec![];
+    // params
+    for item in params.items.iter() {
+        if let Some(ts_type) = &item.pattern.type_annotation {
+            names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
+        }
+    }
+    if let Some(rest_type) = &params.rest {
+        if let Some(ts_type) = &rest_type.argument.type_annotation {
+            names.extend(get_type_name(&ts_type.type_annotation, semantic, allocator))
+        }
+    }
+
+    if let Some(tpd) = type_params {
+        for tp in tpd.params.iter() {
+            if let Some(ts_type) = &tp.constraint {
+                names.extend(get_type_name(ts_type, semantic, allocator))
+            }
+            if let Some(ts_type) = &tp.default {
+                names.extend(get_type_name(ts_type, semantic, allocator))
+            }
+        }
+    }
+
+    // return type flatten
+    if let Some(rt) = return_type {
+        let ts_names = get_type_name(&rt.type_annotation, semantic, allocator);
+
+        names.extend(ts_names);
+    }
+
+    // this param
+    if let Some(this_param) = &this_param {
+        if let Some(this_type) = &this_param.type_annotation {
+            let ts_names = get_type_name(&this_type.type_annotation, semantic, allocator);
+
+            names.extend(ts_names);
+        }
+    }
+
+    names
+}
 pub fn class_elements_to_type_members<'a>(
     elements: &'a [ClassElement<'a>],
     allocator: &'a Allocator,

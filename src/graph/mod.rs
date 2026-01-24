@@ -184,6 +184,7 @@ pub fn build_graph<'a>(
         if visited.contains(name) {
             continue;
         }
+        info!("【Graph】Build graph start. the node name {}", name);
         visited.insert(name);
 
         let current_graph = *pool.get(name).unwrap();
@@ -204,6 +205,10 @@ pub fn build_graph<'a>(
             for child_name in children_name {
                 let child_name_str = allocator.alloc_str(&child_name.as_str());
 
+                info!(
+                    "【Graph】Get the {} type children name {}",
+                    &name, child_name
+                );
                 let child_graph = if let Some(graph) = pool.get(child_name_str) {
                     (*graph).borrow_mut().reference_num_plus();
 
@@ -225,6 +230,8 @@ pub fn build_graph<'a>(
                 }
             }
         }
+
+        info!("【Graph】Build graph end. the node name {}", name);
     }
 
     let mut entry_nodes: AstVec<'a, &'a RefCell<Graph<'a>>> = AstVec::new_in(allocator);

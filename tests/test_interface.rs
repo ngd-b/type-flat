@@ -81,11 +81,8 @@ fn test_method_vs_function_property() {
     let result = run_flat(
         r#"
         interface Service {
-            // 方法语法
             start(): void;
-            // 函数类型属性
             stop: () => void;
-            // 可选方法
             pause?(): Promise<void>;
         }
         "#,
