@@ -12,8 +12,9 @@ fn test_nested_generic_optional() {
         "#,
         "UserResponse",
     );
-    assert!(result.contains("status: string"));
-    assert!(result.contains("data?: { id: number; name?: string; }"));
+    assert!(result.contains(
+        "interface UserResponse { data?: { id: number; name?: string; }; status: string; }"
+    ));
 }
 
 // 复杂联合类型嵌套泛型
@@ -28,11 +29,9 @@ fn test_complex_union_generic() {
         "#,
         "Res",
     );
-    assert!(
-        result.contains("a: number")
-            || result.contains("b: string")
-            || result.contains("extra: boolean")
-    );
+    assert!(result.contains(
+        "type Res = { a: number; } | { extra: boolean; } | { b: string; } | { extra: boolean; }"
+    ));
 }
 
 #[test]
@@ -46,7 +45,7 @@ fn test_generic_constraint_and_default() {
         "#,
         "DefaultContainer",
     );
-    assert!(result.contains("value: {};"));
+    assert!(result.contains("type DefaultContainer = { value: {}; }"));
 }
 
 #[test]
@@ -60,8 +59,9 @@ fn test_deep_nested_generics() {
         "UserList",
     );
 
-    assert!(result.contains("id: number;"));
-    assert!(result.contains("total: number"));
+    assert!(
+        result.contains("type UserList = { items: { data: { id: number; }; }[]; total: number; }")
+    );
 }
 
 #[test]
@@ -76,8 +76,10 @@ fn test_method_level_generic() {
         "Mapper",
     );
 
-    assert!(result.contains("map<U>(input: string): U"));
-    assert!(result.contains("process<T, R>(data: T): R"));
+    assert!(
+        result
+            .contains("interface Mapper { map<U>(input: string): U; process<T, R>(data: T): R; }")
+    );
 }
 
 #[test]
@@ -91,7 +93,7 @@ fn test_conditional_type() {
         "A",
     );
     // 根据你的工具能力，可能输出字面量类型
-    assert!(result.contains("\"yes\"") || result.contains("yes"));
+    assert!(result.contains("type A = \"yes\""));
 }
 
 #[test]
@@ -105,9 +107,7 @@ fn test_generic_intersection() {
         "#,
         "UserEntity",
     );
-    assert!(result.contains("id: string"));
-    assert!(result.contains("name: string"));
-    assert!(result.contains("email: string"));
+    assert!(result.contains("type UserEntity = { email: string; id: string; name: string; }"));
 }
 
 #[test]
@@ -120,5 +120,37 @@ fn test_empty_or_unit_generic() {
         "#,
         "VoidBox",
     );
-    assert!(result.contains("content: {}"));
+    assert!(result.contains("type VoidBox = { content: {}; }"));
+}
+
+// 范型参数传递
+#[test]
+fn test_generic_argument_passing() {
+    let result = run_flat(
+        r#"
+        interface Box<T> { data: T }
+        type BoxedType<MyType> = { 
+            content: Box<MyType>;
+        };
+        "#,
+        "BoxedType",
+    );
+    assert!(result.contains("type BoxedType<MyType> = { content: { data: MyType; }; }"));
+}
+
+// 范型参数传递函数声明参数
+#[test]
+fn test_generic_argument_passing_function_declaration() {
+    let result = run_flat(
+        r#"
+        interface Box<T> { (name: string, address: T):number }
+        type BoxedType<MyType> = { 
+            content: Box<MyType>;
+        };
+        "#,
+        "BoxedType",
+    );
+    assert!(result.contains(
+        "type BoxedType<MyType> = { content: { (name: string, address: MyType): number; }; }"
+    ));
 }

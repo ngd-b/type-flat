@@ -424,6 +424,33 @@ pub fn replace_member_type_with_generic<'a>(
 
             new_member = TSSignature::TSMethodSignature(new_method)
         }
+        TSSignature::TSCallSignatureDeclaration(tsd) => {
+            let mut new_method = tsd.clone_in(allocator);
+
+            // params flatten
+            new_method.params = AstBox::new_in(
+                replace_method_params_type_with_generic(env, &tsd.params, allocator),
+                allocator,
+            );
+            // return type flatten
+            if let Some(rt) = &tsd.return_type {
+                let mut new_return_type = rt.clone_in(allocator);
+
+                new_return_type.type_annotation =
+                    replace_type_with_generic(env, &rt.type_annotation, allocator);
+                new_method.return_type = Some(new_return_type)
+            }
+
+            // this
+            if let Some(this_param) = &tsd.this_param {
+                new_method.this_param = Some(AstBox::new_in(
+                    replace_method_this_type_with_generic(env, this_param, allocator),
+                    allocator,
+                ));
+            }
+
+            new_member = TSSignature::TSCallSignatureDeclaration(new_method)
+        }
         _ => {}
     }
 
