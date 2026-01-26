@@ -127,3 +127,49 @@ fn test_interface_extends_type_alias() {
     assert!(result.contains("createdAt: Date;"));
     assert!(result.contains("name: string;"));
 }
+
+#[test]
+fn test_interface_extends_recursive_type() {
+    let result = run_flat(
+        r#"
+        interface TreeNode<T> {
+            value: T;
+            children?: TreeNode<T>[];
+        }
+
+        interface User extends TreeNode<string> {
+            name: string;
+        }
+        "#,
+        "User",
+    );
+    assert!(result.contains("interface User extends TreeNode<string> { name: string; }"));
+    assert!(result.contains("interface TreeNode<T> { value: T; children?: TreeNode<T>[]; }"));
+}
+
+// 测试继承一个间接继承自递归的类
+#[test]
+fn test_interface_extends_indirect_recursive_type() {
+    let result = run_flat(
+        r#"
+        interface TreeNode<T> {
+            value: T;
+            children?: TreeNode<T>[];
+        }
+
+        interface User extends TreeNode<string> {
+            name: string;
+        }
+
+        interface User2 extends User {
+            age: number;
+        }
+        "#,
+        "User2",
+    );
+    assert!(
+        result.contains("interface User2 extends TreeNode<string> { name: string; age: number; }")
+    );
+    assert!(!result.contains("interface User extends TreeNode<string> { name: string; }"));
+    assert!(result.contains("interface TreeNode<T> { value: T; children?: TreeNode<T>[]; }"));
+}

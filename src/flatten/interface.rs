@@ -216,7 +216,14 @@ pub fn flatten_extends_type<'a>(
                         _ => {}
                     }
                 } else {
-                    extends.push(new_extend);
+                    match decl.decl {
+                        DeclRef::Interface(dri) => {
+                            //
+                            extend_members.extend(dri.body.body.clone_in(allocator));
+                            extends.extend(dri.extends.clone_in(allocator));
+                        }
+                        _ => {}
+                    }
                 }
             } else {
                 extends.push(new_extend);
