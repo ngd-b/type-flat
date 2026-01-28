@@ -309,12 +309,12 @@ impl<'a> Keyword<'a> {
 /// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn get_type_members<'a>(
     ts_type: &'a TSType<'a>,
-    semantic: &Semantic<'a>,
+    _semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    result_program: &ResultProgram<'a>,
-    env: AstVec<'a, &'a str>,
+    _result_program: &ResultProgram<'a>,
+    _env: AstVec<'a, &'a str>,
 ) -> AstVec<'a, TSSignature<'a>> {
-    let ts_type = type_alias::flatten_ts_type(ts_type, semantic, allocator, result_program, env);
+    // let ts_type = type_alias::flatten_ts_type(ts_type, semantic, allocator, result_program, env);
 
     let members = AstVec::new_in(allocator);
 

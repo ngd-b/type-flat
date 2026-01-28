@@ -167,6 +167,8 @@ pub fn flatten_extends_type<'a>(
                             extend_members.push(member.clone_in(allocator));
                         }
                     }
+                } else {
+                    extends.push(new_extend);
                 }
 
                 continue;
