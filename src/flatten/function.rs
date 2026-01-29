@@ -42,6 +42,7 @@ pub fn flatten_type<'a>(
             allocator,
             result_program,
             env_keys.clone_in(allocator),
+            false,
         );
 
         new_return_type.type_annotation = ts_type;
@@ -104,6 +105,7 @@ pub fn flatten_method_params_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                false,
             );
 
             new_item.pattern.type_annotation = Some(new_item_type);
@@ -123,6 +125,7 @@ pub fn flatten_method_params_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                false,
             );
 
             new_rest.argument.type_annotation = Some(new_rest_type);
@@ -158,6 +161,7 @@ pub fn flatten_method_this_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                false,
             );
 
             new_this_param.type_annotation = Some(new_this_type);

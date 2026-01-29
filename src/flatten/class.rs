@@ -123,7 +123,7 @@ pub fn flatten_super_class<'a>(
                 env_keys.clone_in(allocator),
             );
 
-            if let Some(decl) = result_program.get_cached(reference_name, false) {
+            if let Some(decl) = result_program.get_cached(reference_name) {
                 let result = generic::merge_type_with_generic(
                     allocator.alloc(type_params.clone_in(allocator)),
                     &decl,
@@ -131,37 +131,36 @@ pub fn flatten_super_class<'a>(
                 );
 
                 let ts_type = if let Some(flat_type) = result {
-                    Some(type_alias::flatten_ts_type(
+                    type_alias::flatten_ts_type(
                         allocator.alloc(flat_type.clone_in(allocator)),
                         semantic,
                         allocator,
                         result_program,
                         env_keys.clone_in(allocator),
-                    ))
+                        false,
+                    )
                 } else {
                     decl.decl.type_decl(allocator)
                 };
 
-                if let Some(ts_type) = ts_type {
-                    match ts_type {
-                        TSType::TSTypeLiteral(tl) => {
-                            let super_elements =
-                                utils::type_members_to_class_elements(&tl.members, allocator);
+                match ts_type {
+                    TSType::TSTypeLiteral(tl) => {
+                        let super_elements =
+                            utils::type_members_to_class_elements(&tl.members, allocator);
 
-                            for element in super_elements.iter() {
-                                if elements
-                                    .iter()
-                                    .any(|el| utils::eq_class_element(el, element, allocator))
-                                {
-                                    continue;
-                                }
-                                extend_elements.push(element.clone_in(allocator));
+                        for element in super_elements.iter() {
+                            if elements
+                                .iter()
+                                .any(|el| utils::eq_class_element(el, element, allocator))
+                            {
+                                continue;
                             }
-
-                            return Some(extend_elements);
+                            extend_elements.push(element.clone_in(allocator));
                         }
-                        _ => {}
+
+                        return Some(extend_elements);
                     }
+                    _ => {}
                 }
             }
         }
@@ -190,6 +189,7 @@ pub fn flatten_class_elements_type<'a>(
                 allocator,
                 result_program,
                 env,
+                false,
             );
 
             Some(ClassElement::TSIndexSignature(new_element))
@@ -214,6 +214,7 @@ pub fn flatten_class_elements_type<'a>(
                     allocator,
                     result_program,
                     env,
+                    false,
                 );
 
                 new_element.type_annotation = Some(new_type);

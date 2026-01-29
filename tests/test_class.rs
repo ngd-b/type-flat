@@ -185,6 +185,7 @@ fn test_conditional_type_in_class_with_mthod_params_generic() {
     );
 
     assert!(result.contains(
-        "declare class Container<T> { getValue(): T; getFlattenedValue(): Flatten<T>; }"
+        "declare class Container<T> { getValue(): T; getFlattenedValue(): T extends Array<infer U> ? Flatten<U> : T; }"
     ));
+    assert!(result.contains("type Flatten<T> = T extends Array<infer U> ? Flatten<U> : T;"));
 }

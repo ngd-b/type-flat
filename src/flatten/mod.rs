@@ -83,7 +83,7 @@ impl<'a> Flatten<'a> {
         let mut result = self.result_program();
 
         for &cycle_node in cycle_nodes.iter() {
-            result.circle_type.insert(cycle_node.borrow().name);
+            result.loop_type.insert(cycle_node.borrow().name);
         }
 
         for exclude_str in exclude.iter() {
@@ -139,19 +139,19 @@ impl<'a> Flatten<'a> {
                 let cache_decl = declare::merge_multiple_decls(name, &decls, self.allocator);
 
                 // IT's will not flatten forever. Keep it and output it.
-                if cache_decl.decl.type_decl(self.allocator).is_none() {
-                    result.circle_type.insert(name.name());
-                }
+                // if cache_decl.decl.type_decl(self.allocator).is_none() {
+                //     result.loop_type.insert(name.name());
+                // }
                 result.cached.insert(name, cache_decl);
             }
         }
 
-        // add circle Class
+        // add loop Class
         let mut loop_type = AstVec::new_in(&self.allocator);
 
-        for name in result.circle_type.iter() {
+        for name in result.loop_type.iter() {
             for decl in result.format_cached(name) {
-                info!("Add circle type 【{}】 ", name);
+                info!("Add loop type 【{}】 ", name);
                 loop_type.push(decl);
             }
         }

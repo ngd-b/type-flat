@@ -183,7 +183,7 @@ pub fn flatten_extends_type<'a>(
             );
             new_extend.type_arguments = type_params.clone_in(allocator);
 
-            if let Some(decl) = result_program.get_cached(reference_name, false) {
+            if let Some(decl) = result_program.get_cached(reference_name) {
                 let result = generic::merge_type_with_generic(
                     allocator.alloc(type_params.clone_in(allocator)),
                     &decl,
@@ -191,41 +191,31 @@ pub fn flatten_extends_type<'a>(
                 );
 
                 let ts_type = if let Some(flat_type) = result {
-                    Some(type_alias::flatten_ts_type(
+                    type_alias::flatten_ts_type(
                         allocator.alloc(flat_type.clone_in(allocator)),
                         semantic,
                         allocator,
                         result_program,
                         env_keys.clone_in(allocator),
-                    ))
+                        false,
+                    )
                 } else {
                     decl.decl.type_decl(allocator)
                 };
 
-                if let Some(ts_type) = ts_type {
-                    match ts_type {
-                        TSType::TSTypeLiteral(tl) => {
-                            for member in tl.members.iter() {
-                                if members
-                                    .iter()
-                                    .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                                {
-                                    continue;
-                                }
-                                extend_members.push(member.clone_in(allocator));
+                match ts_type {
+                    TSType::TSTypeLiteral(tl) => {
+                        for member in tl.members.iter() {
+                            if members
+                                .iter()
+                                .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                            {
+                                continue;
                             }
+                            extend_members.push(member.clone_in(allocator));
                         }
-                        _ => {}
                     }
-                } else {
-                    match decl.decl {
-                        DeclRef::Interface(dri) => {
-                            //
-                            extend_members.extend(dri.body.body.clone_in(allocator));
-                            extends.extend(dri.extends.clone_in(allocator));
-                        }
-                        _ => {}
-                    }
+                    _ => {}
                 }
             } else {
                 extends.push(new_extend);
@@ -258,6 +248,7 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                false,
             );
 
             // key flat type
@@ -270,6 +261,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
+                    false,
                 );
             }
 
@@ -285,6 +277,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
+                    false,
                 );
 
                 prop.type_annotation = Some(AstBox::new_in(
@@ -320,6 +313,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
+                    false,
                 );
 
                 new_prop.return_type = Some(new_return_type)
@@ -371,6 +365,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
+                    false,
                 );
 
                 new_member.return_type = Some(new_return_type)
@@ -415,6 +410,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
+                    false,
                 );
 
                 new_member.return_type = Some(new_return_type)

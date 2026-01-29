@@ -143,11 +143,12 @@ fn test_interface_extends_recursive_type() {
         "#,
         "User",
     );
-    assert!(result.contains("interface User extends TreeNode<string> { name: string; }"));
+    assert!(result.contains(
+        "interface User { value: string; children?: TreeNode<string>[]; name: string; }"
+    ));
     assert!(result.contains("interface TreeNode<T> { value: T; children?: TreeNode<T>[]; }"));
 }
 
-// 测试继承一个间接继承自递归的类
 #[test]
 fn test_interface_extends_indirect_recursive_type() {
     let result = run_flat(
@@ -167,9 +168,9 @@ fn test_interface_extends_indirect_recursive_type() {
         "#,
         "User2",
     );
-    assert!(
-        result.contains("interface User2 extends TreeNode<string> { name: string; age: number; }")
-    );
+    assert!(result.contains(
+        "interface User2 { value: string; children?: TreeNode<string>[]; name: string; age: number; }"
+    ));
     assert!(!result.contains("interface User extends TreeNode<string> { name: string; }"));
     assert!(result.contains("interface TreeNode<T> { value: T; children?: TreeNode<T>[]; }"));
 }

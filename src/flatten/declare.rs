@@ -42,34 +42,34 @@ impl<'a> DeclRef<'a> {
     ///
     /// Get type alias declaration TSType
     ///
-    pub fn type_decl(&self, allocator: &'a Allocator) -> Option<TSType<'a>> {
+    pub fn type_decl(&self, allocator: &'a Allocator) -> TSType<'a> {
         let mut new_type = TSTypeLiteral {
             span: Default::default(),
             members: AstVec::new_in(allocator),
         };
 
         match self {
-            DeclRef::TypeAlias(decl) => return Some(decl.type_annotation.clone_in(allocator)),
+            DeclRef::TypeAlias(decl) => return decl.type_annotation.clone_in(allocator),
             DeclRef::Interface(decl) => {
-                if !decl.extends.is_empty() {
-                    return None;
-                }
+                // if !decl.extends.is_empty() {
+                //     return None;
+                // }
                 new_type.members.extend(decl.body.body.clone_in(allocator));
 
-                return Some(TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator)));
+                // return TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator));
             }
             DeclRef::Class(drc) => {
-                if drc.super_class.is_some() {
-                    return None;
-                }
+                // if drc.super_class.is_some() {
+                //     return None;
+                // }
                 let new_members = utils::class_elements_to_type_members(&drc.body.body, allocator);
 
-                if new_members.is_empty() {
-                    return None;
-                }
+                // if new_members.is_empty() {
+                //     return None;
+                // }
                 new_type.members.extend(new_members);
 
-                return Some(TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator)));
+                // return TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator));
             }
             DeclRef::Function(drf) => {
                 let return_type = if let Some(return_type) = &drf.return_type {
@@ -97,15 +97,12 @@ impl<'a> DeclRef<'a> {
                     scope_id: drf.scope_id.clone_in(allocator),
                 };
 
-                return Some(TSType::TSFunctionType(AstBox::new_in(
-                    new_fn_type,
-                    allocator,
-                )));
+                return TSType::TSFunctionType(AstBox::new_in(new_fn_type, allocator));
             }
             _ => {}
         };
 
-        None
+        TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator))
     }
 
     pub fn flatten_type(

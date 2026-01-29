@@ -118,6 +118,7 @@ impl<'a> Keyword<'a> {
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                false,
             ));
         }
 
@@ -171,6 +172,7 @@ impl<'a> Keyword<'a> {
                         allocator,
                         result_program,
                         env.clone_in(allocator),
+                        false,
                     );
 
                     let key_type = type_alias::flatten_ts_type(
@@ -179,6 +181,7 @@ impl<'a> Keyword<'a> {
                         allocator,
                         result_program,
                         env.clone_in(allocator),
+                        false,
                     );
                     match key_type {
                         TSType::TSLiteralType(tlt) => {
@@ -293,6 +296,7 @@ impl<'a> Keyword<'a> {
                         allocator,
                         result_program,
                         env,
+                        false,
                     ));
                 }
             }
@@ -433,6 +437,7 @@ pub fn flatten_pick_omit<'a>(
             allocator,
             result_program,
             env,
+            false,
         )
     } else {
         return new_type;

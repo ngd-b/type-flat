@@ -87,12 +87,11 @@ fn test_conditional_type() {
     let result = run_flat(
         r#"
         type IsString<T> = T extends string ? "yes" : "no";
-        type A = IsString<"hello">;   // "yes"
-        type B = IsString<number>;    // "no"
+        type A = IsString<"hello">;
         "#,
         "A",
     );
-    // 根据你的工具能力，可能输出字面量类型
+
     assert!(result.contains("type A = \"yes\""));
 }
 

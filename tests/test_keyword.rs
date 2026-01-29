@@ -134,3 +134,43 @@ fn test_infer_keyword() {
     );
     assert!(result.contains("id: number"));
 }
+
+#[test]
+fn test_readonly_reference_type() {
+    let result = run_flat(
+        r#"
+        interface User {
+            id: number;
+            children: User[];
+        }
+        type ReadonlyUser = Readonly<User>;
+        "#,
+        "ReadonlyUser",
+    );
+    assert!(
+        result.contains("type ReadonlyUser = { readonly id: number; readonly children: User[]; }")
+    );
+    assert!(result.contains("interface User { id: number; children: User[]; }"));
+}
+
+#[test]
+fn test_pick_reference_type() {
+    let content = r#"
+        interface User {
+            id: number;
+            children: User[];
+        }
+        type PickId = Pick<User, 'id'>
+        type PickChildren = Pick<User, 'children'>
+    "#;
+
+    // only keep PickId, No User
+    let result = run_flat(content, "PickId");
+    assert!(result.contains("type PickId = { id: number; }"));
+    assert!(!result.contains("type User = { id: number; children: User[]; }"));
+
+    // keep PickChildren and User
+    let result = run_flat(content, "PickChildren");
+    assert!(result.contains("type PickChildren = { children: User[]; }"));
+    assert!(!result.contains("type User = { id: number; children: User[]; }"));
+}

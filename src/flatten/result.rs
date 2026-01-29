@@ -51,7 +51,7 @@ pub struct ResultProgram<'a> {
     allocator: &'a Allocator,
     pub exclude_type: HashSet<'a, &'a str>,
     pub cached: HashMap<'a, DeclName<'a>, CacheDecl<'a>>,
-    pub circle_type: HashSet<'a, &'a str>,
+    pub loop_type: HashSet<'a, &'a str>,
 }
 
 impl<'a> ResultProgram<'a> {
@@ -70,7 +70,7 @@ impl<'a> ResultProgram<'a> {
             allocator,
             exclude_type: HashSet::new_in(allocator),
             cached: HashMap::new_in(allocator),
-            circle_type: HashSet::new_in(allocator),
+            loop_type: HashSet::new_in(allocator),
         }
     }
     pub fn has_decl(&self, name: DeclName<'a>) -> bool {
@@ -198,15 +198,8 @@ impl<'a> ResultProgram<'a> {
     }
 
     // Get cached type already flatten
-    // Interface's extends or Class‘s superClass can get circle_type
-    pub fn get_cached(
-        &'a self,
-        refer_name: &'a str,
-        ignore_is_circle: bool,
-    ) -> Option<&'a CacheDecl<'a>> {
-        if !ignore_is_circle && self.circle_type.contains(refer_name) {
-            return None;
-        }
+    // Interface's extends or Class‘s superClass can get loop_type
+    pub fn get_cached(&'a self, refer_name: &'a str) -> Option<&'a CacheDecl<'a>> {
         let decls = self
             .cached
             .iter()
@@ -223,13 +216,12 @@ impl<'a> ResultProgram<'a> {
         if decls.len() > 0 {
             let merge_decls = declare::merge_decls(decls, true, self.allocator);
 
-            if let Some(decl) = merge_decls.last() {
+            if let Some(&decl) = merge_decls.last() {
                 return Some(decl);
             }
         }
 
-        info!("【Cached】Not found cached type: {}", refer_name);
-
+        info!("【Cached】Not found cached type: {}. ", refer_name);
         None
     }
 

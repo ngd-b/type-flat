@@ -45,6 +45,7 @@ pub fn flatten_generic<'a>(
                 allocator,
                 result_program,
                 empty_env.clone_in(allocator),
+                false,
             );
 
             new_param.constraint = Some(ts_type)
@@ -57,6 +58,7 @@ pub fn flatten_generic<'a>(
                 allocator,
                 result_program,
                 empty_env.clone_in(allocator),
+                false,
             );
 
             new_param.default = Some(ts_type)
@@ -108,11 +110,11 @@ pub fn merge_type_with_generic<'a>(
         return None;
     }
     let ts_type = child_type.decl.type_decl(allocator);
-    if ts_type.is_none() {
-        return None;
-    }
+    // if ts_type.is_none() {
+    //     return None;
+    // }
 
-    let ts_type = ts_type.unwrap();
+    // let ts_type = ts_type.unwrap();
 
     let mut generics = HashMap::new_in(allocator);
     for (&key, gener) in child_type.generics.iter() {
@@ -183,6 +185,8 @@ pub fn replace_type_with_generic<'a>(
 
     match ts_type {
         TSType::TSTypeReference(tr) => {
+            let mut new_refer_type = tr.clone_in(allocator);
+
             // reference_name
             let reference_name = match &tr.type_name {
                 TSTypeName::IdentifierReference(ir) => allocator.alloc_str(&ir.name),
@@ -193,6 +197,20 @@ pub fn replace_type_with_generic<'a>(
                 if let Some(ts_type) = &generic.ts_type.default {
                     new_type = ts_type.clone_in(allocator);
                 }
+            }
+            // reference params type
+            let mut params = AstVec::new_in(allocator);
+            if let Some(args) = &tr.type_arguments {
+                let mut new_args = args.clone_in(allocator);
+                for param in args.params.iter() {
+                    let ts_type = replace_type_with_generic(env, param, allocator);
+
+                    params.push(ts_type);
+                }
+
+                new_args.params = params;
+                new_refer_type.type_arguments = Some(new_args);
+                new_type = TSType::TSTypeReference(new_refer_type);
             }
         }
         // union type. only flat not merge
@@ -542,6 +560,7 @@ pub fn flatten_type_parameters<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                false,
             );
             params.push(ts_type);
         }
