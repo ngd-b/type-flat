@@ -101,7 +101,7 @@ pub fn merge_type_with_generic<'a>(
     allocator: &'a Allocator,
 ) -> Option<TSType<'a>> {
     info!(
-        "Merge the type generic {}. It has generic len {}",
+        "Merge the type generic【{}】. It has generic len {}",
         child_type.name,
         child_type.generics.len()
     );

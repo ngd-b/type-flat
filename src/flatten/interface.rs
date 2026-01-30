@@ -87,6 +87,7 @@ pub fn flatten_type<'a>(
             allocator,
             result_program,
             env_keys.clone_in(allocator),
+            false,
         );
 
         new_members.push(new_member);
@@ -236,6 +237,7 @@ pub fn flatten_member_type<'a>(
     allocator: &'a Allocator,
     result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
+    need_check_loop: bool,
 ) -> TSSignature<'a> {
     match member {
         TSSignature::TSIndexSignature(tis) => {
@@ -248,7 +250,7 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                false,
+                need_check_loop,
             );
 
             // key flat type
@@ -261,7 +263,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    false,
+                    need_check_loop,
                 );
             }
 
@@ -277,7 +279,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    false,
+                    need_check_loop,
                 );
 
                 prop.type_annotation = Some(AstBox::new_in(
@@ -300,6 +302,7 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                need_check_loop,
             );
             new_prop.params = AstBox::new_in(new_params, allocator);
 
@@ -313,7 +316,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    false,
+                    need_check_loop,
                 );
 
                 new_prop.return_type = Some(new_return_type)
@@ -338,6 +341,7 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                need_check_loop,
             );
 
             TSSignature::TSMethodSignature(new_prop)
@@ -352,6 +356,7 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                need_check_loop,
             );
             new_member.params = AstBox::new_in(new_params, allocator);
 
@@ -365,7 +370,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    false,
+                    need_check_loop,
                 );
 
                 new_member.return_type = Some(new_return_type)
@@ -397,6 +402,7 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                need_check_loop,
             );
             new_member.params = AstBox::new_in(new_params, allocator);
 
@@ -410,7 +416,7 @@ pub fn flatten_member_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    false,
+                    need_check_loop,
                 );
 
                 new_member.return_type = Some(new_return_type)

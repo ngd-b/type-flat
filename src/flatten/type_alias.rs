@@ -333,6 +333,7 @@ pub fn flatten_ts_type<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
+                    true,
                 );
 
                 members.push(new_member);
@@ -364,6 +365,7 @@ pub fn flatten_ts_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                true,
             );
 
             new_fn_type.params = AstBox::new_in(new_params, allocator);
@@ -387,6 +389,7 @@ pub fn flatten_ts_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
+                true,
             );
             new_type = TSType::TSFunctionType(new_fn_type);
         }

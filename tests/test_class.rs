@@ -189,3 +189,41 @@ fn test_conditional_type_in_class_with_mthod_params_generic() {
     ));
     assert!(result.contains("type Flatten<T> = T extends Array<infer U> ? Flatten<U> : T;"));
 }
+
+// 测试自循环引用
+#[test]
+fn test_self_reference() {
+    let result = run_flat(
+        r#"
+        declare class Node {
+            children: Node[];
+            constructor(children: Node[]);
+        }
+        "#,
+        "Node",
+    );
+    assert!(result.contains("children: Node[]"));
+}
+
+#[test]
+fn test_two_class_reference() {
+    let content = r#"
+        declare class Node {
+            next: Node;
+            children: Leaf[];
+        }
+        declare class Leaf {
+            parent: Node;
+            next: Leaf;
+        }
+        "#;
+    let result = run_flat(content, "Leaf");
+    assert!(
+        result.contains(
+            "declare class Leaf { parent: { next: Node; children: Leaf[]; }; next: Leaf; }"
+        )
+    );
+
+    let result = run_flat(content, "Node");
+    assert!(result.contains("declare class Node { next: Node; children: Leaf[]; }"));
+}
