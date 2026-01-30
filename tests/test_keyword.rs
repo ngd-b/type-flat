@@ -174,3 +174,20 @@ fn test_pick_reference_type() {
     assert!(result.contains("type PickChildren = { children: User[]; }"));
     assert!(!result.contains("type User = { id: number; children: User[]; }"));
 }
+
+// 测试关键字嵌套
+#[test]
+fn test_keyword_nesting() {
+    let result = run_flat(
+        r#"
+        interface User {
+            id: number;
+            children: User[];
+        }
+        type PickUser = Partial<Pick<User, 'id'>>
+        "#,
+        "PickUser",
+    );
+
+    assert!(result.contains("type PickUser = { id?: number; }"));
+}

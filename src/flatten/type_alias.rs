@@ -4,8 +4,7 @@ use oxc_ast::ast::{
     IdentifierName, PropertyKey, TSConditionalType, TSIndexedAccessType, TSIntersectionType,
     TSLiteral, TSMappedType, TSPropertySignature, TSQualifiedName, TSSignature, TSTupleElement,
     TSType, TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSTypeName,
-    TSTypeOperatorOperator, TSTypeParameterInstantiation, TSTypeQueryExprName, TSTypeReference,
-    TSUnionType,
+    TSTypeOperatorOperator, TSTypeParameterInstantiation, TSTypeQueryExprName, TSUnionType,
 };
 use oxc_semantic::Semantic;
 
@@ -82,11 +81,17 @@ pub fn flatten_ts_type<'a>(
 ) -> TSType<'a> {
     let mut new_type = ts_type.clone_in(allocator);
 
+    if let Some(flat_type) = flatten_ts_reference_type(
+        ts_type,
+        semantic,
+        allocator,
+        result_program,
+        env.clone_in(allocator),
+        true,
+    ) {
+        return flat_type;
+    }
     match ts_type {
-        TSType::TSTypeReference(tr) => {
-            new_type =
-                flatten_ts_reference_type(tr, semantic, allocator, result_program, env, true);
-        }
         // union type. only flat not merge
         TSType::TSUnionType(ut) => {
             new_type = merge_ts_type(
@@ -775,72 +780,79 @@ pub fn flatten_ts_mapped_type<'a>(
 /// Flatten the reference type
 ///
 pub fn flatten_ts_reference_type<'a>(
-    refer_type: &'a TSTypeReference<'a>,
+    ts_type: &'a TSType<'a>,
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
     result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
     need_check_loop: bool,
-) -> TSType<'a> {
-    // reference_name
-    let reference_name = match &refer_type.type_name {
-        TSTypeName::IdentifierReference(ir) => allocator.alloc_str(&ir.name),
-        _ => "",
-    };
-
-    let type_params = generic::flatten_type_parameters(
-        &refer_type.type_arguments,
-        semantic,
-        allocator,
-        result_program,
-        env.clone_in(allocator),
-    );
-    // IF the type is correct handle. Keep it to reference
-    let mut new_refer_type = refer_type.clone_in(allocator);
-    new_refer_type.type_arguments = type_params.clone_in(allocator);
-
-    let mut new_type = TSType::TSTypeReference(AstBox::new_in(new_refer_type, allocator));
-
-    if need_check_loop && result_program.loop_type.contains(reference_name) {
-        return new_type.clone_in(allocator);
-    }
-
-    // Keyword type flatten
-    if let Some(keyword) =
-        Keyword::is_keyword(allocator.alloc(refer_type.clone_in(allocator)), allocator)
-    {
-        let result = keyword.flatten(semantic, allocator, result_program, env.clone_in(allocator));
-
-        return if let Some(ts_type) = result {
-            ts_type
-        } else {
-            new_type.clone_in(allocator)
+) -> Option<TSType<'a>> {
+    if let TSType::TSTypeReference(ttr) = ts_type {
+        // reference_name
+        let reference_name = match &ttr.type_name {
+            TSTypeName::IdentifierReference(ir) => allocator.alloc_str(&ir.name),
+            _ => "",
         };
-    }
 
-    if let Some(decl) = result_program.get_cached(reference_name) {
-        // Merge the parent env with the current env. and replace the members withe the parent env type.
-
-        let result = generic::merge_type_with_generic(
-            allocator.alloc(type_params.clone_in(allocator)),
-            &decl,
+        let type_params = generic::flatten_type_parameters(
+            &ttr.type_arguments,
+            semantic,
             allocator,
+            result_program,
+            env.clone_in(allocator),
         );
+        // IF the type is correct handle. Keep it to reference
+        let mut new_refer_type = ttr.clone_in(allocator);
+        new_refer_type.type_arguments = type_params.clone_in(allocator);
 
-        let ts_type = if let Some(flat_type) = result {
-            flatten_ts_type(
-                allocator.alloc(flat_type.clone_in(allocator)),
-                semantic,
+        let mut new_type = TSType::TSTypeReference(new_refer_type);
+
+        if need_check_loop && result_program.loop_type.contains(reference_name) {
+            return Some(new_type.clone_in(allocator));
+        }
+
+        // Keyword type flatten
+        if let Some(keyword) =
+            Keyword::is_keyword(allocator.alloc(ttr.clone_in(allocator)), allocator)
+        {
+            let result =
+                keyword.flatten(semantic, allocator, result_program, env.clone_in(allocator));
+
+            let flat_type = if let Some(ts_type) = result {
+                ts_type
+            } else {
+                new_type.clone_in(allocator)
+            };
+
+            return Some(flat_type);
+        }
+
+        if let Some(decl) = result_program.get_cached(reference_name) {
+            // Merge the parent env with the current env. and replace the members withe the parent env type.
+
+            let result = generic::merge_type_with_generic(
+                allocator.alloc(type_params.clone_in(allocator)),
+                &decl,
                 allocator,
-                result_program,
-                env.clone_in(allocator),
-            )
-        } else {
-            decl.decl.type_decl(allocator)
-        };
+            );
 
-        new_type = ts_type
+            let ts_type = if let Some(flat_type) = result {
+                flatten_ts_type(
+                    allocator.alloc(flat_type.clone_in(allocator)),
+                    semantic,
+                    allocator,
+                    result_program,
+                    env.clone_in(allocator),
+                )
+            } else {
+                decl.decl.type_decl(allocator)
+            };
+
+            new_type = ts_type
+        }
+
+        return Some(new_type.clone_in(allocator));
     }
 
-    new_type.clone_in(allocator)
+    None
 }

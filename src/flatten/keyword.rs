@@ -318,25 +318,23 @@ pub fn get_type_members<'a>(
 
     let members = AstVec::new_in(allocator);
 
+    if let Some(flat_type) = type_alias::flatten_ts_reference_type(
+        ts_type,
+        semantic,
+        allocator,
+        result_program,
+        env.clone_in(allocator),
+        false,
+    ) {
+        return get_type_members(
+            allocator.alloc(flat_type),
+            semantic,
+            allocator,
+            result_program,
+            env.clone_in(allocator),
+        );
+    }
     match ts_type {
-        TSType::TSTypeReference(ttr) => {
-            //
-            let flat_type = type_alias::flatten_ts_reference_type(
-                ttr,
-                semantic,
-                allocator,
-                result_program,
-                env.clone_in(allocator),
-                false,
-            );
-            return get_type_members(
-                allocator.alloc(flat_type),
-                semantic,
-                allocator,
-                result_program,
-                env,
-            );
-        }
         TSType::TSTypeLiteral(ttl) => return ttl.members.clone_in(allocator),
         _ => {}
     }
@@ -445,23 +443,23 @@ pub fn flatten_pick_omit<'a>(
 
     // reference type name
     let refer_type = if let Some(ts_type) = params.get(0) {
-        match ts_type {
-            TSType::TSTypeReference(ttr) => type_alias::flatten_ts_reference_type(
-                ttr,
-                semantic,
-                allocator,
-                result_program,
-                env.clone_in(allocator),
-                false,
-            ),
-
-            _ => type_alias::flatten_ts_type(
+        if let Some(flat_type) = type_alias::flatten_ts_reference_type(
+            ts_type,
+            semantic,
+            allocator,
+            result_program,
+            env.clone_in(allocator),
+            false,
+        ) {
+            flat_type
+        } else {
+            type_alias::flatten_ts_type(
                 allocator.alloc(ts_type.clone_in(allocator)),
                 semantic,
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-            ),
+            )
         }
     } else {
         return new_type;

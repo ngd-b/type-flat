@@ -192,13 +192,21 @@ pub fn flatten_extends_type<'a>(
                 );
 
                 let ts_type = if let Some(flat_type) = result {
-                    type_alias::flatten_ts_type(
+                    type_alias::flatten_ts_reference_type(
                         allocator.alloc(flat_type.clone_in(allocator)),
                         semantic,
                         allocator,
                         result_program,
                         env_keys.clone_in(allocator),
+                        false,
                     )
+                    .unwrap_or(type_alias::flatten_ts_type(
+                        allocator.alloc(flat_type),
+                        semantic,
+                        allocator,
+                        result_program,
+                        env_keys.clone_in(allocator),
+                    ))
                 } else {
                     decl.decl.type_decl(allocator)
                 };
