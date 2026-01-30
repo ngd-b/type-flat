@@ -45,7 +45,6 @@ pub fn flatten_generic<'a>(
                 allocator,
                 result_program,
                 empty_env.clone_in(allocator),
-                false,
             );
 
             new_param.constraint = Some(ts_type)
@@ -58,7 +57,6 @@ pub fn flatten_generic<'a>(
                 allocator,
                 result_program,
                 empty_env.clone_in(allocator),
-                false,
             );
 
             new_param.default = Some(ts_type)
@@ -560,7 +558,6 @@ pub fn flatten_type_parameters<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                false,
             );
             params.push(ts_type);
         }

@@ -185,7 +185,7 @@ fn test_conditional_type_in_class_with_mthod_params_generic() {
     );
 
     assert!(result.contains(
-        "declare class Container<T> { getValue(): T; getFlattenedValue(): T extends Array<infer U> ? Flatten<U> : T; }"
+        "declare class Container<T> { getValue(): T; getFlattenedValue(): Flatten<T>; }"
     ));
     assert!(result.contains("type Flatten<T> = T extends Array<infer U> ? Flatten<U> : T;"));
 }
@@ -218,11 +218,7 @@ fn test_two_class_reference() {
         }
         "#;
     let result = run_flat(content, "Leaf");
-    assert!(
-        result.contains(
-            "declare class Leaf { parent: { next: Node; children: Leaf[]; }; next: Leaf; }"
-        )
-    );
+    assert!(result.contains("declare class Leaf { parent: Node; next: Leaf; }"));
 
     let result = run_flat(content, "Node");
     assert!(result.contains("declare class Node { next: Node; children: Leaf[]; }"));

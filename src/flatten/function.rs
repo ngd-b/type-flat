@@ -42,7 +42,6 @@ pub fn flatten_type<'a>(
             allocator,
             result_program,
             env_keys.clone_in(allocator),
-            false,
         );
 
         new_return_type.type_annotation = ts_type;
@@ -55,7 +54,6 @@ pub fn flatten_type<'a>(
         allocator,
         result_program,
         env_keys.clone_in(allocator),
-        false,
     );
 
     new_fun.params = AstBox::new_in(new_params, allocator);
@@ -67,7 +65,6 @@ pub fn flatten_type<'a>(
         allocator,
         result_program,
         env_keys.clone_in(allocator),
-        false,
     );
 
     info!("Flatten function type {}, Success!", fun_name);
@@ -89,7 +86,6 @@ pub fn flatten_method_params_type<'a>(
     allocator: &'a Allocator,
     result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
-    need_check_loop: bool,
 ) -> FormalParameters<'a> {
     let mut new_params = params.clone_in(allocator);
 
@@ -108,7 +104,6 @@ pub fn flatten_method_params_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                need_check_loop,
             );
 
             new_item.pattern.type_annotation = Some(new_item_type);
@@ -128,7 +123,6 @@ pub fn flatten_method_params_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                need_check_loop,
             );
 
             new_rest.argument.type_annotation = Some(new_rest_type);
@@ -151,7 +145,6 @@ pub fn flatten_method_this_type<'a>(
     allocator: &'a Allocator,
     result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
-    need_check_loop: bool,
 ) -> Option<AstBox<'a, TSThisParameter<'a>>> {
     if let Some(this_param) = this_type {
         let mut new_this_param = this_param.clone_in(allocator);
@@ -165,7 +158,6 @@ pub fn flatten_method_this_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                need_check_loop,
             );
 
             new_this_param.type_annotation = Some(new_this_type);

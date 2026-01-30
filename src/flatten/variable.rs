@@ -30,7 +30,6 @@ pub fn flatten_type<'a>(
                 allocator,
                 result_program,
                 empty_env.clone_in(allocator),
-                false,
             );
 
             vd.id.type_annotation = Some(new_ta)

@@ -436,8 +436,5 @@ fn test_conditional_type_with_generic_recursive() {
     );
 
     assert!(result.contains("type Flatten<T> = T extends Array<infer U> ? Flatten<U> : T;"));
-    // assert!(result.contains("type Flattened = number"));
-    assert!(result.contains(
-        "type Flattened = number[][][] extends Array<infer U> ? Flatten<U> : number[][][];"
-    ));
+    assert!(result.contains("type Flattened = Flatten<number[][][]>;"));
 }

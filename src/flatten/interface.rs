@@ -87,9 +87,9 @@ pub fn flatten_type<'a>(
             allocator,
             result_program,
             env_keys.clone_in(allocator),
-            false,
         );
 
+        // Not include this param.
         new_members.push(new_member);
     }
 
@@ -198,7 +198,6 @@ pub fn flatten_extends_type<'a>(
                         allocator,
                         result_program,
                         env_keys.clone_in(allocator),
-                        false,
                     )
                 } else {
                     decl.decl.type_decl(allocator)
@@ -237,50 +236,51 @@ pub fn flatten_member_type<'a>(
     allocator: &'a Allocator,
     result_program: &ResultProgram<'a>,
     env: AstVec<'a, &'a str>,
-    need_check_loop: bool,
 ) -> TSSignature<'a> {
     match member {
         TSSignature::TSIndexSignature(tis) => {
             let mut prop = tis.clone_in(allocator).unbox();
 
             // value type
-            prop.type_annotation.type_annotation = type_alias::flatten_ts_type(
+            let flat_type = type_alias::flatten_ts_type(
                 allocator.alloc(tis.type_annotation.type_annotation.clone_in(allocator)),
                 semantic,
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                need_check_loop,
             );
+            prop.type_annotation.type_annotation =
+                filter_member_refer_this_type(flat_type, allocator);
 
             // key flat type
             for param in prop.parameters.iter_mut() {
                 let param_clone = allocator.alloc(param.clone_in(allocator));
 
-                param.type_annotation.type_annotation = type_alias::flatten_ts_type(
+                let flat_type = type_alias::flatten_ts_type(
                     &param_clone.type_annotation.type_annotation,
                     semantic,
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    need_check_loop,
                 );
+                param.type_annotation.type_annotation =
+                    filter_member_refer_this_type(flat_type, allocator);
             }
 
-            TSSignature::TSIndexSignature(AstBox::new_in(prop, &allocator))
+            TSSignature::TSIndexSignature(AstBox::new_in(prop.clone_in(allocator), &allocator))
         }
         TSSignature::TSPropertySignature(tps) => {
             let mut prop = tps.clone_in(allocator).unbox();
 
             if let Some(ta) = &tps.type_annotation {
-                let ts_type = type_alias::flatten_ts_type(
+                let flat_type = type_alias::flatten_ts_type(
                     allocator.alloc(ta.type_annotation.clone_in(allocator)),
                     semantic,
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    need_check_loop,
                 );
+                let ts_type = filter_member_refer_this_type(flat_type, allocator);
 
                 prop.type_annotation = Some(AstBox::new_in(
                     TSTypeAnnotation {
@@ -302,7 +302,6 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                need_check_loop,
             );
             new_prop.params = AstBox::new_in(new_params, allocator);
 
@@ -310,14 +309,15 @@ pub fn flatten_member_type<'a>(
             if let Some(rt) = &tms.return_type {
                 let mut new_return_type = rt.clone_in(allocator);
 
-                new_return_type.type_annotation = type_alias::flatten_ts_type(
+                let flat_type = type_alias::flatten_ts_type(
                     allocator.alloc(rt.type_annotation.clone_in(allocator)),
                     semantic,
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    need_check_loop,
                 );
+                new_return_type.type_annotation =
+                    filter_member_refer_this_type(flat_type, allocator);
 
                 new_prop.return_type = Some(new_return_type)
             }
@@ -341,7 +341,6 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                need_check_loop,
             );
 
             TSSignature::TSMethodSignature(new_prop)
@@ -356,7 +355,6 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                need_check_loop,
             );
             new_member.params = AstBox::new_in(new_params, allocator);
 
@@ -364,14 +362,15 @@ pub fn flatten_member_type<'a>(
             if let Some(rt) = &tcsd.return_type {
                 let mut new_return_type = rt.clone_in(allocator);
 
-                new_return_type.type_annotation = type_alias::flatten_ts_type(
+                let flat_type = type_alias::flatten_ts_type(
                     allocator.alloc(rt.type_annotation.clone_in(allocator)),
                     semantic,
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    need_check_loop,
                 );
+                new_return_type.type_annotation =
+                    filter_member_refer_this_type(flat_type, allocator);
 
                 new_member.return_type = Some(new_return_type)
             }
@@ -402,7 +401,6 @@ pub fn flatten_member_type<'a>(
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                need_check_loop,
             );
             new_member.params = AstBox::new_in(new_params, allocator);
 
@@ -410,14 +408,15 @@ pub fn flatten_member_type<'a>(
             if let Some(rt) = &tcsd.return_type {
                 let mut new_return_type = rt.clone_in(allocator);
 
-                new_return_type.type_annotation = type_alias::flatten_ts_type(
+                let flat_type = type_alias::flatten_ts_type(
                     allocator.alloc(rt.type_annotation.clone_in(allocator)),
                     semantic,
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    need_check_loop,
                 );
+                new_return_type.type_annotation =
+                    filter_member_refer_this_type(flat_type, allocator);
 
                 new_member.return_type = Some(new_return_type)
             }
@@ -439,4 +438,29 @@ pub fn flatten_member_type<'a>(
             TSSignature::TSCallSignatureDeclaration(new_member)
         }
     }
+}
+
+///
+/// Filter the this type in member reference type
+///
+pub fn filter_member_refer_this_type<'a>(
+    ts_type: TSType<'a>,
+    allocator: &'a Allocator,
+) -> TSType<'a> {
+    let mut new_type = ts_type.clone_in(allocator);
+    if let TSType::TSTypeLiteral(ttl) = ts_type {
+        let mut new_type_literal = ttl.clone_in(allocator);
+        let mut new_members = AstVec::new_in(allocator);
+
+        for member in ttl.members.iter() {
+            if !utils::has_this_type_param(member) {
+                new_members.push(member.clone_in(allocator));
+            }
+        }
+
+        new_type_literal.members = new_members;
+        new_type = TSType::TSTypeLiteral(new_type_literal)
+    }
+
+    new_type
 }

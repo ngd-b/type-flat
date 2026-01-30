@@ -137,7 +137,6 @@ pub fn flatten_super_class<'a>(
                         allocator,
                         result_program,
                         env_keys.clone_in(allocator),
-                        false,
                     )
                 } else {
                     decl.decl.type_decl(allocator)
@@ -189,7 +188,6 @@ pub fn flatten_class_elements_type<'a>(
                 allocator,
                 result_program,
                 env,
-                false,
             );
 
             Some(ClassElement::TSIndexSignature(new_element))
@@ -214,7 +212,6 @@ pub fn flatten_class_elements_type<'a>(
                     allocator,
                     result_program,
                     env,
-                    false,
                 );
 
                 new_element.type_annotation = Some(new_type);

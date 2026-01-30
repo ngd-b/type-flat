@@ -118,7 +118,6 @@ impl<'a> Keyword<'a> {
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                false,
             ));
         }
 
@@ -172,7 +171,6 @@ impl<'a> Keyword<'a> {
                         allocator,
                         result_program,
                         env.clone_in(allocator),
-                        false,
                     );
 
                     let key_type = type_alias::flatten_ts_type(
@@ -181,7 +179,6 @@ impl<'a> Keyword<'a> {
                         allocator,
                         result_program,
                         env.clone_in(allocator),
-                        false,
                     );
                     match key_type {
                         TSType::TSLiteralType(tlt) => {
@@ -296,7 +293,6 @@ impl<'a> Keyword<'a> {
                         allocator,
                         result_program,
                         env,
-                        false,
                     ));
                 }
             }
@@ -313,16 +309,34 @@ impl<'a> Keyword<'a> {
 /// #[instrument(skip(ts_type, semantic, env, allocator, result_program))]
 pub fn get_type_members<'a>(
     ts_type: &'a TSType<'a>,
-    _semantic: &Semantic<'a>,
+    semantic: &Semantic<'a>,
     allocator: &'a Allocator,
-    _result_program: &ResultProgram<'a>,
-    _env: AstVec<'a, &'a str>,
+    result_program: &ResultProgram<'a>,
+    env: AstVec<'a, &'a str>,
 ) -> AstVec<'a, TSSignature<'a>> {
     // let ts_type = type_alias::flatten_ts_type(ts_type, semantic, allocator, result_program, env);
 
     let members = AstVec::new_in(allocator);
 
     match ts_type {
+        TSType::TSTypeReference(ttr) => {
+            //
+            let flat_type = type_alias::flatten_ts_reference_type(
+                ttr,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+                false,
+            );
+            return get_type_members(
+                allocator.alloc(flat_type),
+                semantic,
+                allocator,
+                result_program,
+                env,
+            );
+        }
         TSType::TSTypeLiteral(ttl) => return ttl.members.clone_in(allocator),
         _ => {}
     }
@@ -431,14 +445,24 @@ pub fn flatten_pick_omit<'a>(
 
     // reference type name
     let refer_type = if let Some(ts_type) = params.get(0) {
-        type_alias::flatten_ts_type(
-            allocator.alloc(ts_type.clone_in(allocator)),
-            semantic,
-            allocator,
-            result_program,
-            env,
-            false,
-        )
+        match ts_type {
+            TSType::TSTypeReference(ttr) => type_alias::flatten_ts_reference_type(
+                ttr,
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+                false,
+            ),
+
+            _ => type_alias::flatten_ts_type(
+                allocator.alloc(ts_type.clone_in(allocator)),
+                semantic,
+                allocator,
+                result_program,
+                env.clone_in(allocator),
+            ),
+        }
     } else {
         return new_type;
     };
@@ -446,8 +470,15 @@ pub fn flatten_pick_omit<'a>(
         Some(TSType::TSUnionType(ut)) => ut
             .types
             .iter()
-            .filter_map(|t| {
-                if let TSType::TSLiteralType(lit) = t {
+            .filter_map(|t: &TSType<'_>| {
+                let flat_type = type_alias::flatten_ts_type(
+                    t,
+                    semantic,
+                    allocator,
+                    result_program,
+                    env.clone_in(allocator),
+                );
+                if let TSType::TSLiteralType(lit) = flat_type {
                     if let TSLiteral::StringLiteral(s) = &lit.literal {
                         Some(s.to_string())
                     } else {
