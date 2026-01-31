@@ -24,26 +24,24 @@ impl<'a> CacheDecl<'a> {
     pub fn type_members(&self, allocator: &'a Allocator) -> TSType<'a> {
         let mut new_type = self.decl.to_type_alias(allocator);
 
-        match &self.extra_members {
+        let members = match &self.extra_members {
             DeclMember::Element(elements) => {
-                if let TSType::TSTypeLiteral(ttl) = new_type {
-                    let mut new_literal = ttl.clone_in(allocator);
-
-                    let new_members = utils::class_elements_to_type_members(elements, allocator);
-                    new_literal.members.extend(new_members);
-
-                    new_type = TSType::TSTypeLiteral(new_literal.clone_in(allocator));
-                }
+                utils::class_elements_to_type_members(elements, allocator)
             }
-            DeclMember::Member(members) => {
-                if let TSType::TSTypeLiteral(ttl) = new_type {
-                    let mut new_literal = ttl.clone_in(allocator);
 
-                    new_literal.members.extend(members.clone_in(allocator));
+            DeclMember::Member(members) => members.clone_in(allocator),
+        };
+        if let TSType::TSTypeLiteral(ttl) = new_type {
+            let mut new_literal = ttl.clone_in(allocator);
 
-                    new_type = TSType::TSTypeLiteral(new_literal.clone_in(allocator));
-                }
+            if let DeclMember::Member(members) =
+                DeclMember::Member(new_literal.members.clone_in(allocator))
+                    .merge(&DeclMember::Member(members), allocator)
+            {
+                new_literal.members = members.clone_in(allocator);
             }
+
+            new_type = TSType::TSTypeLiteral(new_literal.clone_in(allocator));
         }
 
         new_type
@@ -283,11 +281,11 @@ impl<'a> ResultProgram<'a> {
                     new_interface.type_parameters = type_params.clone_in(self.allocator);
 
                     // add extra members
-                    if let DeclMember::Member(members) = &decl.extra_members {
-                        new_interface
-                            .body
-                            .body
-                            .extend(members.clone_in(self.allocator));
+                    if let DeclMember::Member(members) =
+                        DeclMember::Member(dri.body.body.clone_in(self.allocator))
+                            .merge(&decl.extra_members, self.allocator)
+                    {
+                        new_interface.body.body = members.clone_in(self.allocator);
                     }
 
                     result.push(DeclRef::Interface(self.allocator.alloc(new_interface)));
@@ -303,11 +301,11 @@ impl<'a> ResultProgram<'a> {
                     new_class.type_parameters = type_params.clone_in(self.allocator);
 
                     // add extra members
-                    if let DeclMember::Element(elements) = &decl.extra_members {
-                        new_class
-                            .body
-                            .body
-                            .extend(elements.clone_in(self.allocator));
+                    if let DeclMember::Element(elements) =
+                        DeclMember::Element(drc.body.body.clone_in(self.allocator))
+                            .merge(&decl.extra_members, self.allocator)
+                    {
+                        new_class.body.body = elements.clone_in(self.allocator);
                     }
                     result.push(DeclRef::Class(self.allocator.alloc(new_class)));
                 }

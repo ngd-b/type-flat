@@ -110,10 +110,6 @@ pub fn flatten_extends_type<'a>(
     AstVec<'a, TSInterfaceHeritage<'a>>,
     AstVec<'a, TSSignature<'a>>,
 ) {
-    // let env_keys = generic::get_generic_keys(env, allocator);
-
-    let members = ts_type.body.body.clone_in(allocator);
-
     let mut extend_members = AstVec::new_in(allocator);
     // the extends type
     let mut extends = AstVec::new_in(allocator);
@@ -142,15 +138,7 @@ pub fn flatten_extends_type<'a>(
 
                 if let Some(ts_type) = result {
                     if let TSType::TSTypeLiteral(tl) = ts_type {
-                        for member in tl.members.iter() {
-                            if members
-                                .iter()
-                                .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                            {
-                                continue;
-                            }
-                            extend_members.push(member.clone_in(allocator));
-                        }
+                        extend_members.extend(tl.members.clone_in(allocator));
                     }
                 } else {
                     extends.push(new_extend);
@@ -197,15 +185,7 @@ pub fn flatten_extends_type<'a>(
 
                 match ts_type {
                     TSType::TSTypeLiteral(tl) => {
-                        for member in tl.members.iter() {
-                            if members
-                                .iter()
-                                .any(|mb| utils::eq_ts_signature(mb, member, allocator))
-                            {
-                                continue;
-                            }
-                            extend_members.push(member.clone_in(allocator));
-                        }
+                        extend_members.extend(tl.members.clone_in(allocator));
                     }
                     _ => {}
                 }
