@@ -11,7 +11,7 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    declare::DeclRef,
+    declare::{DeclMember, DeclRef},
     function,
     generic::{self},
     interface,
@@ -64,6 +64,7 @@ pub fn flatten_type<'a>(
         name: ts_name,
         decl: DeclRef::TypeAlias(allocator.alloc(new_type)),
         generics: env,
+        extra_members: DeclMember::new_in(allocator),
     };
     decl
 }
@@ -228,7 +229,7 @@ pub fn flatten_ts_type<'a>(
                 let reference_name = ir.name.as_str();
 
                 if let Some(decl) = result_program.get_cached(reference_name) {
-                    new_type = decl.decl.type_decl(allocator);
+                    new_type = decl.type_members(allocator);
                 }
             }
             TSTypeQueryExprName::QualifiedName(qn) => {
@@ -447,7 +448,7 @@ pub fn flatten_index_access_type<'a>(
             _ => "",
         };
         if let Some(decl) = result_program.get_cached(reference_name) {
-            decl.decl.type_decl(allocator)
+            decl.type_members(allocator)
         } else {
             object_type.clone_in(allocator)
         }
@@ -525,7 +526,7 @@ pub fn flatten_ts_query_qualified<'a>(
             let reference_name = ir.name.as_str();
 
             if let Some(decl) = result_program.get_cached(reference_name) {
-                Some(decl.decl.type_decl(allocator))
+                Some(decl.type_members(allocator))
             } else {
                 None
             }
@@ -845,7 +846,7 @@ pub fn flatten_ts_reference_type<'a>(
                     env.clone_in(allocator),
                 )
             } else {
-                decl.decl.type_decl(allocator)
+                decl.type_members(allocator)
             };
 
             new_type = ts_type

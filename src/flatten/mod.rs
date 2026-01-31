@@ -138,10 +138,6 @@ impl<'a> Flatten<'a> {
             for (name, decls) in map.into_iter() {
                 let cache_decl = declare::merge_multiple_decls(name, &decls, self.allocator);
 
-                // IT's will not flatten forever. Keep it and output it.
-                // if cache_decl.decl.type_decl(self.allocator).is_none() {
-                //     result.loop_type.insert(name.name());
-                // }
                 result.cached.insert(name, cache_decl);
             }
         }

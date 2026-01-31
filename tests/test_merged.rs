@@ -72,7 +72,7 @@ fn test_interface_extends_with_class_merge() {
         "Admin",
     );
 
-    assert!(result.contains("type Admin = { z: boolean; x: number; y: string; }"));
+    assert!(result.contains("type Admin = { z: boolean; y: string; x: number; }"));
 }
 #[test]
 fn test_nested_interface_extends_and_class_merge() {
@@ -98,9 +98,10 @@ fn test_nested_interface_extends_and_class_merge() {
         "Admin",
     );
     assert!(
-        result.contains("type Admin = { e: Date; a: string; b: number; c: boolean; d: string[]; }")
+        result.contains("type Admin = { e: Date; c: boolean; d: string[]; b: number; a: string; }")
     );
 }
+
 #[test]
 fn test_interface_multiple_extends_with_class() {
     let result = run_flat(
@@ -122,7 +123,7 @@ fn test_interface_multiple_extends_with_class() {
         "Admin",
     );
 
-    assert!(result.contains("type Admin = { extra: null; x: number; y: string; z: boolean; }"));
+    assert!(result.contains("type Admin = { extra: null; z: boolean; x: number; y: string; }"));
 }
 #[test]
 fn test_interface_extends_with_interface_merge() {
@@ -141,5 +142,5 @@ fn test_interface_extends_with_interface_merge() {
         "C",
     );
 
-    assert!(result.contains("interface C { a: string; b: number; c: boolean; }"));
+    assert!(result.contains("interface C { c: boolean; b: number; a: string; }"));
 }

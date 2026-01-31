@@ -56,11 +56,8 @@ fn test_inheritance() {
         "#,
         "Dog",
     );
-    // 应包含自身 + 父类成员
-    assert!(result.contains("breed: string"));
-    assert!(result.contains("bark(): void"));
-    assert!(result.contains("name: string")); // 来自 Animal
-    assert!(result.contains("move(): void")); // 来自 Animal
+
+    assert!(result.contains("declare class Dog { breed: string; constructor(name: string, breed: string); bark(): void; name: string; move(): void; }"));
 }
 
 #[test]

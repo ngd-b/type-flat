@@ -6,7 +6,7 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    declare::DeclRef,
+    declare::{DeclMember, DeclRef},
     function,
     generic::{self},
     result::{CacheDecl, ResultProgram},
@@ -45,14 +45,15 @@ pub fn flatten_type<'a>(
     let env_keys = generic::get_generic_keys(&env, allocator);
 
     let mut new_elements = AstVec::new_in(allocator);
-    if let Some(super_elements) = flatten_super_class(
+
+    let super_elements = if let Some(super_elements) = flatten_super_class(
         class_type,
         semantic,
         allocator,
         result_program,
         env_keys.clone_in(allocator),
     ) {
-        new_elements.extend(super_elements);
+        super_elements
     } else {
         let type_params = generic::flatten_type_parameters(
             &class_type.super_type_arguments,
@@ -62,8 +63,10 @@ pub fn flatten_type<'a>(
             env_keys.clone_in(allocator),
         );
         new_class.super_type_arguments = type_params;
-        new_class.super_class = class_type.super_class.clone_in(allocator)
-    }
+        new_class.super_class = class_type.super_class.clone_in(allocator);
+
+        AstVec::new_in(allocator)
+    };
 
     // Flatten class elements
     for element in elements.iter() {
@@ -93,6 +96,7 @@ pub fn flatten_type<'a>(
         name: class_name,
         decl: DeclRef::Class(allocator.alloc(new_class)),
         generics: env,
+        extra_members: DeclMember::Element(super_elements),
     };
     decl
 }
@@ -147,7 +151,7 @@ pub fn flatten_super_class<'a>(
                         env_keys.clone_in(allocator),
                     ))
                 } else {
-                    decl.decl.type_decl(allocator)
+                    decl.type_members(allocator)
                 };
 
                 match ts_type {

@@ -1,13 +1,14 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, HashSet, Vec as AstVec};
 use oxc_ast::ast::{
-    BindingPatternKind, Class, Program, Statement, TSInterfaceDeclaration, TSTypeAliasDeclaration,
-    TSTypeParameterDeclaration, VariableDeclaration,
+    BindingPatternKind, Class, Program, Statement, TSInterfaceDeclaration, TSType,
+    TSTypeAliasDeclaration, TSTypeParameterDeclaration, VariableDeclaration,
 };
 use tracing::info;
 
 use crate::flatten::{
-    declare::{self, DeclName, DeclRef},
+    declare::{self, DeclMember, DeclName, DeclRef},
     generic::Generic,
+    utils,
 };
 
 #[derive(Debug)]
@@ -15,9 +16,38 @@ pub struct CacheDecl<'a> {
     pub name: &'a str,
     pub decl: DeclRef<'a>,
     pub generics: HashMap<'a, &'a str, Generic<'a>>,
+    pub extra_members: DeclMember<'a>,
 }
 
 impl<'a> CacheDecl<'a> {
+    // Get the type members
+    pub fn type_members(&self, allocator: &'a Allocator) -> TSType<'a> {
+        let mut new_type = self.decl.to_type_alias(allocator);
+
+        match &self.extra_members {
+            DeclMember::Element(elements) => {
+                if let TSType::TSTypeLiteral(ttl) = new_type {
+                    let mut new_literal = ttl.clone_in(allocator);
+
+                    let new_members = utils::class_elements_to_type_members(elements, allocator);
+                    new_literal.members.extend(new_members);
+
+                    new_type = TSType::TSTypeLiteral(new_literal.clone_in(allocator));
+                }
+            }
+            DeclMember::Member(members) => {
+                if let TSType::TSTypeLiteral(ttl) = new_type {
+                    let mut new_literal = ttl.clone_in(allocator);
+
+                    new_literal.members.extend(members.clone_in(allocator));
+
+                    new_type = TSType::TSTypeLiteral(new_literal.clone_in(allocator));
+                }
+            }
+        }
+
+        new_type
+    }
     // Format generated type parameters
     pub fn format_type_params(
         generics: &'a HashMap<'a, &'a str, Generic<'a>>,
@@ -242,6 +272,7 @@ impl<'a> ResultProgram<'a> {
             .collect::<Vec<_>>();
 
         decls.sort_by_key(|(key, _)| key.level());
+
         let merge_decls = declare::merge_decls(decls, false, self.allocator);
 
         for decl in merge_decls {
@@ -250,6 +281,14 @@ impl<'a> ResultProgram<'a> {
                 DeclRef::Interface(dri) => {
                     let mut new_interface = dri.clone_in(self.allocator);
                     new_interface.type_parameters = type_params.clone_in(self.allocator);
+
+                    // add extra members
+                    if let DeclMember::Member(members) = &decl.extra_members {
+                        new_interface
+                            .body
+                            .body
+                            .extend(members.clone_in(self.allocator));
+                    }
 
                     result.push(DeclRef::Interface(self.allocator.alloc(new_interface)));
                 }
@@ -263,6 +302,13 @@ impl<'a> ResultProgram<'a> {
                     let mut new_class = drc.clone_in(self.allocator);
                     new_class.type_parameters = type_params.clone_in(self.allocator);
 
+                    // add extra members
+                    if let DeclMember::Element(elements) = &decl.extra_members {
+                        new_class
+                            .body
+                            .body
+                            .extend(elements.clone_in(self.allocator));
+                    }
                     result.push(DeclRef::Class(self.allocator.alloc(new_class)));
                 }
                 DeclRef::Function(drf) => {

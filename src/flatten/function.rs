@@ -4,7 +4,7 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    declare::DeclRef,
+    declare::{DeclMember, DeclRef},
     generic,
     result::{CacheDecl, ResultProgram},
     type_alias,
@@ -73,6 +73,7 @@ pub fn flatten_type<'a>(
         name: fun_name,
         decl: DeclRef::Function(allocator.alloc(new_fun)),
         generics: env,
+        extra_members: DeclMember::new_in(allocator),
     };
     decl
 }

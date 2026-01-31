@@ -1,6 +1,5 @@
 use std::cell::Cell;
 
-use anyhow::{Result, bail};
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, IntoIn, Vec as AstVec};
 use oxc_ast::{
     AstKind,
@@ -15,7 +14,7 @@ use oxc_ast::{
 use oxc_semantic::Semantic;
 use tracing::info;
 
-use crate::flatten::{declare::DeclRef, interface, result::ResultProgram};
+use crate::flatten::{declare::DeclRef, result::ResultProgram};
 
 ///
 ///
@@ -77,115 +76,9 @@ pub fn get_type<'a>(
         }
     }
 
-    info!("Get type alias decls len {}", decls.len());
-    decls.sort_by_key(|decl| decl.level());
+    info!("Get type delcare of decls len {}", decls.len());
+
     decls
-}
-
-///
-/// Merge type to class declare
-///
-/// #[instrument(skip(decls, semantic, env, allocator, result_program),fields(len=decls.len()))]
-pub fn _merge_type_to_class<'a>(
-    decls: &'a [DeclRef<'a>],
-    semantic: &Semantic<'a>,
-    allocator: &'a Allocator,
-    result_program: &ResultProgram<'a>,
-) -> Result<DeclRef<'a>> {
-    // If the merged tyep is class
-    let mut is_class_decl = false;
-    let decl = if let Some(decl) = decls.iter().find(|decl| match decl {
-        DeclRef::Class(_) => true,
-        _ => false,
-    }) {
-        is_class_decl = true;
-        decl
-    } else {
-        decls.last().unwrap()
-    };
-
-    let mut members: AstVec<'_, TSSignature<'a>> = AstVec::new_in(allocator);
-
-    let take_len = if is_class_decl {
-        decls.len()
-    } else {
-        decls.len() - 1
-    };
-    for decl in decls.iter().take(take_len) {
-        match decl {
-            DeclRef::Interface(rif) => {
-                let decl = interface::flatten_type(rif, semantic, allocator, result_program);
-
-                if let DeclRef::Interface(rif) = decl.decl {
-                    let mut new_members = AstVec::new_in(allocator);
-                    for member in rif.body.body.iter() {
-                        if members
-                            .iter()
-                            .any(|tsig| eq_ts_signature(tsig, member, allocator))
-                        {
-                            continue;
-                        }
-
-                        new_members.push(member.clone_in(allocator));
-                    }
-
-                    members.extend(new_members);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    info!("Merge multi type with member len {}", members.len());
-    match decl {
-        DeclRef::Interface(tid) => {
-            let mut new_type = tid.clone_in(allocator);
-
-            let mut new_members = AstVec::new_in(allocator);
-
-            for member in members.iter() {
-                if tid
-                    .body
-                    .body
-                    .iter()
-                    .any(|mb| eq_ts_signature(mb, member, allocator))
-                {
-                    continue;
-                }
-                new_members.push(member.clone_in(allocator));
-            }
-
-            new_type.body.body.extend(new_members);
-            Ok(DeclRef::Interface(allocator.alloc(new_type)))
-        }
-        DeclRef::Class(tcd) => {
-            let mut new_type = tcd.clone_in(allocator);
-
-            // transform type members
-            let elements = type_members_to_class_elements(&members, allocator);
-
-            let mut new_members = AstVec::new_in(allocator);
-
-            for member in elements.iter() {
-                if new_type
-                    .body
-                    .body
-                    .iter()
-                    .any(|mb| eq_class_element(mb, member, allocator))
-                {
-                    continue;
-                }
-                new_members.push(member.clone_in(allocator));
-            }
-
-            new_type.body.body.extend(new_members);
-
-            Ok(DeclRef::Class(allocator.alloc(new_type)))
-        }
-        _ => {
-            bail!("👻 Is Not Valid type to merge")
-        }
-    }
 }
 
 ///

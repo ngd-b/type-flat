@@ -43,5 +43,5 @@ fn test_multiple_extends_type() {
     );
 
     assert!(result.contains("interface C { c: string; }"));
-    assert!(result.contains("interface A { c: string; b: string; a: string; }"));
+    assert!(result.contains("interface A { a: string; b: string; c: string; }"));
 }

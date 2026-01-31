@@ -13,7 +13,7 @@ fn test_nested_generic_optional() {
         "UserResponse",
     );
     assert!(result.contains(
-        "interface UserResponse { data?: { id: number; name?: string; }; status: string; }"
+        "interface UserResponse { status: string; data?: { id: number; name?: string; }; }"
     ));
 }
 

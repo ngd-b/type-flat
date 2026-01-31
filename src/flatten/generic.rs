@@ -107,7 +107,7 @@ pub fn merge_type_with_generic<'a>(
     if child_type.generics.is_empty() {
         return None;
     }
-    let ts_type = child_type.decl.type_decl(allocator);
+    let ts_type = child_type.type_members(allocator);
     // if ts_type.is_none() {
     //     return None;
     // }

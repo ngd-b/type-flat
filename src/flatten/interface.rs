@@ -7,7 +7,7 @@ use oxc_semantic::Semantic;
 use tracing::info;
 
 use crate::flatten::{
-    declare::{DeclName, DeclRef},
+    declare::{DeclMember, DeclRef},
     function,
     generic::{self},
     keyword::Keyword,
@@ -59,25 +59,7 @@ pub fn flatten_type<'a>(
         result_program,
         env_keys.clone_in(allocator),
     );
-    // If exist the same of class delclare.
-    if let Some(cache_decl) = result_program.cached.get(&DeclName::Class(ts_name)) {
-        if let DeclRef::Class(drc) = cache_decl.decl {
-            let class_members = utils::class_elements_to_type_members(&drc.body.body, allocator);
 
-            for element in extends_members {
-                if class_members
-                    .iter()
-                    .any(|el| utils::eq_ts_signature(el, &element, allocator))
-                {
-                    continue;
-                }
-
-                new_members.push(element);
-            }
-        }
-    } else {
-        new_members.extend(extends_members);
-    }
     // self members
     for member in ts_type.body.body.iter() {
         // the key is normal property
@@ -99,15 +81,17 @@ pub fn flatten_type<'a>(
     new_type.body.body = new_members;
 
     info!(
-        "Flatten interface type {}, Success!, The inteface body members len {}",
+        "Flatten interface type {}, Success!, The inteface body members len {}. The extends members len {} ",
         ts_name,
-        new_type.body.body.len()
+        new_type.body.body.len(),
+        extends_members.len()
     );
 
     let decl = CacheDecl {
         name: ts_name,
         decl: DeclRef::Interface(allocator.alloc(new_type)),
         generics: env,
+        extra_members: DeclMember::Member(extends_members),
     };
 
     decl
@@ -208,7 +192,7 @@ pub fn flatten_extends_type<'a>(
                         env_keys.clone_in(allocator),
                     ))
                 } else {
-                    decl.decl.type_decl(allocator)
+                    decl.type_members(allocator)
                 };
 
                 match ts_type {

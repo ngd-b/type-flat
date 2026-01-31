@@ -1,7 +1,7 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, Function, TSFunctionType, TSInterfaceDeclaration, TSType, TSTypeAliasDeclaration,
-    TSTypeAnnotation, TSTypeLiteral, TSVoidKeyword, VariableDeclaration,
+    Class, ClassElement, Function, TSFunctionType, TSInterfaceDeclaration, TSSignature, TSType,
+    TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSVoidKeyword, VariableDeclaration,
 };
 use oxc_semantic::Semantic;
 use tracing::info;
@@ -29,20 +29,26 @@ pub enum DeclName<'a> {
     Variable(&'a str),
 }
 
+#[derive(Debug)]
+pub enum DeclMember<'a> {
+    Member(AstVec<'a, TSSignature<'a>>),
+    Element(AstVec<'a, ClassElement<'a>>),
+}
+
 impl<'a> DeclRef<'a> {
-    pub fn level(&self) -> usize {
+    pub fn _level(&self) -> usize {
         match self {
-            DeclRef::Interface(_) => 3,
-            DeclRef::TypeAlias(_) => 1,
-            DeclRef::Class(_) => 4,
-            DeclRef::Function(_) => 2,
+            DeclRef::Interface(_) => 4,
+            DeclRef::TypeAlias(_) => 3,
+            DeclRef::Class(_) => 2,
+            DeclRef::Function(_) => 1,
             DeclRef::Variable(_) => 0,
         }
     }
     ///
     /// Get type alias declaration TSType
     ///
-    pub fn type_decl(&self, allocator: &'a Allocator) -> TSType<'a> {
+    pub fn to_type_alias(&self, allocator: &'a Allocator) -> TSType<'a> {
         let mut new_type = TSTypeLiteral {
             span: Default::default(),
             members: AstVec::new_in(allocator),
@@ -51,25 +57,12 @@ impl<'a> DeclRef<'a> {
         match self {
             DeclRef::TypeAlias(decl) => return decl.type_annotation.clone_in(allocator),
             DeclRef::Interface(decl) => {
-                // if !decl.extends.is_empty() {
-                //     return None;
-                // }
                 new_type.members.extend(decl.body.body.clone_in(allocator));
-
-                // return TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator));
             }
             DeclRef::Class(drc) => {
-                // if drc.super_class.is_some() {
-                //     return None;
-                // }
                 let new_members = utils::class_elements_to_type_members(&drc.body.body, allocator);
 
-                // if new_members.is_empty() {
-                //     return None;
-                // }
                 new_type.members.extend(new_members);
-
-                // return TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator));
             }
             DeclRef::Function(drf) => {
                 let return_type = if let Some(return_type) = &drf.return_type {
@@ -245,6 +238,71 @@ impl<'a> DeclName<'a> {
     }
 }
 
+impl<'a> DeclMember<'a> {
+    pub fn merge(&self, merged: &'a DeclMember<'a>, allocator: &'a Allocator) -> DeclMember<'a> {
+        match self {
+            DeclMember::Member(dm) => {
+                let mut new_members = dm.clone_in(allocator);
+
+                let members = match merged {
+                    DeclMember::Member(merged_dm) => merged_dm.clone_in(allocator),
+                    DeclMember::Element(merged_de) => {
+                        utils::class_elements_to_type_members(merged_de, allocator)
+                    }
+                };
+
+                let mut extra_members = AstVec::new_in(allocator);
+                for member in members.iter() {
+                    if new_members
+                        .iter()
+                        .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+                    {
+                        continue;
+                    }
+                    extra_members.push(member.clone_in(allocator));
+                }
+
+                new_members.extend(extra_members);
+
+                DeclMember::Member(new_members)
+            }
+            DeclMember::Element(de) => {
+                let mut new_elements = de.clone_in(allocator);
+
+                let elements = match merged {
+                    DeclMember::Member(merged_dm) => {
+                        utils::type_members_to_class_elements(merged_dm, allocator)
+                    }
+                    DeclMember::Element(merged_de) => merged_de.clone_in(allocator),
+                };
+
+                let mut extra_elements = AstVec::new_in(allocator);
+                for element in elements.iter() {
+                    if new_elements
+                        .iter()
+                        .any(|ce| utils::eq_class_element(ce, element, allocator))
+                    {
+                        continue;
+                    }
+                    extra_elements.push(element.clone_in(allocator));
+                }
+
+                new_elements.extend(extra_elements);
+
+                DeclMember::Element(new_elements)
+            }
+        }
+    }
+    pub fn new_in(allocator: &'a Allocator) -> Self {
+        Self::Member(AstVec::new_in(allocator))
+    }
+    pub fn clone_in(&self, allocator: &'a Allocator) -> Self {
+        match self {
+            DeclMember::Element(elements) => DeclMember::Element(elements.clone_in(allocator)),
+            DeclMember::Member(ts_type) => DeclMember::Member(ts_type.clone_in(allocator)),
+        }
+    }
+}
 /**
  * Merge the multiple type alias. Some same type or some not.
  *
@@ -310,6 +368,7 @@ pub fn merge_decls<'a>(
         name: target_decl.name,
         decl: target_decl.decl,
         generics: new_generics,
+        extra_members: target_decl.extra_members.clone_in(allocator),
     };
     for decl in merge_decls.iter() {
         if has_class && let DeclRef::Class(_) = decl.decl {
@@ -330,6 +389,9 @@ pub fn merge_decls<'a>(
         }
         if let Some(new_decl) = cache_decl.decl.merge_decl(&decl.decl, allocator) {
             cache_decl.decl = new_decl;
+            cache_decl.extra_members = cache_decl
+                .extra_members
+                .merge(&decl.extra_members, allocator);
         } else {
             result.push(*decl)
         }
@@ -352,26 +414,37 @@ pub fn merge_multiple_decls<'a>(
 ) -> CacheDecl<'a> {
     let mut new_generics = HashMap::new_in(allocator);
 
-    for (&key, &value) in decls[0].generics.iter() {
+    for (&key, value) in decls[0].generics.iter() {
         new_generics.insert(key, value.clone());
     }
 
     let mut new_decl = CacheDecl {
         name: decls[0].name,
-        decl: decls[0].decl,
+        decl: decls[0].decl.clone(),
         generics: new_generics,
+        extra_members: decls[0].extra_members.clone_in(allocator),
     };
 
     match name {
         DeclName::Interface(_) => {
-            for decl in &decls[1..] {
-                if let Some(decl) = new_decl.decl.merge_decl(&decl.decl, allocator) {
+            let mut extra_members = DeclMember::new_in(allocator);
+
+            for cache_decl in decls[1..].iter() {
+                if let Some(decl) = new_decl.decl.merge_decl(&cache_decl.decl, allocator) {
                     new_decl.decl = decl;
+                    extra_members = extra_members.merge(
+                        allocator.alloc(cache_decl.extra_members.clone_in(allocator)),
+                        allocator,
+                    );
                 }
             }
 
-            return new_decl;
+            new_decl.extra_members = new_decl
+                .extra_members
+                .merge(allocator.alloc(extra_members), allocator);
         }
-        _ => new_decl,
+        _ => {}
     }
+
+    new_decl
 }
