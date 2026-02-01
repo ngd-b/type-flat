@@ -20,6 +20,19 @@ pub struct CacheDecl<'a> {
 }
 
 impl<'a> CacheDecl<'a> {
+    pub fn clone_in(&self, allocator: &'a Allocator) -> Self {
+        let mut new_generics = HashMap::new_in(allocator);
+        for (&key, &value) in self.generics.iter() {
+            new_generics.insert(key, value.clone());
+        }
+        CacheDecl {
+            name: self.name,
+            decl: self.decl,
+            generics: new_generics,
+            extra_members: self.extra_members.clone_in(allocator),
+        }
+    }
+
     // Get the type members
     pub fn type_members(&self, allocator: &'a Allocator) -> TSType<'a> {
         let mut new_type = self.decl.to_type_alias(allocator);

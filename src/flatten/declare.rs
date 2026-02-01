@@ -1,4 +1,4 @@
-use oxc_allocator::{Allocator, Box as AstBox, CloneIn, HashMap, Vec as AstVec};
+use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
     Class, ClassElement, Function, TSFunctionType, TSInterfaceDeclaration, TSSignature, TSType,
     TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSVoidKeyword, VariableDeclaration,
@@ -239,6 +239,31 @@ impl<'a> DeclName<'a> {
 }
 
 impl<'a> DeclMember<'a> {
+    pub fn filter_by(
+        &self,
+        filter: &'a AstVec<'a, TSSignature<'a>>,
+        allocator: &'a Allocator,
+    ) -> DeclMember<'a> {
+        let members = match self {
+            DeclMember::Member(members) => members.clone_in(allocator),
+            DeclMember::Element(elements) => {
+                utils::class_elements_to_type_members(elements, allocator)
+            }
+        };
+
+        let mut new_members = AstVec::new_in(allocator);
+
+        for member in members.iter() {
+            if !filter
+                .iter()
+                .any(|mb| utils::eq_ts_signature(mb, member, allocator))
+            {
+                new_members.push(member.clone_in(allocator));
+            }
+        }
+
+        DeclMember::Member(new_members)
+    }
     pub fn merge(&self, merged: &'a DeclMember<'a>, allocator: &'a Allocator) -> DeclMember<'a> {
         match self {
             DeclMember::Member(dm) => {
@@ -318,6 +343,7 @@ pub fn merge_decls<'a>(
     let mut has_interface = false;
     let mut has_function = false;
 
+    let mut members = AstVec::new_in(allocator);
     for (name, decl) in decls.iter() {
         info!(
             "The type declare 【{}】of name is【{}】.",
@@ -326,14 +352,21 @@ pub fn merge_decls<'a>(
         );
         merge_decls.push(decl);
         match name {
-            DeclName::Class(_) => has_class = true,
-            DeclName::Interface(_) => has_interface = true,
+            DeclName::Class(_) => {
+                has_class = true;
+            }
+            DeclName::Interface(_) => {
+                has_interface = true;
+            }
             DeclName::Function(_) => has_function = true,
             _ => {}
         }
-    }
-    if !diff_merge {
-        return merge_decls;
+
+        if has_class || has_interface {
+            if let TSType::TSTypeLiteral(ttl) = decl.decl.to_type_alias(allocator) {
+                members.extend(ttl.members.clone_in(allocator));
+            }
+        }
     }
 
     let target_decl = if let Some((_, decl)) = decls.iter().find(|(name, _)| {
@@ -353,23 +386,34 @@ pub fn merge_decls<'a>(
         merge_decls[0]
     };
 
+    if !diff_merge {
+        let mut result: AstVec<'_, &CacheDecl<'_>> = AstVec::new_in(allocator);
+
+        return if has_class && has_interface {
+            for &decl in merge_decls.iter() {
+                let mut new_decl = decl.clone_in(allocator);
+
+                new_decl.extra_members = decl
+                    .extra_members
+                    .filter_by(allocator.alloc(members.clone_in(allocator)), allocator);
+
+                result.push(allocator.alloc(new_decl.clone_in(allocator)));
+            }
+
+            result
+        } else {
+            merge_decls
+        };
+    }
+
     let mut result = AstVec::new_in(allocator);
 
     if merge_decls.len() == 1 {
         result.push(target_decl);
         return result;
     }
-    let mut new_generics = HashMap::new_in(allocator);
-    for (&key, &value) in target_decl.generics.iter() {
-        new_generics.insert(key, value.clone());
-    }
 
-    let mut cache_decl = CacheDecl {
-        name: target_decl.name,
-        decl: target_decl.decl,
-        generics: new_generics,
-        extra_members: target_decl.extra_members.clone_in(allocator),
-    };
+    let mut cache_decl = target_decl.clone_in(allocator);
     for decl in merge_decls.iter() {
         if has_class && let DeclRef::Class(_) = decl.decl {
             continue;
@@ -412,18 +456,7 @@ pub fn merge_multiple_decls<'a>(
     decls: &AstVec<'a, CacheDecl<'a>>,
     allocator: &'a Allocator,
 ) -> CacheDecl<'a> {
-    let mut new_generics = HashMap::new_in(allocator);
-
-    for (&key, value) in decls[0].generics.iter() {
-        new_generics.insert(key, value.clone());
-    }
-
-    let mut new_decl = CacheDecl {
-        name: decls[0].name,
-        decl: decls[0].decl.clone(),
-        generics: new_generics,
-        extra_members: decls[0].extra_members.clone_in(allocator),
-    };
+    let mut new_decl = decls[0].clone_in(allocator);
 
     match name {
         DeclName::Interface(_) => {
