@@ -175,7 +175,6 @@ fn test_pick_reference_type() {
     assert!(!result.contains("type User = { id: number; children: User[]; }"));
 }
 
-// 测试关键字嵌套
 #[test]
 fn test_keyword_nesting() {
     let result = run_flat(
@@ -190,4 +189,23 @@ fn test_keyword_nesting() {
     );
 
     assert!(result.contains("type PickUser = { id?: number; }"));
+}
+
+// // 测试interface 继承嵌套关键字
+#[test]
+fn test_interface_extends_keyword_nested() {
+    let result = run_flat(
+        r#"
+        interface User {
+            id: number;
+            children: User[];
+        }
+        interface User2 extends Partial<Pick<User, 'id'>> {
+            name: string;
+        }
+        "#,
+        "User2",
+    );
+
+    assert!(result.contains("interface User2 = { name: string; id?: number; }"));
 }

@@ -123,7 +123,7 @@ pub fn flatten_extends_type<'a>(
             let new_reference_type = TSTypeReference {
                 span: extend.span.clone_in(allocator),
                 type_name: TSTypeName::IdentifierReference(ei.clone_in(allocator)),
-                type_arguments: None,
+                type_arguments: extend.type_arguments.clone_in(allocator),
             };
             // Keyword type flatten
             if let Some(keyword) =
@@ -155,7 +155,6 @@ pub fn flatten_extends_type<'a>(
                 env_keys.clone_in(allocator),
             );
             new_extend.type_arguments = type_params.clone_in(allocator);
-
             if let Some(decl) = result_program.get_cached(reference_name) {
                 let result = generic::merge_type_with_generic(
                     allocator.alloc(type_params.clone_in(allocator)),

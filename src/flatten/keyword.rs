@@ -112,13 +112,24 @@ impl<'a> Keyword<'a> {
         let mut ts_types = AstVec::new_in(allocator);
 
         for ts_type in vec.iter() {
-            ts_types.push(type_alias::flatten_ts_type(
+            let flat_type = type_alias::flatten_ts_reference_type(
                 ts_type,
                 semantic,
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-            ));
+                false,
+            )
+            .unwrap_or_else(|| {
+                type_alias::flatten_ts_type(
+                    allocator.alloc(ts_type.clone_in(allocator)),
+                    semantic,
+                    allocator,
+                    result_program,
+                    env.clone_in(allocator),
+                )
+            });
+            ts_types.push(flat_type);
         }
 
         // Self is keyword
@@ -443,16 +454,15 @@ pub fn flatten_pick_omit<'a>(
 
     // reference type name
     let refer_type = if let Some(ts_type) = params.get(0) {
-        if let Some(flat_type) = type_alias::flatten_ts_reference_type(
+        type_alias::flatten_ts_reference_type(
             ts_type,
             semantic,
             allocator,
             result_program,
             env.clone_in(allocator),
             false,
-        ) {
-            flat_type
-        } else {
+        )
+        .unwrap_or_else(|| {
             type_alias::flatten_ts_type(
                 allocator.alloc(ts_type.clone_in(allocator)),
                 semantic,
@@ -460,41 +470,22 @@ pub fn flatten_pick_omit<'a>(
                 result_program,
                 env.clone_in(allocator),
             )
-        }
+        })
     } else {
         return new_type;
     };
-    let keys: Vec<String> = match params.get(1) {
-        Some(TSType::TSUnionType(ut)) => ut
-            .types
-            .iter()
-            .filter_map(|t: &TSType<'_>| {
-                let flat_type = type_alias::flatten_ts_type(
-                    t,
-                    semantic,
-                    allocator,
-                    result_program,
-                    env.clone_in(allocator),
-                );
-                if let TSType::TSLiteralType(lit) = flat_type {
-                    if let TSLiteral::StringLiteral(s) = &lit.literal {
-                        Some(s.to_string())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect(),
-        Some(TSType::TSLiteralType(lt)) => {
-            if let TSLiteral::StringLiteral(sl) = &lt.literal {
-                vec![sl.to_string()]
-            } else {
-                vec![]
-            }
-        }
-        _ => vec![],
+
+    let mut keys = vec![];
+
+    if let Some(ts_type) = params.get(1) {
+        get_literal_keys(
+            ts_type,
+            &mut keys,
+            semantic,
+            allocator,
+            result_program,
+            env.clone_in(allocator),
+        );
     };
 
     let mut members = AstVec::new_in(allocator);
@@ -528,4 +519,51 @@ pub fn flatten_pick_omit<'a>(
     new_type.members = members;
 
     new_type
+}
+
+pub fn get_literal_keys<'a>(
+    ts_type: &'a TSType<'a>,
+    arr: &mut Vec<String>,
+    semantic: &Semantic<'a>,
+    allocator: &'a Allocator,
+    result_program: &ResultProgram<'a>,
+    env: AstVec<'a, &'a str>,
+) {
+    match ts_type {
+        TSType::TSLiteralType(lt) => {
+            if let TSLiteral::StringLiteral(sl) = &lt.literal {
+                arr.push(sl.to_string());
+            }
+        }
+        TSType::TSUnionType(tut) => {
+            for t in tut.types.iter() {
+                let flat_type = type_alias::flatten_ts_reference_type(
+                    t,
+                    semantic,
+                    allocator,
+                    result_program,
+                    env.clone_in(allocator),
+                    false,
+                )
+                .unwrap_or_else(|| {
+                    type_alias::flatten_ts_type(
+                        t,
+                        semantic,
+                        allocator,
+                        result_program,
+                        env.clone_in(allocator),
+                    )
+                });
+                get_literal_keys(
+                    allocator.alloc(flat_type),
+                    arr,
+                    semantic,
+                    allocator,
+                    result_program,
+                    env.clone_in(allocator),
+                );
+            }
+        }
+        _ => {}
+    }
 }
