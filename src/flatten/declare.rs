@@ -1,7 +1,8 @@
 use oxc_allocator::{Allocator, Box as AstBox, CloneIn, Vec as AstVec};
 use oxc_ast::ast::{
-    Class, ClassElement, Function, TSFunctionType, TSInterfaceDeclaration, TSSignature, TSType,
-    TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral, TSVoidKeyword, VariableDeclaration,
+    Class, ClassElement, Expression, Function, TSFunctionType, TSInterfaceDeclaration, TSLiteral,
+    TSLiteralType, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeAnnotation, TSTypeLiteral,
+    TSVoidKeyword, VariableDeclaration,
 };
 use oxc_semantic::Semantic;
 use tracing::info;
@@ -92,7 +93,37 @@ impl<'a> DeclRef<'a> {
 
                 return TSType::TSFunctionType(AstBox::new_in(new_fn_type, allocator));
             }
-            _ => {}
+            DeclRef::Variable(var) => {
+                // If the variable has type annotation, use it
+                if let Some(ts_type) = &var.declarations[0].id.type_annotation {
+                    return ts_type.type_annotation.clone_in(allocator);
+                }
+                if let Some(init_val) = &var.declarations[0].init {
+                    let mut new_literal = None;
+                    match init_val {
+                        Expression::BooleanLiteral(bl) => {
+                            new_literal = Some(TSLiteral::BooleanLiteral(bl.clone_in(allocator)))
+                        }
+                        Expression::StringLiteral(sl) => {
+                            new_literal = Some(TSLiteral::StringLiteral(sl.clone_in(allocator)))
+                        }
+                        Expression::NumericLiteral(nl) => {
+                            new_literal = Some(TSLiteral::NumericLiteral(nl.clone_in(allocator)))
+                        }
+                        _ => {}
+                    }
+
+                    if let Some(literal) = new_literal {
+                        return TSType::TSLiteralType(AstBox::new_in(
+                            TSLiteralType {
+                                span: Default::default(),
+                                literal: literal,
+                            },
+                            allocator,
+                        ));
+                    }
+                }
+            }
         };
 
         TSType::TSTypeLiteral(AstBox::new_in(new_type, allocator))
@@ -103,59 +134,29 @@ impl<'a> DeclRef<'a> {
         semantic: &Semantic<'a>,
         allocator: &'a Allocator,
         result_program: &mut ResultProgram<'a>,
-    ) -> Option<(DeclName<'a>, CacheDecl<'a>)> {
+    ) -> (DeclName<'a>, CacheDecl<'a>) {
         match self {
             DeclRef::Interface(tid) => {
                 let decl = interface::flatten_type(tid, semantic, allocator, result_program);
-                Some((DeclName::Interface(decl.name), decl))
-
-                // let decls = result_program
-                //     .cached
-                //     .entry(DeclName::Interface(decl.name))
-                //     .or_insert_with(|| AstVec::new_in(allocator));
-
-                // decls.push(decl.into_in(allocator));
+                (DeclName::Interface(decl.name), decl)
             }
             DeclRef::TypeAlias(tad) => {
                 let decl = type_alias::flatten_type(tad, semantic, allocator, result_program);
-                Some((DeclName::TypeAlias(decl.name), decl))
-
-                // let name: &str = decl.name;
-                // let mut decls = AstVec::new_in(allocator);
-                // decls.push(decl);
-
-                // result_program
-                //     .cached
-                //     .insert(DeclName::TypeAlias(name), decls);
+                (DeclName::TypeAlias(decl.name), decl)
             }
             DeclRef::Class(tcd) => {
                 let decl = class::flatten_type(tcd, semantic, allocator, result_program);
-                Some((DeclName::Class(decl.name), decl))
-
-                // let name: &str = decl.name;
-                // let mut decls = AstVec::new_in(allocator);
-                // decls.push(decl);
-
-                // result_program.cached.insert(DeclName::Class(name), decls);
+                (DeclName::Class(decl.name), decl)
             }
             DeclRef::Variable(drv) => {
                 let decl = variable::flatten_type(drv, semantic, allocator, result_program);
 
-                let decl = DeclRef::Variable(allocator.alloc(decl));
-
-                result_program.push(decl);
-                None
+                // Match the targe type. It's will only include one variable
+                return (DeclName::Variable(decl.name), decl);
             }
             DeclRef::Function(drf) => {
                 let decl = function::flatten_type(drf, semantic, allocator, result_program);
-                Some((DeclName::Function(decl.name), decl))
-
-                // let decls = result_program
-                //     .cached
-                //     .entry(DeclName::Function(decl.name))
-                //     .or_insert_with(|| AstVec::new_in(allocator));
-
-                // decls.push(decl);
+                (DeclName::Function(decl.name), decl)
             }
         }
     }

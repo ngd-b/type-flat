@@ -1,8 +1,12 @@
-use oxc_allocator::{Allocator, CloneIn, Vec as AstVec};
+use oxc_allocator::{Allocator, CloneIn, HashMap, Vec as AstVec};
 use oxc_ast::ast::VariableDeclaration;
 use oxc_semantic::Semantic;
 
-use crate::flatten::{result::ResultProgram, type_alias};
+use crate::flatten::{
+    declare::{DeclMember, DeclRef},
+    result::{CacheDecl, ResultProgram},
+    type_alias,
+};
 
 ///
 /// Flatten the class type
@@ -13,7 +17,7 @@ pub fn flatten_type<'a>(
     semantic: &Semantic<'a>,
     allocator: &'a Allocator,
     result_program: &ResultProgram<'a>,
-) -> VariableDeclaration<'a> {
+) -> CacheDecl<'a> {
     let mut decls = AstVec::new_in(allocator);
 
     let empty_env: AstVec<'a, &'a str> = AstVec::new_in(allocator);
@@ -40,7 +44,15 @@ pub fn flatten_type<'a>(
 
     let mut new_var = var_const.clone_in(allocator);
 
+    let var_name = decls[0].id.get_identifier_name().unwrap().as_str();
     new_var.declarations = decls;
 
-    new_var
+    let decl = CacheDecl {
+        name: var_name,
+        decl: DeclRef::Variable(allocator.alloc(new_var)),
+        generics: HashMap::new_in(allocator),
+        extra_members: DeclMember::new_in(allocator),
+    };
+
+    decl
 }

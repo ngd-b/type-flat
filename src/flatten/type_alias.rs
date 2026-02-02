@@ -201,13 +201,23 @@ pub fn flatten_ts_type<'a>(
             _ => {}
         },
         TSType::TSIndexedAccessType(idt) => {
-            let object_type = flatten_ts_type(
+            let object_type = flatten_ts_reference_type(
                 &idt.object_type,
                 semantic,
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-            );
+                false,
+            )
+            .unwrap_or_else(|| {
+                flatten_ts_type(
+                    &idt.object_type,
+                    semantic,
+                    allocator,
+                    result_program,
+                    env.clone_in(allocator),
+                )
+            });
             let index_type = flatten_ts_type(
                 &idt.index_type,
                 semantic,
@@ -440,43 +450,88 @@ pub fn flatten_index_access_type<'a>(
         },
         allocator,
     ));
-    // Maybe it is a reference loop type.
-    let object_type = if let TSType::TSTypeReference(ttr) = object_type {
-        // Not flatten. maybe is loop self type
-        let reference_name = match &ttr.type_name {
-            TSTypeName::IdentifierReference(ir) => ir.name.as_str(),
-            _ => "",
-        };
-        if let Some(decl) = result_program.get_cached(reference_name) {
-            decl.type_members(allocator)
-        } else {
-            object_type.clone_in(allocator)
-        }
-    } else {
-        object_type.clone_in(allocator)
-    };
+
     match index_type {
-        TSType::TSLiteralType(tlt) => {
-            if let TSLiteral::StringLiteral(sl) = &tlt.literal {
-                let result = utils::get_field_type(
-                    sl.value.as_str(),
-                    allocator.alloc(object_type.clone_in(allocator)),
+        TSType::TSNumberKeyword(_tnk) => match object_type {
+            TSType::TSTupleType(tut) => {
+                let mut members = AstVec::new_in(allocator);
+
+                for member in tut.element_types.iter() {
+                    match member {
+                        TSTupleElement::TSLiteralType(tlt) => {
+                            members.push(TSType::TSLiteralType(tlt.clone_in(allocator)));
+                        }
+                        _ => {}
+                    }
+                }
+
+                return TSType::TSUnionType(AstBox::new_in(
+                    TSUnionType {
+                        span: Default::default(),
+                        types: members,
+                    },
+                    allocator,
+                ));
+            }
+            TSType::TSParenthesizedType(tpt) => {
+                return flatten_index_access_type(
+                    &tpt.type_annotation,
+                    index_type,
                     semantic,
                     allocator,
                     result_program,
                 );
-
-                if let Some(ts_type) = result {
+            }
+            _ => {}
+        },
+        TSType::TSLiteralType(tlt) => match &tlt.literal {
+            TSLiteral::StringLiteral(sl) => {
+                if let Some(ts_type) = utils::get_field_type(
+                    sl.value.as_str(),
+                    object_type,
+                    semantic,
+                    allocator,
+                    result_program,
+                ) {
                     return ts_type;
                 }
             }
-        }
+            TSLiteral::NumericLiteral(nl) => match object_type {
+                TSType::TSTupleType(tut) => {
+                    let mut members = AstVec::new_in(allocator);
+
+                    for member in tut.element_types.iter() {
+                        match member {
+                            TSTupleElement::TSLiteralType(tlt) => {
+                                members.push(TSType::TSLiteralType(tlt.clone_in(allocator)));
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    if let Some(ts_type) = members.get(nl.value as usize) {
+                        return ts_type.clone_in(allocator);
+                    };
+                }
+                TSType::TSParenthesizedType(tpt) => {
+                    return flatten_index_access_type(
+                        &tpt.type_annotation,
+                        index_type,
+                        semantic,
+                        allocator,
+                        result_program,
+                    );
+                }
+                _ => {}
+            },
+            _ => {}
+        },
         TSType::TSUnionType(tut) => {
             let mut members = AstVec::new_in(allocator);
 
             for mebmer in &tut.types {
                 members.push(flatten_index_access_type(
-                    allocator.alloc(object_type.clone_in(allocator)),
+                    object_type,
                     mebmer,
                     semantic,
                     allocator,

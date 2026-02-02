@@ -125,13 +125,13 @@ impl<'a> Flatten<'a> {
             let mut map = HashMap::new_in(self.allocator);
 
             for decl in utils::get_type(name, &semantic, &self.allocator, result) {
-                if let Some((name, decl)) = decl.flatten_type(&semantic, &self.allocator, result) {
-                    let decls = map
-                        .entry(name)
-                        .or_insert_with(|| AstVec::new_in(self.allocator));
+                let (name, decl) = decl.flatten_type(&semantic, &self.allocator, result);
 
-                    decls.push(decl);
-                }
+                let decls = map
+                    .entry(name)
+                    .or_insert_with(|| AstVec::new_in(self.allocator));
+
+                decls.push(decl);
             }
 
             //

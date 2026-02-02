@@ -244,14 +244,7 @@ impl<'a> ResultProgram<'a> {
         let decls = self
             .cached
             .iter()
-            .filter(|(key, _)| match key {
-                DeclName::Interface(name)
-                | DeclName::TypeAlias(name)
-                | DeclName::Class(name)
-                | DeclName::Function(name) => *name == refer_name,
-                _ => false,
-            })
-            // .flat_map(|(_, item)| item.iter())
+            .filter(|(key, _)| key.name() == refer_name)
             .collect::<Vec<_>>();
 
         if decls.len() > 0 {
