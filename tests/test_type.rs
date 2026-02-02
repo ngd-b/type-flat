@@ -438,3 +438,19 @@ fn test_conditional_type_with_generic_recursive() {
     assert!(result.contains("type Flatten<T> = T extends Array<infer U> ? Flatten<U> : T;"));
     assert!(result.contains("type Flattened = Flatten<number[][][]>;"));
 }
+
+// 测试常量类型的 typeof 取值操作
+#[test]
+fn test_typeof_variable_type() {
+    let content = r#"
+        declare const Name: ["Admin", "Test", "hboot"];
+        type Names = (typeof Name)[number];
+        type FirstName = (typeof Name)[0];
+        "#;
+    let result = run_flat(content, "Names");
+
+    assert!(result.contains("type Names = \"Admin\" | \"Test\" | \"hboot\""));
+
+    let result = run_flat(content, "FirstName");
+    assert!(result.contains("type FirstName = \"Admin\""));
+}
