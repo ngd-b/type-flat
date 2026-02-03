@@ -45,13 +45,23 @@ pub fn flatten_type<'a>(
 
     let env_keys = generic::get_generic_keys(&env, allocator);
     //
-    let result = flatten_ts_type(
+    let result = flatten_ts_reference_type(
         &ts_type.type_annotation,
         semantic,
         allocator,
         result_program,
         env_keys.clone_in(allocator),
-    );
+        false,
+    )
+    .unwrap_or_else(|| {
+        flatten_ts_type(
+            &ts_type.type_annotation,
+            semantic,
+            allocator,
+            result_program,
+            env_keys.clone_in(allocator),
+        )
+    });
 
     let mut new_type = ts_type.clone_in(allocator);
     // new_type.type_parameters = None;

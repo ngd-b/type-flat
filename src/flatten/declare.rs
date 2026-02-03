@@ -170,6 +170,8 @@ impl<'a> DeclRef<'a> {
      * 4. interface + class
      */
     pub fn merge_decl(&self, decl: &DeclRef<'a>, allocator: &'a Allocator) -> Option<DeclRef<'a>> {
+        info!("Merge the multiple type alias.");
+
         match (self, decl) {
             (DeclRef::Class(drc), DeclRef::Interface(dri)) => {
                 // merge the interface decl to class declare
@@ -370,6 +372,22 @@ pub fn merge_decls<'a>(
         }
     }
 
+    // Filter members of the same declare about class and interface
+    if has_class && has_interface {
+        let mut result: AstVec<'_, &CacheDecl<'_>> = AstVec::new_in(allocator);
+
+        for &decl in merge_decls.iter() {
+            let mut new_decl = decl.clone_in(allocator);
+
+            new_decl.extra_members = decl
+                .extra_members
+                .filter_by(allocator.alloc(members.clone_in(allocator)), allocator);
+
+            result.push(allocator.alloc(new_decl.clone_in(allocator)));
+        }
+
+        merge_decls = result;
+    }
     let target_decl = if let Some((_, decl)) = decls.iter().find(|(name, _)| {
         if has_class {
             return **name == DeclName::Class(name.name());
@@ -388,23 +406,7 @@ pub fn merge_decls<'a>(
     };
 
     if !diff_merge {
-        let mut result: AstVec<'_, &CacheDecl<'_>> = AstVec::new_in(allocator);
-
-        return if has_class && has_interface {
-            for &decl in merge_decls.iter() {
-                let mut new_decl = decl.clone_in(allocator);
-
-                new_decl.extra_members = decl
-                    .extra_members
-                    .filter_by(allocator.alloc(members.clone_in(allocator)), allocator);
-
-                result.push(allocator.alloc(new_decl.clone_in(allocator)));
-            }
-
-            result
-        } else {
-            merge_decls
-        };
+        return merge_decls;
     }
 
     let mut result = AstVec::new_in(allocator);
@@ -415,6 +417,8 @@ pub fn merge_decls<'a>(
     }
 
     let mut cache_decl = target_decl.clone_in(allocator);
+
+    let mut extra_members = cache_decl.extra_members.clone_in(allocator);
     for decl in merge_decls.iter() {
         if has_class && let DeclRef::Class(_) = decl.decl {
             continue;
@@ -434,13 +438,13 @@ pub fn merge_decls<'a>(
         }
         if let Some(new_decl) = cache_decl.decl.merge_decl(&decl.decl, allocator) {
             cache_decl.decl = new_decl;
-            cache_decl.extra_members = cache_decl
-                .extra_members
-                .merge(&decl.extra_members, allocator);
+            extra_members = extra_members.merge(&decl.extra_members, allocator);
         } else {
             result.push(*decl)
         }
     }
+
+    cache_decl.extra_members = extra_members;
     result.push(allocator.alloc(cache_decl));
 
     return result;
