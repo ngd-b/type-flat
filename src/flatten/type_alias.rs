@@ -236,13 +236,16 @@ pub fn flatten_ts_type<'a>(
                 env.clone_in(allocator),
             );
 
-            new_type = flatten_index_access_type(
+            let flat_type = flatten_index_access_type(
                 allocator.alloc(object_type),
                 allocator.alloc(index_type),
                 semantic,
                 allocator,
                 result_program,
             );
+            if !matches!(flat_type, TSType::TSIndexedAccessType(_)) {
+                new_type = flat_type;
+            }
         }
         TSType::TSTypeQuery(tq) => match &tq.expr_name {
             TSTypeQueryExprName::IdentifierReference(ir) => {
