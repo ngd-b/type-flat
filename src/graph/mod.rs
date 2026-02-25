@@ -46,7 +46,7 @@ impl<'a> GraphFlatten<'a> {
         let mut path = HashSet::new_in(allocator);
         let mut stack: Vec<(&'a RefCell<Graph<'a>>, bool)> = Vec::new();
         let mut result = AstVec::new_in(allocator);
-        let mut cycle_nodes = AstVec::new_in(allocator);
+        let mut loop_nodes = AstVec::new_in(allocator);
 
         info!(
             "【Graph】build graph links start. the node len {}",
@@ -77,8 +77,8 @@ impl<'a> GraphFlatten<'a> {
             if path.contains(name) {
                 node.borrow_mut().set_self_loop(true);
 
-                if !cycle_nodes.iter().any(|&cycle_node| node.eq(cycle_node)) {
-                    cycle_nodes.push(node);
+                if !loop_nodes.iter().any(|&cycle_node| node.eq(cycle_node)) {
+                    loop_nodes.push(node);
                 }
 
                 continue;
@@ -103,7 +103,7 @@ impl<'a> GraphFlatten<'a> {
             result.len()
         );
 
-        (result, cycle_nodes)
+        (result, loop_nodes)
     }
 }
 

@@ -275,6 +275,9 @@ impl<'a> ResultProgram<'a> {
             })
             .collect::<Vec<_>>();
 
+        if decls.is_empty() {
+            return result;
+        }
         decls.sort_by_key(|(key, _)| key.level());
 
         let merge_decls = declare::merge_decls(decls, false, self.allocator);

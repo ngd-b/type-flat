@@ -78,11 +78,11 @@ impl<'a> Flatten<'a> {
 
         let graph_flatten = graph::GraphFlatten::build(&entries, &semantic, self.allocator);
 
-        let (safe_nodes, cycle_nodes) = graph_flatten.flatten(self.allocator);
+        let (safe_nodes, loop_nodes) = graph_flatten.flatten(self.allocator);
 
         let mut result = self.result_program();
 
-        for &cycle_node in cycle_nodes.iter() {
+        for &cycle_node in loop_nodes.iter() {
             result.loop_type.insert(cycle_node.borrow().name);
         }
 
@@ -93,10 +93,22 @@ impl<'a> Flatten<'a> {
         }
 
         // flatten all types
-        self.flatten_ts(safe_nodes, &semantic, &mut result);
+        self.flatten_ts(&safe_nodes, &semantic, &mut result, false);
+        // Two times to flatten the type. because the type my be referenced each other.
+        if loop_nodes.len() > 0 {
+            self.flatten_ts(&safe_nodes, &semantic, &mut result, true);
+        }
+
+        // add loop Class
+        for node in loop_nodes.iter() {
+            let name = node.borrow().name;
+            for decl in result.format_cached(name) {
+                info!("Add loop type 【{}】 ", name);
+                result.push(decl);
+            }
+        }
 
         // add target type
-
         for name in type_names.iter() {
             for decl in result.format_cached(name) {
                 result.push(decl);
@@ -108,9 +120,10 @@ impl<'a> Flatten<'a> {
 
     pub fn flatten_ts(
         &'a self,
-        nodes: AstVec<'a, &'a RefCell<Graph<'a>>>,
+        nodes: &'a AstVec<'a, &'a RefCell<Graph<'a>>>,
         semantic: &Semantic<'a>,
         result: &mut ResultProgram<'a>,
+        get_from_cache: bool,
     ) {
         for node in nodes.iter() {
             let name = node.borrow().name;
@@ -124,7 +137,12 @@ impl<'a> Flatten<'a> {
 
             let mut map = HashMap::new_in(self.allocator);
 
-            for decl in utils::get_type(name, &semantic, &self.allocator, result) {
+            let decls = if get_from_cache {
+                result.format_cached(name)
+            } else {
+                utils::get_type(name, &semantic, &self.allocator, result)
+            };
+            for decl in decls {
                 let (name, decl) = decl.flatten_type(&semantic, &self.allocator, result);
 
                 let decls = map
@@ -140,20 +158,6 @@ impl<'a> Flatten<'a> {
 
                 result.cached.insert(name, cache_decl);
             }
-        }
-
-        // add loop Class
-        let mut loop_type = AstVec::new_in(&self.allocator);
-
-        for name in result.loop_type.iter() {
-            for decl in result.format_cached(name) {
-                info!("Add loop type 【{}】 ", name);
-                loop_type.push(decl);
-            }
-        }
-
-        for decl in loop_type.iter() {
-            result.push(*decl);
         }
     }
 }
