@@ -78,6 +78,7 @@ impl<'a> GraphFlatten<'a> {
                 node.borrow_mut().set_self_loop(true);
 
                 if !loop_nodes.iter().any(|&cycle_node| node.eq(cycle_node)) {
+                    info!("【Graph】the loop node is {:?}", name);
                     loop_nodes.push(node);
                 }
 

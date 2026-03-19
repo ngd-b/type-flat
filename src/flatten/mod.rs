@@ -96,6 +96,8 @@ impl<'a> Flatten<'a> {
         self.flatten_ts(&safe_nodes, &semantic, &mut result, false);
         // Two times to flatten the type. because the type my be referenced each other.
         if loop_nodes.len() > 0 {
+            info!("Start to flatten the type again.");
+            info!("It's will resolve some circular reference.");
             self.flatten_ts(&safe_nodes, &semantic, &mut result, true);
         }
 

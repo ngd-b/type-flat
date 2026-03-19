@@ -245,6 +245,8 @@ pub fn flatten_ts_type<'a>(
             );
             if !matches!(flat_type, TSType::TSIndexedAccessType(_)) {
                 new_type = flat_type;
+            } else {
+                info!("The type of【IndexedAccessType】is not flattened!");
             }
         }
         TSType::TSTypeQuery(tq) => match &tq.expr_name {
