@@ -866,6 +866,50 @@ pub fn flatten_ts_mapped_type<'a>(
     TSType::TSMappedType(AstBox::new_in(new_mapped_type, allocator))
 }
 
+/// Check if a conditional type references itself (recursive)
+fn is_recursive_conditional<'a>(
+    ct: &'a TSConditionalType<'a>,
+    type_name: &str,
+    _allocator: &'a Allocator,
+) -> bool {
+    fn check_type<'a>(ts_type: &'a TSType<'a>, name: &str) -> bool {
+        match ts_type {
+            TSType::TSTypeReference(ttr) => {
+                if let TSTypeName::IdentifierReference(ir) = &ttr.type_name {
+                    if ir.name.as_str() == name {
+                        return true;
+                    }
+                }
+                // Check type arguments
+                if let Some(args) = &ttr.type_arguments {
+                    for arg in args.params.iter() {
+                        if check_type(arg, name) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            TSType::TSConditionalType(ct) => {
+                check_type(&ct.check_type, name)
+                    || check_type(&ct.extends_type, name)
+                    || check_type(&ct.true_type, name)
+                    || check_type(&ct.false_type, name)
+            }
+            TSType::TSUnionType(ut) => ut.types.iter().any(|t| check_type(t, name)),
+            TSType::TSIntersectionType(it) => it.types.iter().any(|t| check_type(t, name)),
+            TSType::TSArrayType(at) => check_type(&at.element_type, name),
+            TSType::TSParenthesizedType(pt) => check_type(&pt.type_annotation, name),
+            TSType::TSIndexedAccessType(iat) => {
+                check_type(&iat.object_type, name) || check_type(&iat.index_type, name)
+            }
+            _ => false,
+        }
+    }
+
+    check_type(&ct.true_type, type_name) || check_type(&ct.false_type, type_name)
+}
+
 ///
 /// Flatten the reference type
 ///
@@ -919,7 +963,6 @@ pub fn flatten_ts_reference_type<'a>(
 
         if let Some(decl) = result_program.get_cached(reference_name) {
             // Merge the parent env with the current env. and replace the members withe the parent env type.
-
             let result = generic::merge_type_with_generic(
                 allocator.alloc(type_params.clone_in(allocator)),
                 &decl,
@@ -938,6 +981,13 @@ pub fn flatten_ts_reference_type<'a>(
                 decl.type_members(allocator)
             };
 
+            // If the result is still a conditional type (couldn't be fully evaluated),
+            // check if it references itself (recursive). If so, keep the type reference.
+            if let TSType::TSConditionalType(ct) = &ts_type {
+                if is_recursive_conditional(&ct, reference_name, allocator) {
+                    return Some(new_type.clone_in(allocator));
+                }
+            }
             new_type = ts_type
         }
 
