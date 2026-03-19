@@ -786,10 +786,29 @@ pub fn flatten_ts_mapped_type<'a>(
                     };
 
                     if type_name == &key_name {
+                        // Resolve the object_type (e.g., User) to its actual type literal
+                        let resolved_object_type = flatten_ts_reference_type(
+                            &tia.object_type,
+                            semantic,
+                            allocator,
+                            result_program,
+                            env.clone_in(allocator),
+                            false,
+                        )
+                        .unwrap_or_else(|| {
+                            flatten_ts_type(
+                                &tia.object_type,
+                                semantic,
+                                allocator,
+                                result_program,
+                                env.clone_in(allocator),
+                            )
+                        });
+
                         for key in keys.iter() {
                             let key_type = utils::get_field_type(
                                 key.as_str(),
-                                allocator.alloc(tia.object_type.clone_in(allocator)),
+                                allocator.alloc(resolved_object_type.clone_in(allocator)),
                                 semantic,
                                 allocator,
                                 result_program,
