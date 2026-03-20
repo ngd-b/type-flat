@@ -118,7 +118,7 @@ impl<'a> Keyword<'a> {
                 allocator,
                 result_program,
                 env.clone_in(allocator),
-                false,
+                true,  // Enable loop detection to prevent stack overflow
             )
             .unwrap_or_else(|| {
                 type_alias::flatten_ts_type(
@@ -327,16 +327,30 @@ pub fn get_type_members<'a>(
 ) -> AstVec<'a, TSSignature<'a>> {
     // let ts_type = type_alias::flatten_ts_type(ts_type, semantic, allocator, result_program, env);
 
-    let members = AstVec::new_in(allocator);
-
     if let Some(flat_type) = type_alias::flatten_ts_reference_type(
         ts_type,
         semantic,
         allocator,
         result_program,
         env.clone_in(allocator),
-        false,
+        true,  // Enable loop detection
     ) {
+        // If it's a type reference (loop type), try to get members from the original cached type
+        if let TSType::TSTypeReference(ttr) = &flat_type {
+            if let TSTypeName::IdentifierReference(ir) = &ttr.type_name {
+                let type_name = ir.name.as_str();
+                // Get the cached declaration to extract members directly
+                if let Some(cached) = result_program.get_cached(type_name) {
+                    let cached_type = cached.type_members(allocator);
+                    // Extract members directly from the cached type if it's a type literal
+                    if let TSType::TSTypeLiteral(ttl) = cached_type {
+                        return ttl.members.clone_in(allocator);
+                    }
+                }
+            }
+            // If we can't get cached type, return empty members
+            return AstVec::new_in(allocator);
+        }
         return get_type_members(
             allocator.alloc(flat_type),
             semantic,
@@ -350,7 +364,7 @@ pub fn get_type_members<'a>(
         _ => {}
     }
 
-    members
+    AstVec::new_in(allocator)
 }
 
 ///
@@ -454,13 +468,13 @@ pub fn flatten_pick_omit<'a>(
 
     // reference type name
     let refer_type = if let Some(ts_type) = params.get(0) {
-        type_alias::flatten_ts_reference_type(
+        let flat_type = type_alias::flatten_ts_reference_type(
             ts_type,
             semantic,
             allocator,
             result_program,
             env.clone_in(allocator),
-            false,
+            true,  // Enable loop detection
         )
         .unwrap_or_else(|| {
             type_alias::flatten_ts_type(
@@ -470,7 +484,23 @@ pub fn flatten_pick_omit<'a>(
                 result_program,
                 env.clone_in(allocator),
             )
-        })
+        });
+        // If the type is a reference (loop type), get the cached type members instead
+        if let TSType::TSTypeReference(ttr) = &flat_type {
+            if let TSTypeName::IdentifierReference(ir) = &ttr.type_name {
+                let type_name = ir.name.as_str();
+                // Get the cached declaration to extract members directly
+                if let Some(cached) = result_program.get_cached(type_name) {
+                    cached.type_members(allocator)
+                } else {
+                    return new_type;
+                }
+            } else {
+                return new_type;
+            }
+        } else {
+            flat_type
+        }
     } else {
         return new_type;
     };
@@ -543,7 +573,7 @@ pub fn get_literal_keys<'a>(
                     allocator,
                     result_program,
                     env.clone_in(allocator),
-                    false,
+                    true,  // Enable loop detection
                 )
                 .unwrap_or_else(|| {
                     type_alias::flatten_ts_type(
@@ -554,14 +584,17 @@ pub fn get_literal_keys<'a>(
                         env.clone_in(allocator),
                     )
                 });
-                get_literal_keys(
-                    allocator.alloc(flat_type),
-                    arr,
-                    semantic,
-                    allocator,
-                    result_program,
-                    env.clone_in(allocator),
-                );
+                // Skip if it's a type reference (loop type)
+                if !matches!(flat_type, TSType::TSTypeReference(_)) {
+                    get_literal_keys(
+                        allocator.alloc(flat_type),
+                        arr,
+                        semantic,
+                        allocator,
+                        result_program,
+                        env.clone_in(allocator),
+                    );
+                }
             }
         }
         _ => {}
