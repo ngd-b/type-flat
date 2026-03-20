@@ -7,6 +7,7 @@ use oxc_ast::ast::{
     TSTypeOperatorOperator, TSTypeParameterInstantiation, TSTypeQueryExprName, TSUnionType,
 };
 use oxc_semantic::Semantic;
+use std::cell::RefCell;
 
 use tracing::info;
 
@@ -19,6 +20,26 @@ use crate::flatten::{
     result::{CacheDecl, ResultProgram},
     utils::{self},
 };
+
+// Thread-local storage for tracking types currently being flattened
+thread_local! {
+    static FLATTENING_TYPES: RefCell<std::collections::HashSet<String>> = RefCell::new(std::collections::HashSet::new());
+}
+
+/// Check if a type is currently being flattened
+fn is_flattening(name: &str) -> bool {
+    FLATTENING_TYPES.with(|set| set.borrow().contains(name))
+}
+
+/// Mark a type as being flattened
+fn begin_flatten(name: &str) {
+    FLATTENING_TYPES.with(|set| set.borrow_mut().insert(name.to_string()));
+}
+
+/// Unmark a type as being flattened
+fn end_flatten(name: &str) {
+    FLATTENING_TYPES.with(|set| set.borrow_mut().remove(name));
+}
 
 ///
 /// Flattens a type alias declaration into a single type
@@ -941,7 +962,14 @@ pub fn flatten_ts_reference_type<'a>(
 
         let mut new_type = TSType::TSTypeReference(new_refer_type);
 
+        // Check if this type is in the pre-detected loop_type set
         if need_check_loop && result_program.loop_type.contains(reference_name) {
+            return Some(new_type.clone_in(allocator));
+        }
+
+        // Check if this type is currently being flattened (circular reference during flattening)
+        if need_check_loop && is_flattening(reference_name) {
+            info!("Circular reference detected during flattening: {}, keeping reference", reference_name);
             return Some(new_type.clone_in(allocator));
         }
 
@@ -962,6 +990,12 @@ pub fn flatten_ts_reference_type<'a>(
         }
 
         if let Some(decl) = result_program.get_cached(reference_name) {
+            // Mark this type as being flattened
+            let was_flattening = is_flattening(reference_name);
+            if !was_flattening && need_check_loop {
+                begin_flatten(reference_name);
+            }
+
             // Merge the parent env with the current env. and replace the members withe the parent env type.
             let result = generic::merge_type_with_generic(
                 allocator.alloc(type_params.clone_in(allocator)),
@@ -980,6 +1014,11 @@ pub fn flatten_ts_reference_type<'a>(
             } else {
                 decl.type_members(allocator)
             };
+
+            // Unmark this type as being flattened
+            if !was_flattening && need_check_loop {
+                end_flatten(reference_name);
+            }
 
             // If the result is still a conditional type (couldn't be fully evaluated),
             // check if it references itself (recursive). If so, keep the type reference.

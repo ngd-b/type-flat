@@ -114,6 +114,7 @@ impl<'a> ResultProgram<'a> {
             loop_type: HashSet::new_in(allocator),
         }
     }
+
     pub fn has_decl(&self, name: DeclName<'a>) -> bool {
         self.program.body.iter().any(|st| match st {
             Statement::TSInterfaceDeclaration(decl) => DeclName::Interface(&decl.id.name) == name,
