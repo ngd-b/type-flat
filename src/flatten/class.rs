@@ -141,7 +141,7 @@ pub fn flatten_super_class<'a>(
                         allocator,
                         result_program,
                         env_keys.clone_in(allocator),
-                        false,
+                        true,  // Check for loop types
                     )
                     .unwrap_or(type_alias::flatten_ts_type(
                         allocator.alloc(flat_type),
